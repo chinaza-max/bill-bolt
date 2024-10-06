@@ -47,10 +47,11 @@ export function init(connection) {
       dateOfBirth: {
         type: DataTypes.DATE,
         allowNull: false,
+        allowNull: false,
       },
-      role: {
-        type: DataTypes.STRING,
-        defaultValue: 'client',
+      merchantActivated: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
       },
       disableAccount: {
         type: DataTypes.BOOLEAN,
