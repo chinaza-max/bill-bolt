@@ -1,4 +1,4 @@
-import ProspectiveTenant, { init as initProspectiveTenant } from "./prospectiveTenant.js";
+import ProspectiveTenant, { init as initProspectiveTenant } from "./user.js";
 import Tenant, { init as initTenant } from "./tenant.js";
 import TenantReview, { init as initTenantReview } from "./tenantReview.js";
 import Admin, { init as initAdmin } from "./admin.js";
@@ -7,7 +7,7 @@ import Chat, { init as initChat } from "./chat.js";
 import EmailandTelValidation, { init as initEmailandTelValidation } from "./emailAndTelValidation.js";
 import Inspection, { init as initInspection } from "./inspection.js";
 import PasswordReset, { init as initPasswordReset } from "./passwordReset.js";
-import PropertyManager, { init as initPropertyManager } from "./propertyManager.js";
+import PropertyManager, { init as initPropertyManager } from "./merchant.js";
 import PropertyManagerReview, { init as initPropertyManagerReview } from "./propertyManagerReview.js";
 import Transaction , { init as initTransaction } from "./transaction.js";
 import RefundLog , { init as initRefundLog } from "./RefundLog.js";

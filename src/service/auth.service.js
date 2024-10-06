@@ -156,6 +156,8 @@ class AuthenticationService {
 
   }
 
+
+  /*
   async handleSendVerificationCodeEmailOrTel(data) {
 
     let { 
@@ -1164,7 +1166,7 @@ class AuthenticationService {
       return null;
     }
   }*/
-  
+  /*
 
   async checkRefundUpdate() {
     try {
@@ -1714,6 +1716,8 @@ class AuthenticationService {
             });
             console.log(`Transaction ${transaction.id} updated to ${transactionStatus.paymentStatus}`);
           }*/
+
+            /*
   
         } catch (error) {
           console.error(`Error processing transaction ${transaction.id}:`, error);

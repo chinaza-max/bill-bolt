@@ -499,7 +499,7 @@ export default class AuthenticationController {
     }
     
   }
-
+*/
 /*
   async sendVerificationCodeEmailOrTel(req, res, next) {
 
@@ -534,7 +534,7 @@ export default class AuthenticationController {
     
   }
 */
-  
+  /*
   async uploadPicture(req, res, next) {
 
     try {
@@ -576,8 +576,8 @@ export default class AuthenticationController {
     }
     
   }
-
-
+*/
+/*
   validateMonnifyIP = (req, res, next) => {
     const clientIP = req.ip;
     if (clientIP !== serverConfig.MONNIFY_IP) {
@@ -599,7 +599,7 @@ export default class AuthenticationController {
     }
     next();
   };
-
+*/
 
 }
 
