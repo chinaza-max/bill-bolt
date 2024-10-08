@@ -1,10 +1,10 @@
   import { Model, DataTypes } from "sequelize";
 
 
-  class PropertyManager extends Model {}
+  class MerchantProfile extends Model {}
 
   export function init(connection) {
-    PropertyManager.init(
+    MerchantProfile.init(
       {
         id: {
           type: DataTypes.INTEGER,
@@ -13,7 +13,7 @@
         },
         emailAddress: {
           type: DataTypes.STRING,
-          allowNull: false,
+          allowNull: true,
         },
         isEmailValid: {
           type: DataTypes.BOOLEAN,
@@ -32,18 +32,10 @@
           type: DataTypes.STRING,
           allowNull: true,
         },
-        firstName: {
+        displayname: {
           type: DataTypes.STRING,
           allowNull: false,
         },
-        lastName: {
-          type: DataTypes.STRING,
-          allowNull: false,
-        }, 
-        password: {
-          type: DataTypes.STRING,
-          allowNull: false,
-        }, 
         userId: {
           type: DataTypes.INTEGER,
           allowNull: true,
@@ -59,14 +51,14 @@
           defaultValue:false ,
         }
       }, {
-        tableName: 'PropertyManager',
+        tableName: 'MerchantProfile',
         sequelize: connection,
         timestamps: true,
         underscored:false
     });
   }
 
-  export default PropertyManager;
+  export default MerchantProfile;
 
 
 

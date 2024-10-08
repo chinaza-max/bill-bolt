@@ -10,9 +10,11 @@ class AuthRoutes extends AuthController {
   }
 
   routes() {
+  
 
     this.router.post("/registerUser", this.signupUser);
-    this.router.post("/verifyEmailorTel", this.verifyEmailorTel);
+    
+/*    this.router.post("/verifyEmailorTel", this.verifyEmailorTel);
     this.router.post("/sendVerificationCodeEmailOrTel", this.sendVerificationCodeEmailOrTel);
     this.router.post("/loginUser", this.loginUser);
     this.router.post("/sendPasswordResetLink", this.sendPasswordResetLink);
@@ -22,11 +24,11 @@ class AuthRoutes extends AuthController {
     this.router.post("/intializePayment", this.intializePayment);
     
 
-    this.router.post("/webHookMonify",/* this.validateMonnifyIP, this.validateTransactionHash,*/ this.webHookCollectionMonify);
-    this.router.post("/webHookMonifyRefund",/* this.validateMonnifyIP, this.validateTransactionHash,*/ this.webHookMonifyRefund);
-    this.router.post("/webHookMonifyDisbursement",/* this.validateMonnifyIP, this.validateTransactionHash,*/ this.webHookMonifyDisbursement);
-    this.router.post("/authorizeTransfer",/* this.validateMonnifyIP, this.validateTransactionHash,*/ this.authorizeTransfer);
-
+    this.router.post("/webHookMonify",/* this.validateMonnifyIP, this.validateTransactionHash, this.webHookCollectionMonify);
+    this.router.post("/webHookMonifyRefund",/* this.validateMonnifyIP, this.validateTransactionHash, this.webHookMonifyRefund);
+    this.router.post("/webHookMonifyDisbursement",/* this.validateMonnifyIP, this.validateTransactionHash, this.webHookMonifyDisbursement);
+    this.router.post("/authorizeTransfer",/* this.validateMonnifyIP, this.validateTransactionHash, this.authorizeTransfer);
+*/
 
   }
 }

@@ -7,20 +7,11 @@ class authUtil {
     lastName: Joi.string().required(),
     emailAddress: Joi.string().email().required(),
     password: Joi.string().required(),
-    image: Joi.string().required(),
-    type: Joi.string().valid(
-      'rent',
-      'list',
-      'admin',
-    ).required(),
-    privilege: Joi.string().when('type', {
-      is: Joi.valid('admin'),
-      then: Joi.required(),
-      otherwise: Joi.forbidden(),
-    }),
+    tel: Joi.number().integer().required(),
+    telCode: Joi.string().required(),
   });
 
-
+/*
   verifyHandleVerifyEmailorTel= Joi.object({
     userId: Joi.number().required(),
     validateFor: Joi.string().valid(
@@ -103,6 +94,8 @@ class authUtil {
     password: Joi.string().min(6).required(),
     resetPasswordKey: Joi.string().min(1).required(),
   });
+
+  */
 }
 
 export default new authUtil();

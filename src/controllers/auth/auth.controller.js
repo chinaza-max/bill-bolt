@@ -3,16 +3,12 @@ import serverConfig  from "../../config/server.js";
 
 
 export default class AuthenticationController {
-
-
-
   
   constructor(){
-    this.filterObject=this.filterObject.bind(this)
+    //this.filterObject=this.filterObject.bind(this)
     this.signupUser=this.signupUser.bind(this)
   }
-    
-
+    /*
   async verifyEmailorTelAdmin(req, res, next) {
 
     try {
@@ -77,7 +73,7 @@ export default class AuthenticationController {
     }
     
   }
- 
+ */
   
   
   async signupUser(req, res, next) {
@@ -109,7 +105,7 @@ export default class AuthenticationController {
     
   }
   
-
+  /*
   filterObject(obj, keysToRemove) {
 
     console.log(obj)
@@ -374,10 +370,10 @@ export default class AuthenticationController {
       next(error);
     }
   }
+*/
 
 
-
-  
+  /*
   async intializePayment(
     req,
     res,
@@ -402,7 +398,7 @@ export default class AuthenticationController {
     } catch (error) {
       next(error);
     }
-  }
+  }*/
 
 
   
@@ -422,7 +418,7 @@ export default class AuthenticationController {
       next(error);
     }
   }
-  
+  /*
   async validateBankAccount(
     req,
     res,
@@ -500,6 +496,7 @@ export default class AuthenticationController {
     
   }
 */
+
 /*
   async sendVerificationCodeEmailOrTel(req, res, next) {
 

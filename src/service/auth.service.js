@@ -1,15 +1,9 @@
 import jwt from "jsonwebtoken";
 import bcrypt from'bcrypt';
-import { Tenant, 
-     PropertyManager, 
-     PasswordReset , 
-     Transaction , 
-     RefundLog , 
-     Building , 
-     Inspection , 
-     ProspectiveTenant , 
-     EmailandTelValidation , 
-      Admin
+import { 
+    User, 
+    PasswordReset , 
+    EmailandTelValidation
    } from "../db/models/index.js";
 import serverConfig from "../config/server.js";
 import authUtil from "../utils/auth.util.js";
@@ -28,16 +22,10 @@ import { Op } from "sequelize";
 
 
 class AuthenticationService {
-  TenantModel = Tenant;
-  PropertyManagerModel=PropertyManager;
+  UserModel = User;
   PasswordResetModel=PasswordReset;
   EmailandTelValidationModel=EmailandTelValidation;
-  TransactionModel=Transaction;
-  BuildingModel=Building;
-  InspectionModel=Inspection;
-  RefundLogModel=RefundLog
-  ProspectiveTenantModel=ProspectiveTenant
-  AdminModel= Admin
+ 
 
 
 
