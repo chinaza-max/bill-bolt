@@ -54,37 +54,40 @@ class AuthenticationService {
         lastName,
         emailAddress,
         password,
-        type,
-        image,
-        privilege
+        tel,
+        telCode,
       } = await authUtil.verifyUserCreationData.validateAsync(data);
   
     let hashedPassword;
     try {
+
       hashedPassword = await bcrypt.hash(
         password,
         Number(serverConfig.SALT_ROUNDS)
       );
-    } catch (error) { 
+      
+    } 
+    catch (error) { 
       console.log(error)
       throw new SystemError(error);
     }
 
-   
-    if(type==="list"){
-      let existingUser = await this.isUserEmailExisting(emailAddress,this.PropertyManagerModel);
+      let existingUser = await this.isUserEmailExisting(emailAddress,this.UserModel);
 
       if (existingUser != null)throw new ConflictError(existingUser);
   
       try {
-        const user = await this.PropertyManagerModel.create({
+        const user = await this.UserModel.create({
           firstName,
           lastName,
           emailAddress,
           password:hashedPassword,
-          image
+          tel,
+          telCode,
       });
-      await this.sendEmailVerificationCode(user.emailAddress,user.id,type)
+
+      const validateFor="user"
+      await this.sendEmailVerificationCode(user.emailAddress,user.id,validateFor)
       
       return user;
   
@@ -92,55 +95,7 @@ class AuthenticationService {
         console.log(error)
         throw new SystemError(error.name,error.parent)
       }
-    }
-    else if(type==="list"){
-
-
-      let existingUser = await this.isUserEmailExisting(emailAddress, this.ProspectiveTenantModel );
-      if (existingUser != null)throw new ConflictError(existingUser);
-      
-      
-      try {
-        const user = await this.ProspectiveTenantModel.create({
-          firstName,
-          lastName,
-          emailAddress,
-          password:hashedPassword,
-          image
-      });
-      await this.sendEmailVerificationCode(user.emailAddress,user.id,type)
-      
-      return user;
   
-      } catch (error) {
-        console.log(error)
-        throw new SystemError(error.name,error.parent)
-      }
-
-    }
-    else{
-
-      let existingUser = await this.isUserEmailExisting(emailAddress, this.AdminModel );
-      if (existingUser != null)throw new ConflictError(existingUser);
-      
-      try {
-        const user = await this.AdminModel.create({
-          firstName,
-          lastName,
-          emailAddress,
-          password:hashedPassword,
-          image,
-          privilege
-      });
-      await this.sendEmailVerificationCode(user.emailAddress,user.id,type)
-      
-      return user;
-  
-      } catch (error) {
-        console.log(error)
-        throw new SystemError(error.name,error.parent)
-      }
-    }
 
   }
 
@@ -1418,7 +1373,7 @@ class AuthenticationService {
     }
 
   }
-
+*/
 
   async handleVerifyEmailorTel(data) {
 
@@ -1447,20 +1402,23 @@ class AuthenticationService {
 
     let relatedUser
 
-    if(validateFor=='list'){
-      relatedUser = await this.PropertyManagerModel.findOne({
+    if(validateFor=='user'){
+
+      relatedUser = await this.UserModel.findOne({
         where: { id: relatedEmailoRTelValidationCode.userId },
       });
     }
     else if(validateFor=='rent'){
-      relatedUser = await this.ProspectiveTenantModel.findOne({
+      /*relatedUser = await this.ProspectiveTenantModel.findOne({
         where: { id: relatedEmailoRTelValidationCode.userId },
-      });
+      });*/
     }
     else{
+      /*
       relatedUser = await this.AdminModel.findOne({
         where: { id: relatedEmailoRTelValidationCode.userId },
       });
+      */
     }
    
 
@@ -1499,6 +1457,8 @@ class AuthenticationService {
 
   }
 
+
+/*
 
   async  isUserEmailExisting(emailAddress,Model) {
 
@@ -1557,7 +1517,7 @@ class AuthenticationService {
               verificationCode:verificationCode,
               email: emailAddress,
             },
-          });
+          })
   
       } catch (error) {
           console.log(error)
@@ -1574,6 +1534,7 @@ class AuthenticationService {
 
   }
 
+  /*
   async  sendTelVerificationCode(tel, userId) {
 
 

@@ -33,6 +33,8 @@ export default class AuthenticationController {
     }
     
   }
+  */
+
   
   async verifyEmailorTel(req, res, next) {
 
@@ -73,7 +75,7 @@ export default class AuthenticationController {
     }
     
   }
- */
+ 
   
   
   async signupUser(req, res, next) {
@@ -105,11 +107,8 @@ export default class AuthenticationController {
     
   }
   
-  /*
+  
   filterObject(obj, keysToRemove) {
-
-    console.log(obj)
-    console.log(keysToRemove)
 
     return Object.keys(obj)
     .filter(key => !keysToRemove.includes(key))
@@ -119,7 +118,7 @@ export default class AuthenticationController {
     }, {});
         
   }
-  
+  /*
   async googleCallback(
     req,
     res,

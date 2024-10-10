@@ -11,27 +11,6 @@
           primaryKey: true,
           autoIncrement: true,
         },
-        emailAddress: {
-          type: DataTypes.STRING,
-          allowNull: true,
-        },
-        isEmailValid: {
-          type: DataTypes.BOOLEAN,
-          defaultValue:false,
-          allowNull: false,
-        },
-        tel: {
-          type: DataTypes.INTEGER,
-          allowNull: true,
-        },
-        isTelValid: {
-          type: DataTypes.BOOLEAN,
-          allowNull: true,
-        },
-        telCode: {
-          type: DataTypes.STRING,
-          allowNull: true,
-        },
         displayname: {
           type: DataTypes.STRING,
           allowNull: false,

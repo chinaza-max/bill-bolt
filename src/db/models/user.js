@@ -46,8 +46,7 @@ export function init(connection) {
       }, 
       dateOfBirth: {
         type: DataTypes.DATE,
-        allowNull: false,
-        allowNull: false,
+        allowNull: true,
       },
       merchantActivated: {
         type: DataTypes.BOOLEAN,

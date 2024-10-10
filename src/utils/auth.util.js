@@ -8,7 +8,7 @@ class authUtil {
     emailAddress: Joi.string().email().required(),
     password: Joi.string().required(),
     tel: Joi.number().integer().required(),
-    telCode: Joi.string().required(),
+    telCode: Joi.string().required(),   
   });
 
 /*
