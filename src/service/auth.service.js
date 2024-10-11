@@ -100,7 +100,7 @@ class AuthenticationService {
   }
 
 
-  /*
+
   async handleSendVerificationCodeEmailOrTel(data) {
 
     let { 
@@ -111,16 +111,12 @@ class AuthenticationService {
 
     let relatedUser
 
-    if(validateFor=='rent'){
-      relatedUser = await this.ProspectiveTenantModel.findOne({
+    if(validateFor=='user'){
+      relatedUser = await this.UserModel.findOne({
         where: { id: userId },
       });
     }
-    else if(validateFor=='list'){
-      relatedUser = await this.PropertyManagerModel.findOne({
-        where: { id: userId },
-      });
-    }
+  
     else{
       relatedUser = await this.AdminModel.findOne({
         where: { id: userId },
@@ -131,11 +127,12 @@ class AuthenticationService {
     if(type==='email'){
       await this.sendEmailVerificationCode(relatedUser.emailAddress,relatedUser.id, validateFor)
     }else{
-      await this.sendTelVerificationCode(relatedUser.tel,relatedUser.id)
+     // await this.sendTelVerificationCode(relatedUser.tel,relatedUser.id)
     }
 
   }
 
+  /*
   async handleSendPasswordResetLink(data) {
     const { emailOrPhone , type } = await authUtil.validateHandleSendPasswordResetLink.validateAsync(data);
 
@@ -1276,7 +1273,7 @@ class AuthenticationService {
     if(user.disableAccount) return 'disabled'
     
     return user;
-  }
+  }*/
 
   async generateToken(user) {
 
@@ -1294,7 +1291,7 @@ class AuthenticationService {
   }
 
 
-  
+  /*
   async handleVerifyEmailorTelAdmin(data) {
 
     let { 
@@ -1392,7 +1389,9 @@ class AuthenticationService {
         type
       },
     })  
-    
+
+    console.log(relatedEmailoRTelValidationCode) 
+       
     if (relatedEmailoRTelValidationCode == null){
       throw new NotFoundError("Invalid verification code");
     } 
@@ -1458,7 +1457,7 @@ class AuthenticationService {
   }
 
 
-/*
+
 
   async  isUserEmailExisting(emailAddress,Model) {
 
@@ -1500,7 +1499,8 @@ class AuthenticationService {
         validateFor,
         verificationCode,
         expiresIn: new Date(keyExpirationMillisecondsFromEpoch),
-      }, {
+      }, 
+      {
         where: {
           userId,
           validateFor

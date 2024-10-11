@@ -11,12 +11,11 @@ class authUtil {
     telCode: Joi.string().required(),   
   });
 
-/*
+
   verifyHandleVerifyEmailorTel= Joi.object({
     userId: Joi.number().required(),
     validateFor: Joi.string().valid(
-      'rent',
-      'list',
+      'user',
       'admin'
     ).required(),
     verificationCode: Joi.number().required(),
@@ -29,12 +28,12 @@ class authUtil {
     verifyHandleSendVerificationCodeEmailOrTel= Joi.object({
       userId: Joi.number().required(),
       validateFor: Joi.string().valid(
-        'rent',
-        'list'
+        'user',
+        'admin'
       ).required(),
       type: Joi.string().required()
     });
-    
+    /*
     verifyHandleUploadPicture= Joi.object({
       userId: Joi.number().required(),
       image: Joi.object({

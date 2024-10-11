@@ -26,8 +26,7 @@ import {
       },
       validateFor: {
         type: DataTypes.ENUM(
-          'list',
-          'rent',
+          'user',
           'admin'
         ),
         allowNull: false,
@@ -48,7 +47,14 @@ import {
       tableName: 'EmailandTelValidation',
       sequelize: connection,
       timestamps: true,
-      underscored:false
+      underscored:false,
+
+      indexes: [
+        {
+          unique: true,
+          fields: ['userId', 'validateFor']
+        }
+      ]
     });
   }
 

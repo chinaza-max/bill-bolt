@@ -461,7 +461,7 @@ export default class AuthenticationController {
       next(error);
     }
   }
-  
+  */
   async sendVerificationCodeEmailOrTel(req, res, next) {
 
     try {
@@ -494,7 +494,7 @@ export default class AuthenticationController {
     }
     
   }
-*/
+
 
 /*
   async sendVerificationCodeEmailOrTel(req, res, next) {
