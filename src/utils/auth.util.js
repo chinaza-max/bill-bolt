@@ -33,6 +33,35 @@ class authUtil {
       ).required(),
       type: Joi.string().required()
     });
+
+
+    verifyHandleLoginUser= Joi.object({
+      password: Joi.string().required(),
+      type:Joi.string().valid(
+        'user',
+        'admin',
+      ).required(),
+      emailAddress: Joi.string().email().required()
+    })
+    
+
+    validateHandleSendPasswordResetLink  = Joi.object({
+      emailOrPhone: Joi.alternatives().try(
+        Joi.string().email(), 
+        Joi.number(), 
+      ).required(),
+      type: Joi.string().valid(
+        'user',
+        'admin'
+      ).required(),
+    });
+
+
+    validatePasswordReset = Joi.object().keys({
+      password: Joi.string().min(6).required(),
+      resetPasswordKey: Joi.string().min(1).required(),
+    });
+ 
     /*
     verifyHandleUploadPicture= Joi.object({
       userId: Joi.number().required(),
@@ -60,28 +89,8 @@ class authUtil {
     });
 
 
-    verifyHandleLoginUser= Joi.object({
-      password: Joi.string().required(),
-      type:Joi.string().valid(
-        'rent',
-        'list',
-        'admin',
-      ).required(),
-      emailAddress: Joi.string().email().required()
-    })
-    
+  
 
-    validateHandleSendPasswordResetLink  = Joi.object({
-      emailOrPhone: Joi.alternatives().try(
-        Joi.string().email(), 
-        Joi.number(), 
-      ).required(),
-      type: Joi.string().valid(
-        'rent',
-        'list',
-        'admin'
-      ).required(),
-    });
  
 
     validateHandleValidateBankAccount= Joi.object().keys({
@@ -89,10 +98,7 @@ class authUtil {
       accountNumber: Joi.string().required(),
     });
     
-  validatePasswordReset = Joi.object().keys({
-    password: Joi.string().min(6).required(),
-    resetPasswordKey: Joi.string().min(1).required(),
-  });
+
 
   */
 }

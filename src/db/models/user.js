@@ -8,17 +8,17 @@ export function init(connection) {
     {
       id: {
         type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true,
+        primaryKey: true,        
+        autoIncrement: true
       },
       emailAddress: {    
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: false
       },
       isEmailValid: {
         type: DataTypes.BOOLEAN,
         defaultValue:false,
-        allowNull: false,
+        allowNull: false
       },
       tel: {
         type: DataTypes.INTEGER,
@@ -40,6 +40,11 @@ export function init(connection) {
         type: DataTypes.STRING,
         allowNull: false,
       }, 
+      country: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue:"NIGERIA"
+      },
       password: {
         type: DataTypes.STRING,
         allowNull: false,

@@ -107,6 +107,78 @@ export default class AuthenticationController {
     
   }
   
+
+  async loginUser(req, res, next) {
+
+    try {
+
+      const data = req.body;        
+
+      let my_bj = {
+        ...data,
+      }
+      
+      const user=await authService.handleLoginUser(my_bj);
+    
+
+      if (user == null){
+        return res.status(400).json({
+          status: 400,
+          message: "Invalid login credentials",
+        });
+      }
+      else if(user == "disabled"){
+        return res.status(400).json({
+          status: 400,
+          message: "Your account has been disabled",
+        });
+      }
+      
+
+      let generateTokenFrom={id:user.dataValues.id,role:user.dataValues.role}
+
+      const token = await authService.generateToken(generateTokenFrom);
+
+      const excludedProperties = ['isDeleted', 'password'];
+
+      const modifiedUser = Object.keys(user.dataValues)
+        .filter(key => !excludedProperties.includes(key))
+        .reduce((acc, key) => {
+          acc[key] = user.dataValues[key];
+          return acc;
+        }, {});
+        
+      return res.status(200).json({
+        status: 200,
+        message: "login successfully.",
+        data: { user: modifiedUser, token },
+      });
+    } catch (error) {
+      console.log(error);
+      next(error)
+    }
+    
+  }
+
+
+
+  async sendPasswordResetLink(
+    req,
+    res,
+    next
+  ) {
+    try {
+
+      
+      await authService.handleSendPasswordResetLink(req.body);
+      return res.status(200).json({
+        status: 200,
+        message: "A reset link was sent to your email"
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
   
   filterObject(obj, keysToRemove) {
 
@@ -173,59 +245,7 @@ export default class AuthenticationController {
     }
   }
 
-  async loginUser(req, res, next) {
 
-    try {
-
-      const data = req.body;        
-
-      let my_bj = {
-        ...data,
-      }
-      
-      const user=await authService.handleLoginUser(my_bj);
-    
-
-      if (user == null){
-        return res.status(400).json({
-          status: 400,
-          message: "Invalid login credentials",
-        });
-      }
-      else if(user == "disabled"){
-        return res.status(400).json({
-          status: 400,
-          message: "Your account has been disabled",
-        });
-      }
-      
-
-      let generateTokenFrom={id:user.dataValues.id,role:user.dataValues.role}
-
-      const token = await authService.generateToken(generateTokenFrom);
-
-      const excludedProperties = ['isDeleted', 'password'];
-
-
-
-      const modifiedUser = Object.keys(user.dataValues)
-        .filter(key => !excludedProperties.includes(key))
-        .reduce((acc, key) => {
-          acc[key] = user.dataValues[key];
-          return acc;
-        }, {});
-        
-      return res.status(200).json({
-        status: 200,
-        message: "login successfully.",
-        data: { user: modifiedUser, token },
-      });
-    } catch (error) {
-      console.log(error);
-      next(error)
-    }
-    
-  }
 
 
   async loginAdmin(req, res, next) {
@@ -271,23 +291,7 @@ export default class AuthenticationController {
 
 
   
-  async sendPasswordResetLink(
-    req,
-    res,
-    next
-  ) {
-    try {
 
-      
-      await authService.handleSendPasswordResetLink(req.body);
-      return res.status(200).json({
-        status: 200,
-        message: "A reset link was sent to your email"
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
 
 
 
@@ -444,23 +448,7 @@ export default class AuthenticationController {
       next(error);
     }
   }
-  async resetPassword(
-    req,
-    res,
-    next
-  ) {
-    try {
-      await authService.handleResetPassword(req.body);
 
-
-      return res.status(200).json({
-        status: 200,
-        message: "Password updated successufully"
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
   */
   async sendVerificationCodeEmailOrTel(req, res, next) {
 
@@ -495,6 +483,23 @@ export default class AuthenticationController {
     
   }
 
+  async resetPassword(
+    req,
+    res,
+    next
+  ) {
+    try {
+      await authService.handleResetPassword(req.body);
+
+
+      return res.status(200).json({
+        status: 200,
+        message: "Password updated successufully"
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 
 /*
   async sendVerificationCodeEmailOrTel(req, res, next) {

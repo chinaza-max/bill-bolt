@@ -132,18 +132,60 @@ class AuthenticationService {
 
   }
 
-  /*
+
+  async handleLoginUser(data) {
+
+    const { 
+      emailAddress,
+      password ,
+      type
+      }=await authUtil.verifyHandleLoginUser.validateAsync(data);
+
+    let user 
+
+    if(type=="user"){
+
+      user =  await this.UserModel.findOne({
+        where: {
+          emailAddress, 
+          isEmailValid:true, 
+          isDeleted:false
+        }
+      });  
+
+    }
+  
+    else{
+      user =  await this.AdminModel.findOne({
+        where: {
+          emailAddress, 
+          isEmailValid:true,
+          isDeleted:false
+        }
+      });  
+    }
+    
+    if (!user) throw new NotFoundError("User not found.");
+
+    if (!(await bcrypt.compare(password, user.password))) return null;
+   
+    if(user.disableAccount) return 'disabled'
+    
+    return user;
+  }
+  
   async handleSendPasswordResetLink(data) {
+
     const { emailOrPhone , type } = await authUtil.validateHandleSendPasswordResetLink.validateAsync(data);
 
 
     let matchedUser
 
-    if(type=="list"){
+    if(type==="user"){
 
       try {
 
-        matchedUser=await this.PropertyManagerModel.findOne({
+        matchedUser=await this.UserModel.findOne({
           where: {
         [Op.or]: [
           { emailAddress:emailOrPhone},
@@ -165,19 +207,9 @@ class AuthenticationService {
     else{
       try {
 
-        matchedUser=await this.ProspectiveTenantModel.findOne({
-          where: {
-        [Op.or]: [
-          { emailAddress:emailOrPhone},
-          { tel: emailOrPhone }, 
-        ],
-        isEmailValid:true, 
-        disableAccount:false, 
-        isDeleted:false
-      }
-      });
         
-      } catch (error) {
+      } 
+      catch (error) {
           console.log(error)
           throw new SystemError(error.name , error.parent)
       }
@@ -187,9 +219,16 @@ class AuthenticationService {
     if (matchedUser == null){
       throw new NotFoundError("This email does not correspond to any user");
     }
-    var keyExpirationMillisecondsFromEpoch =
+
+
+
+
+    try {
+
+      var keyExpirationMillisecondsFromEpoch =
       new Date().getTime() + 30 * 60 * 1000;
-    var generatedKey = this.generatePassword(true);
+      var generatedKey = this.generatePassword(true);
+
 
     let uniqueId=matchedUser.id+'_'+type
     var relatedPasswordReset = await this.PasswordResetModel.findOrCreate({
@@ -217,13 +256,74 @@ class AuthenticationService {
       subject: "Reset Password",
       templateName: "reset_password",
       variables: {
-        resetLink:serverConfig.NODE_ENV==='development'?`http://localhost/COMPANYS_PROJECT/ResetPassword/sendPasswordLink.html?${params.toString()}`: `${serverConfig.DOMAIN}/adminpanel/Passwor?${params.toString()}`
+        resetLink:serverConfig.NODE_ENV==='development'?`http://localhost/BillBolt/billBoltServer/resetPasswordfile/sendPasswordLink.html?${params.toString()}`: `${serverConfig.DOMAIN}/adminpanel/Passwor?${params.toString()}`
       },
     });
 
+    } catch (error) {
+      throw new SystemError(error.name , error.parent)
+
+    }
 
   }
 
+
+
+
+  async handleResetPassword(data) {
+
+    var {  password, resetPasswordKey } =
+      await authUtil.validatePasswordReset.validateAsync(data);
+
+
+    var relatedPasswordReset = await this.PasswordResetModel.findOne({
+      where: {
+        resetKey: resetPasswordKey,
+      },
+    });
+    
+    if (relatedPasswordReset == null)
+      throw new NotFoundError("Invalid reset link");
+    else if (relatedPasswordReset.expiresIn.getTime() < new Date().getTime())
+      throw new NotFoundError("Reset link expired");
+
+      const parts = relatedPasswordReset.userId.split('_');
+      let relatedUser=null
+      let type=parts[1]
+      let userId=parts[0]
+
+      if(type=='user'){
+        relatedUser = await this.UserModel.findOne({
+          where: { id: userId },
+        });
+      }
+      else{
+       /* relatedUser = await this.ProspectiveTenantModel.findOne({
+          where: { id: userId },
+        });*/
+      }
+     
+
+    if (relatedUser == null)
+      throw new NotFoundError("Selected user cannot be found");
+    try {
+      var hashedPassword = await bcrypt.hash(
+        password,
+        Number(serverConfig.SALT_ROUNDS)
+      );
+
+      relatedUser.update({
+        password: hashedPassword,
+      });
+      relatedPasswordReset.update({
+        expiresIn: new Date(),
+      });
+    } catch (error) {
+      throw new ServerError("Failed to update password");
+    }
+  }
+
+  
   generatePassword(omitSpecial = false, passwordLength = 12) {
     var chars = omitSpecial
       ? "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -236,7 +336,9 @@ class AuthenticationService {
     }
     return password;
   }
-  
+
+
+  /*
   async authorizeTransfer(body) {
 
    
@@ -682,58 +784,7 @@ class AuthenticationService {
   }
 
 
-  async handleResetPassword(data) {
 
-    var {  password, resetPasswordKey } =
-      await authUtil.validatePasswordReset.validateAsync(data);
-
-
-    var relatedPasswordReset = await this.PasswordResetModel.findOne({
-      where: {
-        resetKey: resetPasswordKey,
-      },
-    });
-    
-    if (relatedPasswordReset == null)
-      throw new NotFoundError("Invalid reset link");
-    else if (relatedPasswordReset.expiresIn.getTime() < new Date().getTime())
-      throw new NotFoundError("Reset link expired");
-
-      const parts = relatedPasswordReset.userId.split('_');
-      let relatedUser=null
-      let type=parts[1]
-      let userId=parts[0]
-
-      if(type=='list'){
-        relatedUser = await this.PropertyManagerModel.findOne({
-          where: { id: userId },
-        });
-      }
-      else{
-        relatedUser = await this.ProspectiveTenantModel.findOne({
-          where: { id: userId },
-        });
-      }
-     
-
-    if (relatedUser == null)
-      throw new NotFoundError("Selected user cannot be found");
-    try {
-      var hashedPassword = await bcrypt.hash(
-        password,
-        Number(serverConfig.SALT_ROUNDS)
-      );
-
-      relatedUser.update({
-        password: hashedPassword,
-      });
-      relatedPasswordReset.update({
-        expiresIn: new Date(),
-      });
-    } catch (error) {
-      throw new ServerError("Failed to update password");
-    }
-  }
 
   async  initiateTransfer(token, transferDetails) {
     const response = await axios.post(
@@ -1225,55 +1276,7 @@ class AuthenticationService {
   }
 
 
-  async handleLoginUser(data) {
-
-    const { 
-      emailAddress,
-      password ,
-      type
-      }=await authUtil.verifyHandleLoginUser.validateAsync(data);
-
-    let user 
-
-    if(type=="list"){
-
-      user =  await this.PropertyManagerModel.findOne({
-        where: {
-          emailAddress, 
-          isEmailValid:true, 
-          isDeleted:false
-        }
-      });  
-
-    }
-    else if(type=="rent") {
-      user =  await this.ProspectiveTenantModel.findOne({
-        where: {
-          emailAddress, 
-          isEmailValid:true,
-          isDeleted:false
-        }
-      });  
-    }
-    else{
-      user =  await this.AdminModel.findOne({
-        where: {
-          emailAddress, 
-          isEmailValid:true,
-          isDeleted:false
-        }
-      });  
-    }
-    
-    if (!user) throw new NotFoundError("User not found.");
-
-
-    if (!(await bcrypt.compare(password, user.password))) return null;
-   
-    if(user.disableAccount) return 'disabled'
-    
-    return user;
-  }*/
+*/
 
   async generateToken(user) {
 
