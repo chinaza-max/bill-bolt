@@ -20,8 +20,16 @@ export function init(connection) {
         defaultValue:false,
         allowNull: false
       },
+      refundAccount: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+      bankCode: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
       tel: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.STRING,
         allowNull: true,
       },
       isTelValid: {
@@ -30,7 +38,7 @@ export function init(connection) {
       },
       telCode: {
         type: DataTypes.STRING,
-        allowNull: true,
+        allowNull: false,
       },
       firstName: {
         type: DataTypes.STRING,
@@ -51,7 +59,15 @@ export function init(connection) {
       }, 
       dateOfBirth: {
         type: DataTypes.DATE,
+        allowNull: false,
+      },
+      passCode: {
+        type: DataTypes.STRING,
         allowNull: true,
+      },
+      describeYou: {
+        type: DataTypes.STRING,
+        allowNull: false,
       },
       merchantActivated: {
         type: DataTypes.BOOLEAN,

@@ -11,13 +11,17 @@ export function init(connection) {
         primaryKey: true,
         autoIncrement: true,
       },
-      senderId: {
+      clientId: {
         type: DataTypes.INTEGER ,
-        allowNull: false,
+        allowNull: true,
       },
-      receiverId: {
+      merchantId: {
         type: DataTypes.INTEGER ,
-        allowNull: false
+        allowNull: true
+      },
+      adminId: {
+        type: DataTypes.INTEGER ,
+        allowNull: true
       },
       messageType: { 
         type: DataTypes.ENUM(

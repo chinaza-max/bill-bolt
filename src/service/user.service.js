@@ -27,6 +27,32 @@ class UserService {
   
 
 
+
+
+
+
+  async handleUpdatePin(data,file) {
+
+
+      let { 
+        userId,
+        role,
+        image,
+        ...updateData
+      } = await userUtil.verifyHandleUpdatePin.validateAsync(data);
+      
+      try {
+       
+
+
+      } catch (error) {
+        throw new SystemError(error.name,  error.parent)
+      }
+  
+
+  }
+
+
   async handleUpdateProfile(data,file) {
 
 
@@ -96,6 +122,43 @@ class UserService {
       }
 
     }
+
+
+  }
+
+
+
+  
+  async handleVerifyNIN(data) {
+
+    var { NIN, userId,  role} = await userUtil.validateHandleValidateNIN.validateAsync(data);
+
+    const accessToken = await authService.getAuthTokenMonify()
+    const body={
+      nin:NIN
+    }
+
+    try { 
+      const response = await axios.post(
+        `${serverConfig.MONNIFY_BASE_URL}/api/v1/vas/nin-details`,
+          body,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`
+          }
+        }
+      );
+  
+      const phone=response.data.responseBody.mobileNumber
+
+      //authService.sendNINVerificationCode(phone, userId, role) 
+
+    } catch (error) {
+      console.log(error?.response?.data)
+      throw new SystemError(error.name,  error?.response?.data?.error)
+
+    }
+
 
 
   }

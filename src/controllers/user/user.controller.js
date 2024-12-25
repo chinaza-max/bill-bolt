@@ -36,6 +36,63 @@ export default class UserController {
   }
 
 
+  
+  async updatePin(req, res, next) {
+
+    try {
+      const data = req.body;        
+
+      let my_bj = {
+        ...data,
+        userId:req.user.id,
+        role:req.user.role
+      }
+
+       await userService.handleUpdatePin(my_bj);
+  
+      return res.status(200).json({
+        status: 200,
+        message: "updated successfully",
+      });
+       
+        
+    } catch (error) {
+      console.log(error);
+      next(error)
+    }
+    
+  }
+
+
+
+  async verifyNIN(req, res, next) {
+
+    try {
+      const data = req.body;        
+
+      let my_bj = {
+        ...data,
+        userId:req.user.id,
+        role:req.user.role
+      }
+
+       await userService.handleVerifyNIN(my_bj);
+  
+      return res.status(200).json({
+        status: 200,
+        message: "opt has been sent to the number attached to the nin",
+      })
+       
+        
+    } catch (error) {
+      console.log(error);
+      next(error)
+    }
+    
+  }
+
+  
+
   async updatefcmToken(
     req,
     res,

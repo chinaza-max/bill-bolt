@@ -34,6 +34,8 @@ class AuthenticationMiddlewares {
       next(error);
     }
   }
+  
+
 
 }
 

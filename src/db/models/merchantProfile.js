@@ -15,8 +15,24 @@
           type: DataTypes.STRING,
           allowNull: false,
         },
+        settlementAccount: {
+          type: DataTypes.STRING,
+          allowNull: false,
+        },
+        bankCode: {
+          type: DataTypes.STRING,
+          allowNull: false,
+        },
+        accoutTier: {
+          type: DataTypes.INTEGER,
+          allowNull: false,
+        },
         userId: {
           type: DataTypes.INTEGER,
+          allowNull: true,
+        },
+        passCode: {
+          type: DataTypes.STRING,
           allowNull: true,
         },
         notificationAllowed: {
@@ -24,6 +40,11 @@
           allowNull: false,
           defaultValue:true
         },   
+        disableAccount: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue:false
+        },
         isDeleted: {
           type: DataTypes.BOOLEAN,
           allowNull: false,

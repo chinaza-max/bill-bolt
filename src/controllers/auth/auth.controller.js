@@ -51,7 +51,7 @@ export default class AuthenticationController {
 
       const generateTokenFrom={id:user.dataValues.id,role:user.dataValues.role}
 
-      const token = await authService.generateToken(generateTokenFrom);
+      const token = await authService.generateAccessToken(generateTokenFrom);
 
       const excludedProperties = ['isDeleted', 'password'];
 
@@ -135,9 +135,11 @@ export default class AuthenticationController {
       }
       
 
-      let generateTokenFrom={id:user.dataValues.id,role:user.dataValues.role}
+     // let generateTokenFrom={id:user.dataValues.id,role:user.dataValues.emailAddress}
+     let generateTokenFrom={id:user.dataValues.id,role:user.dataValues.emailAddress}
 
-      const token = await authService.generateToken(generateTokenFrom);
+      const accessToken = await authService.generateAccessToken({...generateTokenFrom, scope: "access" });
+      const refreshToken = await authService.generateRefreshToken({...generateTokenFrom, scope: "refresh" });
 
       const excludedProperties = ['isDeleted', 'password'];
 
@@ -168,8 +170,6 @@ export default class AuthenticationController {
     next
   ) {
     try {
-
-      
       await authService.handleSendPasswordResetLink(req.body);
       return res.status(200).json({
         status: 200,
@@ -246,48 +246,6 @@ export default class AuthenticationController {
   }
 
 
-
-
-  async loginAdmin(req, res, next) {
-
-    try {
-
-      const data = req.body;        
-
-      let my_bj = {
-        ...data,
-      }
-      
-      const user=await authService.handleLoginAdmin(my_bj);
-    
-      if (user == null){
-        return res.status(400).json({
-          status: 400,
-          message: "Invalid login credentials",
-        });
-      }
-      else if(user == "disabled"){
-        return res.status(400).json({
-          status: 400,
-          message: "Your account has been disabled",
-        });
-      }
-      
-      const token = await authService.generateToken(user.dataValues);
-
-
-      return res.status(200).json({
-        status: 200,
-        message: "login successfully  new.",
-        data: { user: {...user.dataValues}, token },
-      });
-    } catch (error) {
-      console.log(error);
-      next(error)
-    }
-    
-  }
-   
 
 
   
@@ -554,7 +512,7 @@ export default class AuthenticationController {
     const user=await authService.handleUploadPicture(my_bj,file);
 
 
-      const token = await authService.generateToken(user.dataValues);
+      const token = await authService.generateAccessToken(user.dataValues);
 
       const excludedProperties = ['isDeleted', 'password'];
 
