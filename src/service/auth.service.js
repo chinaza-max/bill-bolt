@@ -15,6 +15,7 @@ import axios from'axios';
 import {
   ConflictError,
   SystemError,
+  UnAuthorizedError,
   NotFoundError
 } from "../errors/index.js";
 import { Op } from "sequelize";
@@ -27,13 +28,29 @@ class AuthenticationService {
   EmailandTelValidationModel=EmailandTelValidation;
  
 
-
-
-  verifyToken(token) {
+  verifyAccessToken(token) {
     try {
       const payload = jwt.verify(
         token,
-        serverConfig.TOKEN_SECRET
+        serverConfig.ACCESS_TOKEN_SECRET
+      );
+      return {
+        payload,
+        expired: false,
+      };
+    } catch (error) {
+      return {
+        payload: null,
+        expired: error.message.includes("expired") ? error.message : error,
+      };
+    }
+  }
+
+  verifyRefreshToken(token) {
+    try {
+      const payload = jwt.verify(
+        token,
+        serverConfig.REFRESH_TOKEN_SECRET
       );
       return {
         payload,
@@ -56,6 +73,7 @@ class AuthenticationService {
         password,
         tel,
         telCode,
+        dateOfBirth
       } = await authUtil.verifyUserCreationData.validateAsync(data);
   
     let hashedPassword;
@@ -85,6 +103,7 @@ class AuthenticationService {
           password:hashedPassword,
           tel,
           telCode,
+          dateOfBirth
       });
 
       const validateFor="user"
@@ -138,7 +157,7 @@ class AuthenticationService {
 
     const { 
       emailAddress,
-      password ,
+      password,
       type
       }=await authUtil.verifyHandleLoginUser.validateAsync(data);
 
@@ -155,7 +174,6 @@ class AuthenticationService {
       });  
 
     }
-  
     else{
       user =  await this.AdminModel.findOne({
         where: {
@@ -174,6 +192,50 @@ class AuthenticationService {
     
     return user;
   }
+
+  /*
+  async handleSetPin(data) {
+
+    const { 
+      emailAddress,
+      password ,
+      type
+      }=await authUtil.verifyHandleLoginUser.validateAsync(data);
+
+    let user 
+
+    if(type=="user"){
+
+      user =  await this.UserModel.findOne({
+        where: {
+          emailAddress, 
+          isEmailValid:true, 
+          isDeleted:false
+        }
+      });  
+
+    }
+    else{
+      user =  await this.AdminModel.findOne({
+        where: {
+          emailAddress, 
+          isEmailValid:true,
+          isDeleted:false
+        }
+      });  
+    }
+    
+    if (!user) throw new NotFoundError("User not found.");
+
+    if (!(await bcrypt.compare(password, user.password))) return null;
+   
+    if(user.disableAccount) return 'disabled'
+    
+    return user;
+  }
+*/
+
+  
   
   async handleSendPasswordResetLink(data) {
 
@@ -271,6 +333,69 @@ class AuthenticationService {
 
 
 
+  
+  async handleRefreshAccessToken(req) {
+
+  const refreshToken = req.cookies.refresh_token;
+  if (!refreshToken) return 'Refresh token missing';
+
+  
+  const { payload, expired } = authService.verifyRefreshToken(refreshToken);
+  if (expired) throw new UnAuthorizedError("Invalid token.");
+    
+
+  UserModelResult = await this.UserModel.findByPk(payload.id);
+
+  if(UserModelResult.refreshToken){
+    
+
+
+
+  }
+
+
+
+    if (relatedPasswordReset == null)
+      throw new NotFoundError("Invalid reset link");
+    else if (relatedPasswordReset.expiresIn.getTime() < new Date().getTime())
+      throw new NotFoundError("Reset link expired");
+
+      const parts = relatedPasswordReset.userId.split('_');
+      let relatedUser=null
+      let type=parts[1]
+      let userId=parts[0]
+
+      if(type=='user'){
+        relatedUser = await this.UserModel.findOne({
+          where: { id: userId },
+        });
+      }
+      else{
+       /* relatedUser = await this.ProspectiveTenantModel.findOne({
+          where: { id: userId },
+        });*/
+      }
+     
+
+    if (relatedUser == null)
+      throw new NotFoundError("Selected user cannot be found");
+    try {
+      var hashedPassword = await bcrypt.hash(
+        password,
+        Number(serverConfig.SALT_ROUNDS)
+      );
+
+      relatedUser.update({
+        password: hashedPassword,
+      });
+      relatedPasswordReset.update({
+        expiresIn: new Date(),
+      });
+    } catch (error) {
+      throw new ServerError("Failed to update password");
+    }
+  }
+
   async handleResetPassword(data) {
 
     var {  password, resetPasswordKey } =
@@ -367,11 +492,12 @@ class AuthenticationService {
   async generateAccessToken(user) {
 
     try {
-      const token = jwt.sign(user, serverConfig.TOKEN_SECRET, {
+
+      const token = jwt.sign(user, serverConfig.ACCESS_TOKEN_SECRET, {
         algorithm: "HS256",
         expiresIn:serverConfig.ACCESS_TOKEN_EXPIRES_IN,
         issuer: serverConfig.TOKEN_ISSUER,
-      });
+      })
 
       return token;
     } catch (error) {
@@ -383,7 +509,7 @@ class AuthenticationService {
   async generateRefreshToken(user) {
 
     try {
-      const token = jwt.sign(user, serverConfig.TOKEN_SECRET, {
+      const token = jwt.sign(user, serverConfig.REFRESH_TOKEN_SECRET, {
         algorithm: "HS256",
         expiresIn:serverConfig.REFRESH_TOKEN_EXPIRES_IN,
         issuer: serverConfig.TOKEN_ISSUER,
@@ -416,7 +542,6 @@ class AuthenticationService {
       },
     })  
 
-    console.log(relatedEmailoRTelValidationCode) 
        
     if (relatedEmailoRTelValidationCode == null){
       throw new NotFoundError("Invalid verification code");
@@ -433,20 +558,8 @@ class AuthenticationService {
         where: { id: relatedEmailoRTelValidationCode.userId },
       });
     }
-    else if(validateFor=='rent'){
-      /*relatedUser = await this.ProspectiveTenantModel.findOne({
-        where: { id: relatedEmailoRTelValidationCode.userId },
-      });*/
-    }
-    else{
-      /*
-      relatedUser = await this.AdminModel.findOne({
-        where: { id: relatedEmailoRTelValidationCode.userId },
-      });
-      */
-    }
-   
 
+  
     if (relatedUser == null){
       throw new NotFoundError("Selected user cannot be found");
     }

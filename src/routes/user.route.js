@@ -16,8 +16,8 @@ class UserRoutes extends UserController {
     this.router.post("/updateProfile",uploadHandler.image.single('image'), this.updateProfile);
     this.router.post("/updatePin", this.updatePin);
     this.router.post("/verifyNIN", this.verifyNIN);
-
-
+    this.router.post("/setPin", this.setPin);
+    this.router.post("/enterPassCode", this.enterPassCode);
 
     /*
     this.router.get("/whoIAm", this.whoIAm);

@@ -33,23 +33,17 @@ class UserService {
 
   async handleUpdatePin(data,file) {
 
-
       let { 
         userId,
         role,
         image,
         ...updateData
       } = await userUtil.verifyHandleUpdatePin.validateAsync(data);
-      
       try {
-       
-
-
+           
       } catch (error) {
         throw new SystemError(error.name,  error.parent)
       }
-  
-
   }
 
 
@@ -162,6 +156,71 @@ class UserService {
 
 
   }
+
+
+
+  async handleSetPin(data) {
+  
+    const { 
+      passCode,
+      userId
+      }=await userUtil.verifyHandleSetPin.validateAsync(data);
+  
+      let userResult =  await this.UserModel.findOne({
+        where: {
+          userId, 
+          isEmailValid:true, 
+          isDeleted:false
+        }
+      });  
+
+
+      let hashedPassCode;
+      
+      try {
+  
+        hashedPassCode = await bcrypt.hash(
+          passCode,
+          Number(serverConfig.SALT_ROUNDS)
+        );   
+        
+      } 
+      catch (error) { 
+        console.log(error)
+        throw new SystemError(error);
+      }
+      userResult.update({passCode:hashedPassCode})
+  }
+
+  async handleEnterPassCode(data) {
+  
+    const { 
+      passCode,
+      userId
+      }=await userUtil.verifyHandleEnterPassCode.validateAsync(data);
+  
+      let userResult =  await this.UserModel.findOne({
+        where: {
+          userId, 
+          isEmailValid:true, 
+          isDeleted:false
+        }
+      });  
+
+
+    if (!userResult) throw new NotFoundError("User not found.");
+  
+    if (!(await bcrypt.compare(passCode, userResult.passCode))) return null;
+      
+    if(userResult.disableAccount) return 'disabled'
+      
+    return userResult;
+
+  }
+
+
+
+  
 
 
   async generateRandomPassword(length = 12) {

@@ -54,6 +54,17 @@ class UserUtil {
     userId: Joi.number().integer().required()
   });
 
+
+  verifyHandleSetPin=Joi.object({
+    userId: Joi.number().required(),
+    passCode: Joi.string().required()
+  });
+
+  verifyHandleEnterPassCode=Joi.object({
+    userId: Joi.number().required(),
+    passCode: Joi.string().required()
+  });
+
 }
 
 export default new UserUtil();

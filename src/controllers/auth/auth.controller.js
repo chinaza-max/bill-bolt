@@ -1,10 +1,12 @@
 import authService from "../../service/auth.service.js";
 import serverConfig  from "../../config/server.js";
-
+import {User}  from "../../db/models/index.js";
 
 export default class AuthenticationController {
   
   constructor(){
+
+    this.UserModel=User
     //this.filterObject=this.filterObject.bind(this)
     this.signupUser=this.signupUser.bind(this)
   }
@@ -46,27 +48,32 @@ export default class AuthenticationController {
         ...data,
       }
 
-      const user = await authService.handleVerifyEmailorTel(my_bj);
+      const user=await authService.handleVerifyEmailorTel(my_bj);
+
+      
+      
+      let generateTokenFrom={id:user.dataValues.id,role:user.dataValues.emailAddress}
+
+      const accessToken = await authService.generateAccessToken({...generateTokenFrom, scope: "access" });
+      const refreshToken = await authService.generateRefreshToken({...generateTokenFrom, scope: "refresh" });
 
 
-      const generateTokenFrom={id:user.dataValues.id,role:user.dataValues.role}
-
-      const token = await authService.generateAccessToken(generateTokenFrom);
-
-      const excludedProperties = ['isDeleted', 'password'];
-
-      const modifiedUser = Object.keys(user.dataValues)
-        .filter(key => !excludedProperties.includes(key))
-        .reduce((acc, key) => {
-          acc[key] = user.dataValues[key];
-          return acc;
-        }, {});
-
+         
+      res.cookie("refresh_token", refreshToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "Strict",
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      })
+        
+      
+      const UserModelResult = await this.UserModel.findByPk(user.dataValues.id);
+      await UserModelResult.update({refreshToken});
 
       return res.status(200).json({
         status: 200,
         message: "verification completed",
-        data: { user: modifiedUser, token },
+        data:{accessToken:accessToken}
       });
 
     } catch (error) {
@@ -94,6 +101,8 @@ export default class AuthenticationController {
 
       const filteredUser = this.filterObject(result.dataValues, keysToRemove);
 
+
+
       return res.status(200).json({
         status: 200,
         message: "user registered successfully",
@@ -120,7 +129,6 @@ export default class AuthenticationController {
       
       const user=await authService.handleLoginUser(my_bj);
     
-
       if (user == null){
         return res.status(400).json({
           status: 400,
@@ -133,14 +141,14 @@ export default class AuthenticationController {
           message: "Your account has been disabled",
         });
       }
-      
 
-     // let generateTokenFrom={id:user.dataValues.id,role:user.dataValues.emailAddress}
-     let generateTokenFrom={id:user.dataValues.id,role:user.dataValues.emailAddress}
+
+      let generateTokenFrom={id:user.dataValues.id,role:user.dataValues.emailAddress}
 
       const accessToken = await authService.generateAccessToken({...generateTokenFrom, scope: "access" });
       const refreshToken = await authService.generateRefreshToken({...generateTokenFrom, scope: "refresh" });
 
+      /*
       const excludedProperties = ['isDeleted', 'password'];
 
       const modifiedUser = Object.keys(user.dataValues)
@@ -148,13 +156,29 @@ export default class AuthenticationController {
         .reduce((acc, key) => {
           acc[key] = user.dataValues[key];
           return acc;
-        }, {});
+        }, {})*/
+
+
+
+      
+      res.cookie("refresh_token", refreshToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "Strict",
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      })
         
+      
+      const UserModelResult = await this.UserModel.findByPk(user.dataValues.id);
+      await UserModelResult.update({refreshToken});
+
       return res.status(200).json({
         status: 200,
         message: "login successfully.",
-        data: { user: modifiedUser, token },
+        data:{accessToken:accessToken}
       });
+
+
     } catch (error) {
       console.log(error);
       next(error)
@@ -162,6 +186,77 @@ export default class AuthenticationController {
     
   }
 
+
+/*
+  async setPin(req, res, next) {
+
+    try {
+
+      const data = req.body;        
+
+      let my_bj = {
+        ...data,
+      }
+      
+      const user=await authService.handleSetPin(my_bj);
+    
+      if (user == null){
+        return res.status(400).json({
+          status: 400,
+          message: "Invalid login credentials",
+        });
+      }
+      else if(user == "disabled"){
+        return res.status(400).json({
+          status: 400,
+          message: "Your account has been disabled",
+        });
+      }
+
+
+      let generateTokenFrom={id:user.dataValues.id,role:user.dataValues.emailAddress}
+
+      const accessToken = await authService.generateAccessToken({...generateTokenFrom, scope: "access" });
+      const refreshToken = await authService.generateRefreshToken({...generateTokenFrom, scope: "refresh" });
+
+      /*
+      const excludedProperties = ['isDeleted', 'password'];
+
+      const modifiedUser = Object.keys(user.dataValues)
+        .filter(key => !excludedProperties.includes(key))
+        .reduce((acc, key) => {
+          acc[key] = user.dataValues[key];
+          return acc;
+        }, {})*/
+/*
+
+      res.cookie("access_token", accessToken, {
+        httpOnly: true,
+        secure: true, 
+        sameSite: "Strict",
+        maxAge: 15 * 60 * 1000, // 15 minutes
+      });
+      
+      res.cookie("refresh_token", refreshToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "Strict",
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      })
+        
+      return res.status(200).json({
+        status: 200,
+        message: "login successfully.",
+      });
+
+
+    } catch (error) {
+      console.log(error);
+      next(error)
+    }
+    
+  }
+*/
 
 
   async sendPasswordResetLink(
@@ -441,6 +536,27 @@ export default class AuthenticationController {
     
   }
 
+
+  async refreshAccessToken(
+    req,
+    res,
+    next
+  ) {
+    try {
+
+      const result=await authService.handleRefreshAccessToken( req);
+
+      if(result=='Refresh token missing'){
+        res.status(401).send('Refresh token missing');
+      }
+      return res.status(200).json({
+        status: 200,
+        message: "Password updated successufully"
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
   async resetPassword(
     req,
     res,

@@ -8,7 +8,15 @@ class authUtil {
     emailAddress: Joi.string().email().required(),
     password: Joi.string().required(),
     tel: Joi.number().integer().required(),
-    telCode: Joi.string().required(),   
+    telCode: Joi.string().required(),  
+    dateOfBirth: Joi.date()
+    .iso()
+    .required()
+    .messages({
+      'date.base': 'Date of birth must be a valid date.',
+      'date.format': 'Date of birth must be in the format YYYY-MM-DD.',
+      'any.required': 'Date of birth is required.',
+    }),
   });
 
 

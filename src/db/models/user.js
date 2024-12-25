@@ -17,16 +17,16 @@ export function init(connection) {
       },
       isEmailValid: {
         type: DataTypes.BOOLEAN,
-        defaultValue:false,
+        defaultValue:false, 
         allowNull: false
       },
       refundAccount: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       bankCode: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       tel: {
         type: DataTypes.STRING,
@@ -63,20 +63,25 @@ export function init(connection) {
       },
       passCode: {
         type: DataTypes.STRING,
-        allowNull: true,
+        allowNull: true,      
       },
       describeYou: {
-        type: DataTypes.STRING,
-        allowNull: false,
+        type: DataTypes.STRING,  
+        allowNull: true,
       },
       merchantActivated: {
         type: DataTypes.BOOLEAN,
-        defaultValue: false,
+        defaultValue: false,    
+        allowNull: true
       },
       disableAccount: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue:false
+      },
+      refreshToken: {
+        type: DataTypes.TEXT,
+        allowNull: true,
       },
       notificationAllowed: {
         type: DataTypes.BOOLEAN,
@@ -86,7 +91,7 @@ export function init(connection) {
       isDeleted: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue:false ,
+        defaultValue:false,
       }
     }, {
       tableName: 'User',

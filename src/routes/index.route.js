@@ -16,7 +16,7 @@ class Routes {
     this.router.get("/").get(`${rootAPI}/`, (req , res) => {
       return res.status(200).json({                                                                                                                                      
         status: 200,
-        message: "Welcome to bill-bolt  App API",
+        message: "Welcome to   App API",
         data: {
           service: "LAGProperty",
           version: "1.0.0",

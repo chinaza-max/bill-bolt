@@ -1,5 +1,9 @@
 import userService from "../../service/user.service.js";
 import authService from "../../service/auth.service.js";
+import serverConfig from "../../config/server.js";
+
+
+
 
 export default class UserController {
 
@@ -91,7 +95,133 @@ export default class UserController {
     
   }
 
+  async setPin(req, res, next) {
+
+    try {
+      const data = req.body;        
+
+      let my_bj = {
+
+        ...data,
+      }
+      
+      const user=await userService.handleSetPin(my_bj);
+    
+      if (user == null){
+        return res.status(400).json({
+          status: 400,
+          message: "Invalid login credentials",
+        });
+      }
+      else if(user == "disabled"){
+        return res.status(400).json({
+          status: 400,
+          message: "Your account has been disabled",
+        });
+      }
+
+
+      let generateTokenFrom={id:user.dataValues.id,role:user.dataValues.emailAddress}
+
+      const accessToken = await authService.generateAccessToken({...generateTokenFrom, scope: "access" });
+      const refreshToken = await authService.generateRefreshToken({...generateTokenFrom, scope: "refresh" });
+
+      /*
+      const excludedProperties = ['isDeleted', 'password'];
+
+      const modifiedUser = Object.keys(user.dataValues)
+        .filter(key => !excludedProperties.includes(key))
+        .reduce((acc, key) => {
+          acc[key] = user.dataValues[key];
+          return acc;
+        }, {})*/
+
+      
+      res.cookie("refresh_token", refreshToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "Strict",
+        maxAge: serverConfig.REFRESH_TOKEN_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000, // 30 days
+      })
+        
+      return res.status(200).json({
+        status: 200,
+        message: "login successfully.",
+      });
+
+
+    } catch (error) {
+      console.log(error);
+      next(error)
+    }
+    
+  }
+
   
+
+  async enterPassCode(req, res, next) {
+
+    try {
+      const data = req.body;        
+
+      let my_bj = {
+        ...data,
+      }
+      
+      const user=await userService.handleEnterPassCode(my_bj);
+    
+      if (user == null){
+        return res.status(400).json({
+          status: 400,
+          message: "Invalid login credentials",
+        });
+      }
+      else if(user == "disabled"){
+        return res.status(400).json({
+          status: 400,
+          message: "Your account has been disabled",
+        });
+      }
+
+
+      let generateTokenFrom={id:user.dataValues.id,role:user.dataValues.emailAddress}
+
+      const accessToken = await authService.generateAccessToken({...generateTokenFrom, scope: "access" });
+      const refreshToken = await authService.generateRefreshToken({...generateTokenFrom, scope: "refresh" });
+
+      
+      const excludedProperties = ['isDeleted', 'password'];
+
+      const modifiedUser = Object.keys(user.dataValues)
+        .filter(key => !excludedProperties.includes(key))
+        .reduce((acc, key) => {
+          acc[key] = user.dataValues[key];
+          return acc;
+        }, {})
+
+      res.cookie("refresh_token", refreshToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "Strict",
+        maxAge: serverConfig.REFRESH_TOKEN_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000, // 30 days
+      })
+        
+      return res.status(200).json({
+        status: 200,
+        message: "successfully.",
+        data:{accessToken,modifiedUser}
+      });
+
+
+    } catch (error) {
+      console.log(error);
+      next(error)
+    }
+    
+  }
+
+  
+
 
   async updatefcmToken(
     req,
