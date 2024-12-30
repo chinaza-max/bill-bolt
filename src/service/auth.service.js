@@ -336,64 +336,40 @@ class AuthenticationService {
   
   async handleRefreshAccessToken(req) {
 
-  const refreshToken = req.cookies.refresh_token;
-  if (!refreshToken) return 'Refresh token missing';
-
-  
-  const { payload, expired } = authService.verifyRefreshToken(refreshToken);
-  if (expired) throw new UnAuthorizedError("Invalid token.");
-    
-
-  UserModelResult = await this.UserModel.findByPk(payload.id);
-
-  if(UserModelResult.refreshToken){
-    
 
 
-
-  }
-
-
-
-    if (relatedPasswordReset == null)
-      throw new NotFoundError("Invalid reset link");
-    else if (relatedPasswordReset.expiresIn.getTime() < new Date().getTime())
-      throw new NotFoundError("Reset link expired");
-
-      const parts = relatedPasswordReset.userId.split('_');
-      let relatedUser=null
-      let type=parts[1]
-      let userId=parts[0]
-
-      if(type=='user'){
-        relatedUser = await this.UserModel.findOne({
-          where: { id: userId },
-        });
-      }
-      else{
-       /* relatedUser = await this.ProspectiveTenantModel.findOne({
-          where: { id: userId },
-        });*/
-      }
-     
-
-    if (relatedUser == null)
-      throw new NotFoundError("Selected user cannot be found");
     try {
-      var hashedPassword = await bcrypt.hash(
-        password,
-        Number(serverConfig.SALT_ROUNDS)
-      );
+      
+      const refreshToken = req.cookies?.refresh_token;
 
-      relatedUser.update({
-        password: hashedPassword,
-      });
-      relatedPasswordReset.update({
-        expiresIn: new Date(),
-      });
+      if (!refreshToken) return 'Refresh token missing';
+
+      const { payload, expired } = this.verifyRefreshToken(refreshToken);
+      if (expired) throw new UnAuthorizedError("Invalid token.");
+        
+    
+      const UserModelResult = await this.UserModel.findByPk(payload.id);
+  
+      if(UserModelResult?.refreshToken  && UserModelResult?.refreshToken!=="false"){
+        if (payload.scope !== "refresh") {
+          return "Invalid token type for refreshing";
+        }else{
+    
+          let generateTokenFrom={id:payload.id,role:payload.role,emailAddress:payload.emailAddress}
+    
+          const newAccessToken = await this.generateAccessToken({...generateTokenFrom, scope: "access" });
+    
+          return newAccessToken
+    
+        }
+    
+      }else{
+        return "contact support user does not"
+      }
     } catch (error) {
-      throw new ServerError("Failed to update password");
+        console.log(error)
     }
+
   }
 
   async handleResetPassword(data) {

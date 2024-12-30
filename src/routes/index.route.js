@@ -16,9 +16,9 @@ class Routes {
     this.router.get("/").get(`${rootAPI}/`, (req , res) => {
       return res.status(200).json({                                                                                                                                      
         status: 200,
-        message: "Welcome to   App API",
+        message: "Welcome to Fintread  App API",
         data: {
-          service: "LAGProperty",
+          service: "FINTREAD SERVICE",
           version: "1.0.0",
         },
       });

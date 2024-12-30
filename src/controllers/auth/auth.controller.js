@@ -1,16 +1,16 @@
-import authService from "../../service/auth.service.js";
-import serverConfig  from "../../config/server.js";
-import {User}  from "../../db/models/index.js";
+import authService from '../../service/auth.service.js';
+import serverConfig from '../../config/server.js';
+import { User } from '../../db/models/index.js';
 
 export default class AuthenticationController {
-  
-  constructor(){
-
-    this.UserModel=User
+  constructor() {
+    this.UserModel = User;
     //this.filterObject=this.filterObject.bind(this)
-    this.signupUser=this.signupUser.bind(this)
+    this.signupUser = this.signupUser.bind(this);
+    this.verifyEmailorTel = this.verifyEmailorTel.bind(this);
+    this.loginUser = this.loginUser.bind(this);
   }
-    /*
+  /*
   async verifyEmailorTelAdmin(req, res, next) {
 
     try {
@@ -37,116 +37,114 @@ export default class AuthenticationController {
   }
   */
 
-  
   async verifyEmailorTel(req, res, next) {
-
     try {
-
-      const data = req.body;        
+      const data = req.body;
 
       let my_bj = {
         ...data,
-      }
+      };
 
-      const user=await authService.handleVerifyEmailorTel(my_bj);
+      const user = await authService.handleVerifyEmailorTel(my_bj);
 
-      
-      
-      let generateTokenFrom={id:user.dataValues.id,role:user.dataValues.emailAddress}
+      let generateTokenFrom = {
+        id: user.dataValues.id,
+        role: user.dataValues.role,
+        emailAddress: user.dataValues.emailAddress,
+      };
 
-      const accessToken = await authService.generateAccessToken({...generateTokenFrom, scope: "access" });
-      const refreshToken = await authService.generateRefreshToken({...generateTokenFrom, scope: "refresh" });
+      const accessToken = await authService.generateAccessToken({
+        ...generateTokenFrom,
+        scope: 'access',
+      });
+      const refreshToken = await authService.generateRefreshToken({
+        ...generateTokenFrom,
+        scope: 'refresh',
+      });
 
-
-         
-      res.cookie("refresh_token", refreshToken, {
+      res.cookie('refresh_token', refreshToken, {
         httpOnly: true,
         secure: true,
-        sameSite: "Strict",
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      })
-        
-      
+        sameSite: 'Strict',
+        maxAge:
+          serverConfig.REFRESH_TOKEN_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000, // 30 days
+      });
+
       const UserModelResult = await this.UserModel.findByPk(user.dataValues.id);
-      await UserModelResult.update({refreshToken});
+      await UserModelResult.update({ refreshToken });
 
       return res.status(200).json({
         status: 200,
-        message: "verification completed",
-        data:{accessToken:accessToken}
+        message: 'verification completed',
+        data: { accessToken: accessToken },
       });
-
     } catch (error) {
       console.log(error);
-      next(error)
+      next(error);
     }
-    
   }
- 
-  
-  
+
   async signupUser(req, res, next) {
-
     try {
+      const data = req.body;
 
-      const data = req.body;        
-      
       const my_bj = {
         ...data,
-      }      
+      };
 
-      const result=await authService.handleUserCreation(my_bj);
+      const result = await authService.handleUserCreation(my_bj);
 
       const keysToRemove = ['password'];
 
       const filteredUser = this.filterObject(result.dataValues, keysToRemove);
 
-
-
       return res.status(200).json({
         status: 200,
-        message: "user registered successfully",
-        data:filteredUser,
+        message: 'user registered successfully',
+        data: filteredUser,
       });
-      
     } catch (error) {
       console.log(error);
-      next(error)
+      next(error);
     }
-    
   }
-  
 
   async loginUser(req, res, next) {
-
     try {
-
-      const data = req.body;        
+      const data = req.body;
 
       let my_bj = {
         ...data,
-      }
-      
-      const user=await authService.handleLoginUser(my_bj);
-    
-      if (user == null){
+      };
+
+      const user = await authService.handleLoginUser(my_bj);
+
+      if (user == null) {
         return res.status(400).json({
           status: 400,
-          message: "Invalid login credentials",
+          message: 'Invalid login credentials',
         });
-      }
-      else if(user == "disabled"){
+      } else if (user == 'disabled') {
         return res.status(400).json({
           status: 400,
-          message: "Your account has been disabled",
+          message: 'Your account has been disabled',
         });
       }
 
+      let generateTokenFrom = {
+        id: user.dataValues.id,
+        role: user.dataValues.role,
+        emailAddress: user.dataValues.emailAddress,
+      };
 
-      let generateTokenFrom={id:user.dataValues.id,role:user.dataValues.emailAddress}
-
-      const accessToken = await authService.generateAccessToken({...generateTokenFrom, scope: "access" });
-      const refreshToken = await authService.generateRefreshToken({...generateTokenFrom, scope: "refresh" });
+      const accessToken = await authService.generateAccessToken({
+        ...generateTokenFrom,
+        scope: 'access',
+      });
+      const refreshToken = await authService.generateRefreshToken({
+        ...generateTokenFrom,
+        scope: 'refresh',
+      });
 
       /*
       const excludedProperties = ['isDeleted', 'password'];
@@ -158,36 +156,28 @@ export default class AuthenticationController {
           return acc;
         }, {})*/
 
-
-
-      
-      res.cookie("refresh_token", refreshToken, {
+      res.cookie('refresh_token', refreshToken, {
         httpOnly: true,
         secure: true,
-        sameSite: "Strict",
+        sameSite: 'Strict',
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      })
-        
-      
+      });
+
       const UserModelResult = await this.UserModel.findByPk(user.dataValues.id);
-      await UserModelResult.update({refreshToken});
+      await UserModelResult.update({ refreshToken });
 
       return res.status(200).json({
         status: 200,
-        message: "login successfully.",
-        data:{accessToken:accessToken}
+        message: 'login successfully.',
+        data: { accessToken: accessToken },
       });
-
-
     } catch (error) {
       console.log(error);
-      next(error)
+      next(error);
     }
-    
   }
 
-
-/*
+  /*
   async setPin(req, res, next) {
 
     try {
@@ -228,7 +218,7 @@ export default class AuthenticationController {
           acc[key] = user.dataValues[key];
           return acc;
         }, {})*/
-/*
+  /*
 
       res.cookie("access_token", accessToken, {
         httpOnly: true,
@@ -258,32 +248,25 @@ export default class AuthenticationController {
   }
 */
 
-
-  async sendPasswordResetLink(
-    req,
-    res,
-    next
-  ) {
+  async sendPasswordResetLink(req, res, next) {
     try {
       await authService.handleSendPasswordResetLink(req.body);
       return res.status(200).json({
         status: 200,
-        message: "A reset link was sent to your email"
+        message: 'A reset link was sent to your email',
       });
     } catch (error) {
       next(error);
     }
   }
-  
-  filterObject(obj, keysToRemove) {
 
+  filterObject(obj, keysToRemove) {
     return Object.keys(obj)
-    .filter(key => !keysToRemove.includes(key))
-    .reduce((filteredObj, key) => {
+      .filter((key) => !keysToRemove.includes(key))
+      .reduce((filteredObj, key) => {
         filteredObj[key] = obj[key];
         return filteredObj;
-    }, {});
-        
+      }, {});
   }
   /*
   async googleCallback(
@@ -428,7 +411,6 @@ export default class AuthenticationController {
   }
 */
 
-
   /*
   async intializePayment(
     req,
@@ -456,20 +438,12 @@ export default class AuthenticationController {
     }
   }*/
 
-
-  
-  async pingme(
-    req,
-    res,
-    next
-  ) {
+  async pingme(req, res, next) {
     try {
-
       return res.status(200).json({
         status: 200,
-        message: "successufully ping",
+        message: 'successufully ping',
       });
-
     } catch (error) {
       next(error);
     }
@@ -504,81 +478,79 @@ export default class AuthenticationController {
 
   */
   async sendVerificationCodeEmailOrTel(req, res, next) {
-
     try {
-
-      const data = req.body;        
+      const data = req.body;
 
       let my_bj = {
         ...data,
-      }
+      };
 
       await authService.handleSendVerificationCodeEmailOrTel(my_bj);
-  
 
-      if(data.type=='email'){
+      if (data.type == 'email') {
         return res.status(200).json({
           status: 200,
-          message: "verification code sent to your email address",
+          message: 'verification code sent to your email address',
         });
-      }
-      else{
+      } else {
         return res.status(200).json({
           status: 200,
-          message: "verification code sent to your number",
+          message: 'verification code sent to your number',
         });
       }
-     
     } catch (error) {
       console.log(error);
-      next(error)
+      next(error);
     }
-    
   }
 
-
-  async refreshAccessToken(
-    req,
-    res,
-    next
-  ) {
+  async refreshAccessToken(req, res, next) {
     try {
+      const result = await authService.handleRefreshAccessToken(req);
 
-      const result=await authService.handleRefreshAccessToken( req);
-
-      if(result=='Refresh token missing'){
-        res.status(401).send('Refresh token missing');
+      if (result == 'Refresh token missing') {
+        res.status(401).json({
+          status: 401,
+          message: "'Refresh token missing'",
+        });
+      } else if (result == 'Invalid token type for refreshing') {
+        res.status(401).json({
+          status: 401,
+          message: 'Refresh token missing',
+        });
+      } else if (result == 'contact support user does not exist') {
+        res.status(401).json({
+          status: 404,
+          message: 'contact support user does not exist',
+        });
       }
+
       return res.status(200).json({
         status: 200,
-        message: "Password updated successufully"
+        message: 'successfully',
+        data: { accessToken: result },
       });
     } catch (error) {
       next(error);
     }
   }
-  async resetPassword(
-    req,
-    res,
-    next
-  ) {
+  async resetPassword(req, res, next) {
     try {
       await authService.handleResetPassword(req.body);
 
-
       return res.status(200).json({
         status: 200,
-        message: "Password updated successufully"
+        message: 'Password updated successufully',
       });
     } catch (error) {
       next(error);
     }
   }
 
-/*
+  /*
   async sendVerificationCodeEmailOrTel(req, res, next) {
 
-    try {
+    try {  
 
       const data = req.body;        
 
@@ -652,7 +624,7 @@ export default class AuthenticationController {
     
   }
 */
-/*
+  /*
   validateMonnifyIP = (req, res, next) => {
     const clientIP = req.ip;
     if (clientIP !== serverConfig.MONNIFY_IP) {
@@ -675,23 +647,7 @@ export default class AuthenticationController {
     next();
   };
 */
-
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /*this.sendEmailVerificationCode
       this.sendEmailVerificationCode(obj.emailAddress,obj.id)

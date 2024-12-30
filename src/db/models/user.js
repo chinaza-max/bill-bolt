@@ -53,6 +53,11 @@ export function init(connection) {
         allowNull: false,
         defaultValue:"NIGERIA"
       },
+      role: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue:"user"
+      },
       password: {
         type: DataTypes.STRING,
         allowNull: false,

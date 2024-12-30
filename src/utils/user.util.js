@@ -1,75 +1,46 @@
-import Joi from "joi";
+import Joi from 'joi';
 
 class UserUtil {
-
-
-
-
-  verifyHandleUpdatePin= Joi.object().keys({
+  verifyHandleUpdatePin = Joi.object().keys({
     NIN: Joi.string().required(),
     role: Joi.string().valid('list', 'rent'),
-    userId: Joi.number().integer().required()
+    userId: Joi.number().integer().required(),
   });
 
-  verifyHandleUpdateProfileList=Joi.object({
+  verifyHandleUpdateProfile = Joi.object({
     userId: Joi.number().required().label('user Id'),
-    role: Joi.string().required().valid(
-      'rent',
-      'list'
-    ),
-    firstName: Joi.string().required().label('First Name'),
-    lastName: Joi.string().required().label('Last Name'),
-    tel: Joi.number().required().label('Telephone Number'),
-    telCode: Joi.string().required().label('Telephone Code'),
-    lasrraId: Joi.string().required().label('LASRRA ID'),
+    role: Joi.string().required().valid('user'),
+    describeYou: Joi.string().optional(),
+    firstName: Joi.string().optional().label('First Name'),
+    lastName: Joi.string().optional().label('Last Name'),
+    tel: Joi.number().optional().label('Telephone Number'),
+    telCode: Joi.string().optional().label('Telephone Code'),
     nin: Joi.string().label('NIN'),
-    about: Joi.string().required().label('Information about your self and building'),
-    country: Joi.string().required().label('Country'),
-    state: Joi.string().required().label('State'),
-    lga: Joi.string().required().label('LGA'),
+    about: Joi.string()
+      .optional()
+      .label('Information about your self and building'),
+    country: Joi.string().optional().label('Country'),
+    state: Joi.string().optional().label('State'),
     image: Joi.object({
       size: Joi.number().positive().less(3000000).optional(),
     }).optional(),
-    type: Joi.string().valid('landLord', 'agent', 'unset').required().label('Type'),
-    agentBankCode: Joi.string().when('type', {
-      is: 'agent',
-      then:Joi.required().label('Agent Bank Code') ,
-      otherwise:  Joi.forbidden(),
-    }),
-    agentBankAccount: Joi.string().when('type', {
-      is: 'agent',
-      then:Joi.required().label('Agent Bank Account'),
-      otherwise: Joi.forbidden(), 
-    }),
-    landlordBankCode: Joi.string().required().label('Landlord Bank Code'),
-    landlordBankAccount:Joi.string().required().label('Landlord Bank Account'),
-    companyName: Joi.string().required().label('Company Name'),
-    agentRegistrationNO: Joi.string().required().label('Agent Registration Number'),
   });
 
-  
-  validateHandleValidateNIN= Joi.object().keys({
+  validateHandleValidateNIN = Joi.object().keys({
     NIN: Joi.string().required(),
     role: Joi.string().valid('list', 'rent'),
-    userId: Joi.number().integer().required()
+    userId: Joi.number().integer().required(),
   });
 
-
-  verifyHandleSetPin=Joi.object({
+  verifyHandleSetPin = Joi.object({
     userId: Joi.number().required(),
-    passCode: Joi.string().required()
+    passCode: Joi.number().required(),
   });
 
-  verifyHandleEnterPassCode=Joi.object({
+  verifyHandleEnterPassCode = Joi.object({
     userId: Joi.number().required(),
-    passCode: Joi.string().required()
+    passCode: Joi.number().required(),
   });
-
 }
 
 export default new UserUtil();
-
-
-
-
-

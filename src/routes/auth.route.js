@@ -26,7 +26,7 @@ class AuthRoutes extends AuthController {
     this.router.post("/sendPasswordResetLink", this.sendPasswordResetLink);
     this.router.post("/resetPassword", this.resetPassword);
     this.router.post("/refreshAccessToken", this.refreshAccessToken);
-
+        
 
    /*
    

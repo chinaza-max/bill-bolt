@@ -1,26 +1,24 @@
-import nodemailer from'nodemailer';
+import nodemailer from 'nodemailer';
 import fs from 'fs';
-import debug from'debug';
+import debug from 'debug';
 import Handlebars from 'handlebars';
-import serverConfig from "../config/server.js";
+import serverConfig from '../config/server.js';
 
 const DEBUG = debug('dev');
 
 class MailService {
   constructor() {
-
     this.transporter = nodemailer.createTransport({
       host: serverConfig.EMAIL_HOST,
       port: Number(serverConfig.EMAIL_PORT),
       secure: true,
       auth: {
         user: serverConfig.EMAIL_USER,
-        pass: serverConfig.EMAIL_PASS
-      }
-      ,
-    tls: {
-        rejectUnauthorized: false 
-    }
+        pass: serverConfig.EMAIL_PASS,
+      },
+      tls: {
+        rejectUnauthorized: false,
+      },
     });
   }
 
@@ -38,15 +36,17 @@ class MailService {
     const html = template(options.variables);
 
     const mailData = {
-      from: `${options.from ? options.from : serverConfig.EMAIL_SENDER} <${serverConfig.EMAIL_USER}>`,
+      from: `${options.from ? options.from : serverConfig.EMAIL_SENDER} <${
+        serverConfig.EMAIL_USER
+      }>`,
       to: options.to,
       subject: options.subject,
-      html: html
+      html: html,
     };
 
     this.transporter.sendMail(mailData, (error) => {
       if (error) {
-        console.log(error)
+        console.log(error);
         DEBUG(`Error sending email: ${error}`);
         return false;
       }

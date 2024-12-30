@@ -1,112 +1,90 @@
-import userService from "../../service/user.service.js";
-import authService from "../../service/auth.service.js";
-import serverConfig from "../../config/server.js";
-
-
-
+import userService from '../../service/user.service.js';
+import authService from '../../service/auth.service.js';
+import serverConfig from '../../config/server.js';
 
 export default class UserController {
-
-
-
   async updateProfile(req, res, next) {
-
     try {
-      const data = req.body;        
+      const data = req.body;
       const { file } = req;
 
       let my_bj = {
         ...data,
-        userId:req.user.id,
-        role:req.user.role,
-        image:{
-          size:file?.size
-        }
-      }
+        userId: req.user.id,
+        role: req.user.role,
+        image: {
+          size: file?.size,
+        },
+      };
 
-       await userService.handleUpdateProfile(my_bj,file);
-  
+      await userService.handleUpdateProfile(my_bj, file);
+
       return res.status(200).json({
         status: 200,
-        message: "updated successfully",
+        message: 'updated successfully',
       });
-       
-        
     } catch (error) {
       console.log(error);
-      next(error)
+      next(error);
     }
-    
   }
 
-
-  
   async updatePin(req, res, next) {
-
     try {
-      const data = req.body;        
+      const data = req.body;
 
       let my_bj = {
         ...data,
-        userId:req.user.id,
-        role:req.user.role
-      }
+        userId: req.user.id,
+        role: req.user.role,
+      };
 
-       await userService.handleUpdatePin(my_bj);
-  
+      await userService.handleUpdatePin(my_bj);
+
       return res.status(200).json({
         status: 200,
-        message: "updated successfully",
+        message: 'updated successfully',
       });
-       
-        
     } catch (error) {
       console.log(error);
-      next(error)
+      next(error);
     }
-    
   }
-
-
 
   async verifyNIN(req, res, next) {
-
     try {
-      const data = req.body;        
+      const data = req.body;
 
       let my_bj = {
         ...data,
-        userId:req.user.id,
-        role:req.user.role
-      }
+        userId: req.user.id,
+        role: req.user.role,
+      };
 
-       await userService.handleVerifyNIN(my_bj);
-  
+      await userService.handleVerifyNIN(my_bj);
+
       return res.status(200).json({
         status: 200,
-        message: "opt has been sent to the number attached to the nin",
-      })
-       
-        
+        message: 'opt has been sent to the number attached to the nin',
+      });
     } catch (error) {
       console.log(error);
-      next(error)
+      next(error);
     }
-    
   }
 
   async setPin(req, res, next) {
-
     try {
-      const data = req.body;        
+      const data = req.body;
 
       let my_bj = {
-
         ...data,
-      }
-      
-      const user=await userService.handleSetPin(my_bj);
-    
+        userId: req.user.id,
+      };
+
+      await userService.handleSetPin(my_bj);
+
+      /*
       if (user == null){
         return res.status(400).json({
           status: 400,
@@ -125,7 +103,7 @@ export default class UserController {
 
       const accessToken = await authService.generateAccessToken({...generateTokenFrom, scope: "access" });
       const refreshToken = await authService.generateRefreshToken({...generateTokenFrom, scope: "refresh" });
-
+*/
       /*
       const excludedProperties = ['isDeleted', 'password'];
 
@@ -135,7 +113,7 @@ export default class UserController {
           acc[key] = user.dataValues[key];
           return acc;
         }, {})*/
-
+      /*
       
       res.cookie("refresh_token", refreshToken, {
         httpOnly: true,
@@ -143,115 +121,107 @@ export default class UserController {
         sameSite: "Strict",
         maxAge: serverConfig.REFRESH_TOKEN_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000, // 30 days
       })
-        
+        */
       return res.status(200).json({
         status: 200,
-        message: "login successfully.",
+        message: 'login successfully.',
       });
-
-
     } catch (error) {
       console.log(error);
-      next(error)
-    }
-    
-  }
-
-  
-
-  async enterPassCode(req, res, next) {
-
-    try {
-      const data = req.body;        
-
-      let my_bj = {
-        ...data,
-      }
-      
-      const user=await userService.handleEnterPassCode(my_bj);
-    
-      if (user == null){
-        return res.status(400).json({
-          status: 400,
-          message: "Invalid login credentials",
-        });
-      }
-      else if(user == "disabled"){
-        return res.status(400).json({
-          status: 400,
-          message: "Your account has been disabled",
-        });
-      }
-
-
-      let generateTokenFrom={id:user.dataValues.id,role:user.dataValues.emailAddress}
-
-      const accessToken = await authService.generateAccessToken({...generateTokenFrom, scope: "access" });
-      const refreshToken = await authService.generateRefreshToken({...generateTokenFrom, scope: "refresh" });
-
-      
-      const excludedProperties = ['isDeleted', 'password'];
-
-      const modifiedUser = Object.keys(user.dataValues)
-        .filter(key => !excludedProperties.includes(key))
-        .reduce((acc, key) => {
-          acc[key] = user.dataValues[key];
-          return acc;
-        }, {})
-
-      res.cookie("refresh_token", refreshToken, {
-        httpOnly: true,
-        secure: true,
-        sameSite: "Strict",
-        maxAge: serverConfig.REFRESH_TOKEN_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000, // 30 days
-      })
-        
-      return res.status(200).json({
-        status: 200,
-        message: "successfully.",
-        data:{accessToken,modifiedUser}
-      });
-
-
-    } catch (error) {
-      console.log(error);
-      next(error)
-    }
-    
-  }
-
-  
-
-
-  async updatefcmToken(
-    req,
-    res,
-    next
-  ){
-    const data=req.body
- 
-    try {
-      
-        const my_bj = {
-          ...data,
-          userId:req.user.id, 
-        }
-                          
-        await userService.handleUpdatefcmToken(my_bj);
-
-        return res.status(200).json({
-          status: 200,
-          message: "success",
-        });
-      
-     
-    } catch (error) {
-      console.log(error)
       next(error);
     }
   }
 
-/*
+  async enterPassCode(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      const user = await userService.handleEnterPassCode(my_bj);
+
+      if (user == null) {
+        return res.status(400).json({
+          status: 400,
+          message: 'Invalid login credentials',
+        });
+      } else if (user == 'disabled') {
+        return res.status(400).json({
+          status: 400,
+          message: 'Your account has been disabled',
+        });
+      }
+
+      //let generateTokenFrom={id:user.dataValues.id,role:user.dataValues.emailAddress}
+      let generateTokenFrom = {
+        id: user.dataValues.id,
+        role: user.dataValues.role,
+        emailAddress: user.dataValues.emailAddress,
+      };
+
+      const accessToken = await authService.generateAccessToken({
+        ...generateTokenFrom,
+        scope: 'access',
+      });
+      const refreshToken = await authService.generateRefreshToken({
+        ...generateTokenFrom,
+        scope: 'refresh',
+      });
+
+      const excludedProperties = ['isDeleted', 'password'];
+
+      const modifiedUser = Object.keys(user.dataValues)
+        .filter((key) => !excludedProperties.includes(key))
+        .reduce((acc, key) => {
+          acc[key] = user.dataValues[key];
+          return acc;
+        }, {});
+
+      console.log(serverConfig.REFRESH_TOKEN_COOKIE_EXPIRES_IN);
+      res.cookie('refresh_token', refreshToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'Strict',
+        maxAge:
+          serverConfig.REFRESH_TOKEN_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000,
+      });
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: { accessToken, modifiedUser },
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async updatefcmToken(req, res, next) {
+    const data = req.body;
+
+    try {
+      const my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      await userService.handleUpdatefcmToken(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'success',
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  /*
   async whoIAm(
     req,
     res,
@@ -276,5 +246,4 @@ export default class UserController {
     }
   }
 */
-
 }

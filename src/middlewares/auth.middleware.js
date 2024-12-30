@@ -34,6 +34,7 @@ class AuthenticationMiddlewares {
       next(error);
     }
   }
+  
 /*
   async validateRefreshToken( req,res,next){
     try {

@@ -10,6 +10,7 @@ import { dirname } from 'path';
 import cron from "node-cron"
 import swaggerUi from 'swagger-ui-express';
 import swaggerJsDoc from 'swagger-jsdoc';
+import cookieParser from'cookie-parser'
 
 //import {  Op } from "sequelize";
      
@@ -24,7 +25,7 @@ const swaggerOptions = {
   swaggerDefinition: {
     openapi: '3.0.0',
     info: {
-      title: 'LagProperty API',
+      title: 'Fintread API',
       version: '1.0.0',
       description: 'API documentation for your system',
     },
@@ -91,6 +92,7 @@ class Server {
         this.app.use(express.static(path.join(__dirname, 'public')));
         this.app.use(cors(corsOptions));
         this.app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+        this.app.use(cookieParser())
 
         this.app.use(routes); 
         this.app.use(systemMiddleware.errorHandler);
