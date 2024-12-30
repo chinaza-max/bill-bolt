@@ -6,6 +6,7 @@ import PasswordReset, { init as initPasswordReset } from "./passwordReset.js";
 import MerchantAds, { init as initMerchantAds } from "./merchantAds.js";
 import Complaint, { init as initComplaint } from "./complaint.js";
 import Orders, { init as initOrders } from "./orders.js";
+import Setting, { init as initSetting } from "./setting.js";
 
 
 
@@ -77,7 +78,8 @@ export {
   MerchantAds,
   User,
   Complaint,
-  Orders
+  Orders,
+  Setting
 }
 
 export function init(connection) {
@@ -89,7 +91,8 @@ export function init(connection) {
   initMerchantAds(connection)
   initComplaint(connection)
   initOrders(connection)
-  
+  initSetting(connection)
+
   associate();
   authenticateConnection(connection)
 }

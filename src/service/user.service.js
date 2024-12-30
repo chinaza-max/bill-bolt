@@ -1,4 +1,4 @@
-import { User, EmailandTelValidation } from '../db/models/index.js';
+import { User, EmailandTelValidation,Setting } from '../db/models/index.js';
 import userUtil from '../utils/user.util.js';
 import authService from '../service/auth.service.js';
 import bcrypt from 'bcrypt';
@@ -10,6 +10,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { addMonths, format } from 'date-fns';
 import { fn, col, literal } from 'sequelize';
 import axios from 'axios';
+import { loadActiveGateway } from '../utils/gatewayLoader.js';
+       
 
 import {
   NotFoundError,
@@ -21,6 +23,7 @@ import {
 class UserService {
   EmailandTelValidationModel = EmailandTelValidation;
   UserModel = User;
+  SettingModel=Setting;
 
   async handleUpdatePin(data, file) {
     let { userId, role, image, ...updateData } =
@@ -142,6 +145,15 @@ class UserService {
 
     return userResult;
   }
+
+  
+  async getActiveGateway(){
+
+    const Setting=await this.SettingModel.findByPk(1)
+    return  Setting.activeGateway
+
+  }
+
 
   async generateRandomPassword(length = 12) {
     const charset =

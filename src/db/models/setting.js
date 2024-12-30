@@ -14,6 +14,23 @@ export function init(connection) {
         type: DataTypes.JSON,  
         allowNull: false
       },
+      gateWayEnvironment: {
+        type: DataTypes.ENUM(
+          'sandBox',
+          'live'
+        ),
+        allowNull: false,
+        defaultValue:"sandBox",
+      }, 
+      activeGateway: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue:"safeHaven.gateway" ,
+      }, 
+      gatewayList: {
+        type: DataTypes.JSON,
+        allowNull: true,
+      },
       isDeleted: {
         type: DataTypes.BOOLEAN,
         allowNull: false,

@@ -119,7 +119,7 @@ class AuthenticationService {
 
   }
 
-
+  
 
   async handleSendVerificationCodeEmailOrTel(data) {
 
@@ -193,49 +193,6 @@ class AuthenticationService {
     return user;
   }
 
-  /*
-  async handleSetPin(data) {
-
-    const { 
-      emailAddress,
-      password ,
-      type
-      }=await authUtil.verifyHandleLoginUser.validateAsync(data);
-
-    let user 
-
-    if(type=="user"){
-
-      user =  await this.UserModel.findOne({
-        where: {
-          emailAddress, 
-          isEmailValid:true, 
-          isDeleted:false
-        }
-      });  
-
-    }
-    else{
-      user =  await this.AdminModel.findOne({
-        where: {
-          emailAddress, 
-          isEmailValid:true,
-          isDeleted:false
-        }
-      });  
-    }
-    
-    if (!user) throw new NotFoundError("User not found.");
-
-    if (!(await bcrypt.compare(password, user.password))) return null;
-   
-    if(user.disableAccount) return 'disabled'
-    
-    return user;
-  }
-*/
-
-  
   
   async handleSendPasswordResetLink(data) {
 
@@ -330,7 +287,7 @@ class AuthenticationService {
 
   }
 
-
+  
 
 
   
