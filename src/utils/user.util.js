@@ -39,8 +39,15 @@ class UserUtil {
 
   verifyHandleEnterPassCode = Joi.object({
     userId: Joi.number().required(),
-    passCode: Joi.number().required(),
+    passCode: Joi.number().required()
   });
+
+  verifyHandleSignupMerchant = Joi.object({
+    userId: Joi.number().required().label('User ID'),
+    displayname: Joi.string().required().label('Display Name'),
+    nin: Joi.string().required().label('Display Name'),
+  });
+
 }
 
 export default new UserUtil();

@@ -48,6 +48,14 @@ export function init(connection) {
         type: DataTypes.STRING,
         allowNull: false,
       }, 
+      lat: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+      lng: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
       country: {
         type: DataTypes.STRING,
         allowNull: false,

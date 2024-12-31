@@ -494,6 +494,34 @@ class ExampleGateway extends BaseGateway {
       throw error;
     }
   }
+  async getAccount(accountId) {
+    const url = `${this.apiUrl}/accounts/${accountId}`;
+
+    if (!this.accessToken) {
+      console.log('Access token missing, generating a new one...');
+      await this.generateRefreshToken();
+      await this.getAccessToken();
+    }
+
+    try {
+      const response = await axios.get(url, {
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          ClientID: this.clientId,
+          Accept: 'application/json',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      if (error.response && error.response.status === 401) {
+        console.log('Access token expired, refreshing token...');
+        await this.getAccessToken();
+        return this.getAccount(accountId);
+      }
+      console.error('Error fetching account details:', error);
+      throw error;
+    }
+  }
 }
 
 export default ExampleGateway;

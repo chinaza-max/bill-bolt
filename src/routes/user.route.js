@@ -18,6 +18,7 @@ class UserRoutes extends UserController {
     this.router.post("/verifyNIN", this.verifyNIN);
     this.router.post("/setPin", this.setPin);
     this.router.post("/enterPassCode", this.enterPassCode);
+    this.router.post("/signupMerchant", this.signupMerchant);
 
     /*
     this.router.get("/whoIAm", this.whoIAm);

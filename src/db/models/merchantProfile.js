@@ -4,6 +4,7 @@
   class MerchantProfile extends Model {}
 
   export function init(connection) {
+   
     MerchantProfile.init(
       {
         id: {
@@ -17,11 +18,11 @@
         },
         settlementAccount: {
           type: DataTypes.STRING,
-          allowNull: false,
+          allowNull: true,
         },
         bankCode: {
           type: DataTypes.STRING,
-          allowNull: false,
+          allowNull: true,
         },
         accoutTier: {
           type: DataTypes.INTEGER,
@@ -34,6 +35,19 @@
         passCode: {
           type: DataTypes.STRING,
           allowNull: true,
+        },
+        nin: {
+          type: DataTypes.STRING,
+          allowNull: false,
+        },
+        accountStatus: {
+          type: DataTypes.ENUM(
+            'active',
+            'processing',
+            'rejected'
+          ),
+          allowNull: false,
+          defaultValue:"processing"
         },
         notificationAllowed: {
           type: DataTypes.BOOLEAN,
@@ -50,12 +64,18 @@
           allowNull: false,
           defaultValue:false ,
         }
-      }, {
+      }, 
+      {
         tableName: 'MerchantProfile',
         sequelize: connection,
         timestamps: true,
-        underscored:false
-    });
+        underscored:false,
+        indexes: [
+          {
+            fields: ['userId'], 
+          }
+        ]
+      });
   }
 
   export default MerchantProfile;

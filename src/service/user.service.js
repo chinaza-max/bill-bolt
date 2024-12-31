@@ -1,4 +1,4 @@
-import { User, EmailandTelValidation,Setting } from '../db/models/index.js';
+import { User, EmailandTelValidation,Setting ,MerchantProfile} from '../db/models/index.js';
 import userUtil from '../utils/user.util.js';
 import authService from '../service/auth.service.js';
 import bcrypt from 'bcrypt';
@@ -24,6 +24,8 @@ class UserService {
   EmailandTelValidationModel = EmailandTelValidation;
   UserModel = User;
   SettingModel=Setting;
+  MerchantProfileModel=MerchantProfile;
+
 
   async handleUpdatePin(data, file) {
     let { userId, role, image, ...updateData } =
@@ -145,6 +147,31 @@ class UserService {
 
     return userResult;
   }
+
+  async handleSignupMerchant(data) {
+    const { displayname, userId } =
+      await userUtil.verifyHandleSignupMerchant.validateAsync(data);
+
+    try {
+      await this.MerchantProfileModel.create({
+        displayname: displayname,
+        accoutTier: 1,
+        userId: userId,
+        lat:lat,
+        accountStatus:'processing', 
+      });
+    } 
+    catch (error) {
+
+      throw new SystemError(error.name, error.parent);
+
+    }
+
+  
+  }
+
+
+  
 
   
   async getActiveGateway(){
