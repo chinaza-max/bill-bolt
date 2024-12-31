@@ -15,7 +15,8 @@ class UserUtil {
     lastName: Joi.string().optional().label('Last Name'),
     tel: Joi.number().optional().label('Telephone Number'),
     telCode: Joi.string().optional().label('Telephone Code'),
-    nin: Joi.string().label('NIN'),
+    lat: Joi.string().optional(),
+    lng: Joi.string().optional(),
     about: Joi.string()
       .optional()
       .label('Information about your self and building'),

@@ -37,6 +37,7 @@ class UserService {
   }
 
   async handleUpdateProfile(data, file) {
+
     if (data.role == 'user') {
       let { userId, role, image, ...updateData } =
         await userUtil.verifyHandleUpdateProfile.validateAsync(data);
@@ -149,7 +150,7 @@ class UserService {
   }
 
   async handleSignupMerchant(data) {
-    const { displayname, userId } =
+    const { displayname, userId  } =
       await userUtil.verifyHandleSignupMerchant.validateAsync(data);
 
     try {
@@ -157,8 +158,7 @@ class UserService {
         displayname: displayname,
         accoutTier: 1,
         userId: userId,
-        lat:lat,
-        accountStatus:'processing', 
+        accountStatus:'active', 
       });
     } 
     catch (error) {

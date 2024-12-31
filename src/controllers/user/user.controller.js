@@ -3,6 +3,8 @@ import authService from '../../service/auth.service.js';
 import serverConfig from '../../config/server.js';
 
 export default class UserController {
+
+  
   async updateProfile(req, res, next) {
     try {
       const data = req.body;
