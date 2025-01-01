@@ -1,64 +1,61 @@
-import User, { init as initUser } from "./user.js";
-import MerchantProfile, { init as initMerchantProfile } from "./merchantProfile.js";
-import Chat, { init as initChat } from "./chat.js";
-import EmailandTelValidation, { init as initEmailandTelValidation } from "./emailAndTelValidation.js";
-import PasswordReset, { init as initPasswordReset } from "./passwordReset.js";
-import MerchantAds, { init as initMerchantAds } from "./merchantAds.js";
-import Complaint, { init as initComplaint } from "./complaint.js";
-import Orders, { init as initOrders } from "./orders.js";
-import Setting, { init as initSetting } from "./setting.js";
-
-
-
-
+import User, { init as initUser } from './user.js';
+import MerchantProfile, {
+  init as initMerchantProfile,
+} from './merchantProfile.js';
+import Chat, { init as initChat } from './chat.js';
+import EmailandTelValidation, {
+  init as initEmailandTelValidation,
+} from './emailAndTelValidation.js';
+import PasswordReset, { init as initPasswordReset } from './passwordReset.js';
+import MerchantAds, { init as initMerchantAds } from './merchantAds.js';
+import Complaint, { init as initComplaint } from './complaint.js';
+import Orders, { init as initOrders } from './orders.js';
+import Setting, { init as initSetting } from './setting.js';
+import Mymatch, { init as initMymatch } from './mymatch.js';
 
 function associate() {
-
-
-
   User.hasOne(MerchantProfile, {
     foreignKey: 'userId',
-    as: "MerchantProfile",
+    as: 'MerchantProfile',
   });
   MerchantProfile.belongsTo(User, {
     foreignKey: 'userId',
-  })
+  });
 
+  User.hasOne(Mymatch, {
+    foreignKey: 'userId',
+    as: 'UserMatch',
+  });
+  Mymatch.belongsTo(User, {
+    foreignKey: 'userId',
+  });
 
   User.hasOne(MerchantAds, {
     foreignKey: 'userId',
-    as: "UserMerchantAds",
+    as: 'UserMerchantAds',
   });
   MerchantAds.belongsTo(User, {
     foreignKey: 'userId',
-  })
-
+  });
 
   User.hasMany(Orders, {
     foreignKey: 'clientId',
-    as: "clientOrder",
+    as: 'clientOrder',
   });
   Orders.belongsTo(User, {
     foreignKey: 'clientId',
-  })
-  
+  });
 
   User.hasMany(Orders, {
     foreignKey: 'merchantId',
-    as: "merchantOrder",
+    as: 'merchantOrder',
   });
   Orders.belongsTo(User, {
     foreignKey: 'merchantId',
-  })
-
-
-
-
+  });
 
   //console.log(BusinessSpot.associations)
   //console.log(UserDate.associations)
-
-  
 }
 
 async function authenticateConnection(connection) {
@@ -79,20 +76,21 @@ export {
   User,
   Complaint,
   Orders,
-  Setting
-}
+  Setting,
+  Mymatch,
+};
 
 export function init(connection) {
   initUser(connection);
   initChat(connection);
-  initEmailandTelValidation(connection)
-  initPasswordReset(connection)
-  initMerchantProfile(connection)
-  initMerchantAds(connection)
-  initComplaint(connection)
-  initOrders(connection)
-  initSetting(connection)
-
+  initEmailandTelValidation(connection);
+  initPasswordReset(connection);
+  initMerchantProfile(connection);
+  initMerchantAds(connection);
+  initComplaint(connection);
+  initOrders(connection);
+  initSetting(connection);
+  initMymatch(connection);
   associate();
-  authenticateConnection(connection)
+  authenticateConnection(connection);
 }

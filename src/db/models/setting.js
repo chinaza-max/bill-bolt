@@ -1,4 +1,4 @@
-import { Model, DataTypes } from "sequelize";
+import { Model, DataTypes } from 'sequelize';
 
 class Setting extends Model {}
 
@@ -10,23 +10,30 @@ export function init(connection) {
         primaryKey: true,
         autoIncrement: true,
       },
+      distanceThreshold: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 10,
+      },
       tiers: {
-        type: DataTypes.JSON,  
-        allowNull: false
+        type: DataTypes.JSON,
+        allowNull: false,
       },
       gateWayEnvironment: {
-        type: DataTypes.ENUM(
-          'sandBox',
-          'live'
-        ),
+        type: DataTypes.ENUM('sandBox', 'live'),
         allowNull: false,
-        defaultValue:"sandBox",
-      }, 
+        defaultValue: 'sandBox',
+      },
       activeGateway: {
         type: DataTypes.STRING,
         allowNull: false,
-        defaultValue:"safeHaven.gateway" ,
-      }, 
+        defaultValue: 'safeHaven.gateway',
+      },
+      isMatchRunning: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
       gatewayList: {
         type: DataTypes.JSON,
         allowNull: true,
@@ -34,8 +41,8 @@ export function init(connection) {
       isDeleted: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue:false ,
-      }
+        defaultValue: false,
+      },
     },
     {
       tableName: 'Setting', // The table name

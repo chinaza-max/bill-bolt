@@ -1,9 +1,9 @@
 import { Model, DataTypes } from 'sequelize';
 
-class MerchantAds extends Model {}
+class Mymatch extends Model {}
 
 export function init(connection) {
-  MerchantAds.init(
+  Mymatch.init(
     {
       id: {
         type: DataTypes.INTEGER,
@@ -14,22 +14,9 @@ export function init(connection) {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
-      minAmount: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-      },
-      maxAmount: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-      },
-      pricePerThousand: {
+      matches: {
         type: DataTypes.JSON,
-        allowNull: false,
-      },
-      currency: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        defaultValue: 'NGN',
+        allowNull: true,
       },
       isDeleted: {
         type: DataTypes.BOOLEAN,
@@ -38,7 +25,7 @@ export function init(connection) {
       },
     },
     {
-      tableName: 'MerchantAds',
+      tableName: 'Mymatch',
       sequelize: connection,
       timestamps: true,
       underscored: false,
@@ -51,4 +38,4 @@ export function init(connection) {
   );
 }
 
-export default MerchantAds;
+export default Mymatch;

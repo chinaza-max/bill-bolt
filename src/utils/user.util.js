@@ -40,7 +40,7 @@ class UserUtil {
 
   verifyHandleEnterPassCode = Joi.object({
     userId: Joi.number().required(),
-    passCode: Joi.number().required()
+    passCode: Joi.number().required(),
   });
 
   verifyHandleSignupMerchant = Joi.object({
@@ -48,7 +48,18 @@ class UserUtil {
     displayname: Joi.string().required().label('Display Name'),
     nin: Joi.string().required().label('Display Name'),
   });
+  verifyHandleGetMyMerchant = Joi.object({
+    userId: Joi.number().required().label('User ID'),
+  });
 
+  verifyHandleCreateMerchantAds = Joi.object({
+    userId: Joi.number().integer().required(),
+    minAmount: Joi.number().integer().min(0).required(),
+    maxAmount: Joi.number().integer().min(Joi.ref('minAmount')).required(),
+    pricePerThousand: Joi.object()
+      .pattern(Joi.string().required(), Joi.number().min(0).required())
+      .required(),
+  });
 }
 
 export default new UserUtil();

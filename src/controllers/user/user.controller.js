@@ -3,8 +3,6 @@ import authService from '../../service/auth.service.js';
 import serverConfig from '../../config/server.js';
 
 export default class UserController {
-
-  
   async updateProfile(req, res, next) {
     try {
       const data = req.body;
@@ -96,8 +94,6 @@ export default class UserController {
     }
   }
 
-
-
   async enterPassCode(req, res, next) {
     try {
       const data = req.body;
@@ -166,8 +162,27 @@ export default class UserController {
     }
   }
 
+  async getMyMerchant(req, res, next) {
+    try {
+      const data = req.body;
 
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
 
+      const result = await userService.handleGetMyMerchant(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
   async signupMerchant(req, res, next) {
     try {
       const data = req.body;
@@ -188,7 +203,26 @@ export default class UserController {
       next(error);
     }
   }
+  async createMerchantAds(req, res, next) {
+    try {
+      const data = req.body;
 
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      await userService.handleCreateMerchantAds(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
   async updatefcmToken(req, res, next) {
     const data = req.body;
 
