@@ -60,6 +60,14 @@ class UserUtil {
       .pattern(Joi.string().required(), Joi.number().min(0).required())
       .required(),
   });
+  verifyHandleGenerateAccountVirtual = Joi.object({
+    userId: Joi.number().integer().required(),
+    minAmount: Joi.number().integer().min(0).required(),
+    maxAmount: Joi.number().integer().min(Joi.ref('minAmount')).required(),
+    pricePerThousand: Joi.object()
+      .pattern(Joi.string().required(), Joi.number().min(0).required())
+      .required(),
+  });
 }
 
 export default new UserUtil();

@@ -15,6 +15,16 @@ export function init(connection) {
         allowNull: false,
         defaultValue: 10,
       },
+      validFor: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 900,
+      },
+      callbackUrl: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue: 'https/',
+      },
       tiers: {
         type: DataTypes.JSON,
         allowNull: false,

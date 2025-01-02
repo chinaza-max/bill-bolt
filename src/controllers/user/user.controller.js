@@ -203,6 +203,26 @@ export default class UserController {
       next(error);
     }
   }
+  async generateAccountVirtual(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      await userService.handleGenerateAccountVirtual(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
   async createMerchantAds(req, res, next) {
     try {
       const data = req.body;

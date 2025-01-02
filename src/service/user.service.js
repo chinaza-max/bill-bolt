@@ -219,6 +219,21 @@ class UserService {
       throw new SystemError(error.name, error.parent);
     }
   }
+  async handleGenerateAccountVirtual(data) {
+    const { amount, userId } =
+      await userUtil.verifyHandleGenerateAccountVirtual.validateAsync(data);
+
+    try {
+      await this.Tra.upsert({
+        minAmount,
+        maxAmount,
+        userId,
+        pricePerThousand,
+      });
+    } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
+  }
   async handleCreateMerchantAds(data) {
     const { minAmount, maxAmount, pricePerThousand, userId } =
       await userUtil.verifyHandleCreateMerchantAds.validateAsync(data);
@@ -239,6 +254,8 @@ class UserService {
       // Check if match process is running
       const setting = await this.SettingModel.findByPk(1);
       if (setting.isMatchRunning) return;
+      setting.isMatchRunning = true;
+      setting.save();
       let distanceThreshold = setting.distanceThreshold || 10; // Example threshold in kilometers
 
       // Fetch users
@@ -288,7 +305,8 @@ class UserService {
           matches: userMatches,
         });
       }
-
+      setting.isMatchRunning = false;
+      setting.save();
       console.log('User-Merchant matching completed.');
     } catch (error) {
       console.error('Error during matching:', error);
