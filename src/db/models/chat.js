@@ -1,5 +1,4 @@
-import { Model, DataTypes } from "sequelize";
-
+import { Model, DataTypes } from 'sequelize';
 
 class Chat extends Model {}
 
@@ -11,26 +10,23 @@ export function init(connection) {
         primaryKey: true,
         autoIncrement: true,
       },
-      clientId: {
-        type: DataTypes.INTEGER ,
+      userId1: {
+        type: DataTypes.INTEGER,
         allowNull: true,
       },
-      merchantId: {
-        type: DataTypes.INTEGER ,
-        allowNull: true
+      userId2: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
       },
-      adminId: {
-        type: DataTypes.INTEGER ,
-        allowNull: true
+      roomId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
       },
-      messageType: { 
-        type: DataTypes.ENUM(
-          'text',
-          'file'
-        ),
+      messageType: {
+        type: DataTypes.ENUM('text', 'file'),
         allowNull: false,
       },
-      message: { 
+      message: {
         type: DataTypes.STRING,
         allowNull: true,
       },
@@ -38,15 +34,8 @@ export function init(connection) {
         type: DataTypes.STRING,
         allowNull: true,
       },
-      role: {
-        type: DataTypes.ENUM(
-          'list',
-          'rent'
-        ),
-        allowNull: false,
-      },  
       repliedMessageId: {
-        type: DataTypes.INTEGER ,
+        type: DataTypes.INTEGER,
         allowNull: true,
         references: {
           model: 'Chat',
@@ -56,20 +45,16 @@ export function init(connection) {
       isDeleted: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue:false ,
-      }
-    }, {
+        defaultValue: false,
+      },
+    },
+    {
       tableName: 'Chat',
       sequelize: connection,
       timestamps: true,
-      underscored:false
-    });
-  }
+      underscored: false,
+    }
+  );
+}
 
-export default Chat ;
-
-
-
-  
-
-  
+export default Chat;

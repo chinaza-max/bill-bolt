@@ -12,6 +12,9 @@ import swaggerUi from 'swagger-ui-express';
 import swaggerJsDoc from 'swagger-jsdoc';
 import cookieParser from 'cookie-parser';
 import { Setting } from './src/db/models/index.js';
+import { Server as SocketIOServer } from 'socket.io';
+import { configureSocket } from './src/utils/socketUtils.js';
+import http from 'http';
 
 //import {  Op } from "sequelize";
 
@@ -121,6 +124,14 @@ class Server {
 
     this.app.use(routes);
     this.app.use(systemMiddleware.errorHandler);
+    const httpServer = http.createServer(this.app);
+    const io = new SocketIOServer(httpServer, {
+      cors: {
+        origin: '*',
+        methods: ['GET', 'POST'],
+      },
+    });
+    configureSocket(io);
   }
 
   start() {

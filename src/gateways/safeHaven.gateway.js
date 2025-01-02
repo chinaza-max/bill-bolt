@@ -93,8 +93,6 @@ class ExampleGateway extends BaseGateway {
 
   async generateVirtualAccount(
     validFor = 900,
-    settlementAccount,
-    amountControl,
     amount,
     callbackUrl,
     externalReference
@@ -110,10 +108,10 @@ class ExampleGateway extends BaseGateway {
     const data = {
       validFor,
       settlementAccount: {
-        bankCode: settlementAccount.bankCode || '090286',
-        accountNumber: settlementAccount.accountNumber || '',
+        bankCode: serverConfig.BANK_CODE,
+        accountNumber: serverConfig.ACCOUNT_NUMBER,
       },
-      amountControl,
+      amountControl: serverConfig.AMOUNT_CONTROL,
       amount,
       callbackUrl,
       externalReference,

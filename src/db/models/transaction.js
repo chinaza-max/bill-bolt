@@ -1,5 +1,4 @@
-import { Model, DataTypes } from "sequelize";
-
+import { Model, DataTypes } from 'sequelize';
 
 class Transaction extends Model {}
 
@@ -15,58 +14,37 @@ export function init(connection) {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
-      buildingId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-      },
       amount: {
         type: DataTypes.INTEGER,
         allowNull: false,
-      },
-      inspectionId: {
-        type: DataTypes.INTEGER,
-        allowNull: true
-      }, 
-      transactionReference: {
-        type: DataTypes.STRING,
-        allowNull: true,
       },
       paymentReference: {
         type: DataTypes.STRING,
         allowNull: false,
       },
       transactionType: {
-        type: DataTypes.ENUM(
-            'appointmentAndRent',
-            'fistRent',
-            'commission',
-            'refund',
-            'rent',
-          ),
+        type: DataTypes.ENUM('order', 'widthdrawal', 'refund'),
         allowNull: false,
+        defaultValue: 'order',
       },
       paymentStatus: {
         type: DataTypes.STRING,
         allowNull: false,
-        defaultValue:'unverified',
+        defaultValue: 'unverified',
       },
       isDeleted: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue:false ,
-      }
-    }, {
+        defaultValue: false,
+      },
+    },
+    {
       tableName: 'Transaction',
       sequelize: connection,
       timestamps: true,
-      underscored:false
-    });
-  }
+      underscored: false,
+    }
+  );
+}
 
-export default Transaction ;
-
-
-
-  
-
-  
+export default Transaction;

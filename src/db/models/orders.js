@@ -26,6 +26,16 @@ export function init(connection) {
           ),
         allowNull: false,
       },
+      moneyStatus: {
+        type: DataTypes.ENUM(
+            'pending',// order created money has not been received
+            'received',// money has beeen received be merchant
+            'refund',// cancelled order
+            'paid'// money paid to merchant 
+          ),
+        allowNull: false,
+        defaultValue:'pending',
+      },
       transactionTime: {
         type: DataTypes.FLOAT,
         allowNull: true,
@@ -34,9 +44,18 @@ export function init(connection) {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
+      qrCodeHash: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
       hasIssues: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
+        defaultValue: false
+      },  
+      note: {
+        type: DataTypes.TEXT,
+        allowNull: true,
         defaultValue: false
       },
       transactionId: { 

@@ -12,6 +12,7 @@ import Complaint, { init as initComplaint } from './complaint.js';
 import Orders, { init as initOrders } from './orders.js';
 import Setting, { init as initSetting } from './setting.js';
 import Mymatch, { init as initMymatch } from './mymatch.js';
+import Transaction, { init as initTransaction } from './transaction.js';
 
 function associate() {
   User.hasOne(MerchantProfile, {
@@ -54,6 +55,22 @@ function associate() {
     foreignKey: 'merchantId',
   });
 
+  User.hasMany(Chat, {
+    foreignKey: 'userId1',
+    as: 'userId1Chat',
+  });
+  Chat.belongsTo(User, {
+    foreignKey: 'userId1',
+  });
+
+  User.hasMany(Chat, {
+    foreignKey: 'userId2',
+    as: 'userId2Chat',
+  });
+  Chat.belongsTo(User, {
+    foreignKey: 'userId2',
+  });
+
   //console.log(BusinessSpot.associations)
   //console.log(UserDate.associations)
 }
@@ -78,6 +95,7 @@ export {
   Orders,
   Setting,
   Mymatch,
+  Transaction,
 };
 
 export function init(connection) {
@@ -91,6 +109,7 @@ export function init(connection) {
   initOrders(connection);
   initSetting(connection);
   initMymatch(connection);
+  initTransaction(connection);
   associate();
   authenticateConnection(connection);
 }

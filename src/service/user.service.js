@@ -5,6 +5,9 @@ import {
   Mymatch,
   MerchantProfile,
   MerchantAds,
+  Orders,
+  Chat,
+  Transaction,
 } from '../db/models/index.js';
 import userUtil from '../utils/user.util.js';
 import authService from '../service/auth.service.js';
@@ -33,7 +36,21 @@ class UserService {
   MerchantProfileModel = MerchantProfile;
   MymatchModel = Mymatch;
   MerchantAdsModel = MerchantAds;
-
+  ChatModel = Chat;
+  TransactionModel = Transaction;
+  constructor() {
+    this.gateway;
+    this.validFor;
+    this.callbackUrl;
+  }
+  async loadGateWay(alternativeGateway) {
+    const Setting = await this.SettingModel.findByPk(1);
+    this.gateway = await loadActiveGateway(
+      alternativeGateway || Setting.activeGateway
+    );
+    this.validFor = Setting.validFor;
+    this.callbackUrl = Setting.callbackUrl;
+  }
   async handleUpdatePin(data, file) {
     let { userId, role, image, ...updateData } =
       await userUtil.verifyHandleUpdatePin.validateAsync(data);
@@ -222,18 +239,36 @@ class UserService {
   async handleGenerateAccountVirtual(data) {
     const { amount, userId } =
       await userUtil.verifyHandleGenerateAccountVirtual.validateAsync(data);
-
     try {
-      await this.Tra.upsert({
-        minAmount,
-        maxAmount,
+      const TransactionModelResult = await this.TransactionModel.create({
         userId,
-        pricePerThousand,
       });
+      await this.loadGateWay();
+      const generateVirtualAccountResult =
+        await this.gateway.generateVirtualAccount(
+          this.validFor,
+          amount,
+          this.callbackUrl,
+          TransactionModelResult.id
+        );
+      return generateVirtualAccountResult;
     } catch (error) {
       throw new SystemError(error.name, error.parent);
     }
   }
+
+  async handleGetChatHistory(data) {
+    const { userId, roomId } =
+      await userUtil.verifyHandleGetChatHistory.validateAsync(data);
+
+    try {
+      const getMessagesByRoomResult = this.getMessagesByRoom(roomId);
+      return getMessagesByRoomResult;
+    } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
   async handleCreateMerchantAds(data) {
     const { minAmount, maxAmount, pricePerThousand, userId } =
       await userUtil.verifyHandleCreateMerchantAds.validateAsync(data);
@@ -332,6 +367,47 @@ class UserService {
   async getActiveGateway() {
     const Setting = await this.SettingModel.findByPk(1);
     return Setting.activeGateway;
+  }
+
+  async getMessagesByRoom(roomId) {
+    return await this.ChatModel.findAll({
+      where: { roomId },
+      order: [['createdAt', 'ASC']],
+    });
+  }
+
+  async saveMessage(userId1, userId2, roomId, messageType, content) {
+    return await this.ChatModel.create({
+      userId1,
+      userId2,
+      roomId,
+      messageType,
+      content,
+    });
+  }
+
+  async getOrCreateRoom(userId, merchantId) {
+    let room = await this.ChatModel.findOne({ where: { userId, merchantId } });
+    if (!room) {
+      room = await this.ChatModel.create({ userId, merchantId });
+    }
+    return room;
+  }
+
+  async getQRCodeHash() {
+    const generateRandomPasswordResult = await this.generateRandomPassword();
+    let hashedPassCode;
+
+    try {
+      hashedPassCode = await bcrypt.hash(
+        generateRandomPasswordResult,
+        Number(serverConfig.SALT_ROUNDS)
+      );
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error);
+    }
+    return hashedPassCode;
   }
 
   async generateRandomPassword(length = 12) {

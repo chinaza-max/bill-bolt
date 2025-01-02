@@ -23,6 +23,7 @@ class UserRoutes extends UserController {
     this.router.post('/getMyMerchant', this.getMyMerchant);
     this.router.post('/createMerchantAds', this.createMerchantAds);
     this.router.post('/generateAccountVirtual', this.generateAccountVirtual);
+    this.router.get('/getChatHistory', this.getChatHistory);
 
     /*
     this.router.get("/whoIAm", this.whoIAm);

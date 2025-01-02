@@ -62,11 +62,12 @@ class UserUtil {
   });
   verifyHandleGenerateAccountVirtual = Joi.object({
     userId: Joi.number().integer().required(),
-    minAmount: Joi.number().integer().min(0).required(),
-    maxAmount: Joi.number().integer().min(Joi.ref('minAmount')).required(),
-    pricePerThousand: Joi.object()
-      .pattern(Joi.string().required(), Joi.number().min(0).required())
-      .required(),
+    amount: Joi.number().integer().min(0).required(),
+  });
+
+  verifyHandleGetChatHistory = Joi.object({
+    userId: Joi.number().integer().required(),
+    roomId: Joi.number().integer().required(),
   });
 }
 
