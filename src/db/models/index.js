@@ -54,6 +54,23 @@ function associate() {
     foreignKey: 'merchantId',
   });
 
+
+  User.hasMany(Chat, {
+    foreignKey: 'userId1',
+    as: 'userId1Chat',
+  });
+  Chat.belongsTo(User, {
+    foreignKey: 'userId1',
+  });
+
+  User.hasMany(Chat, {
+    foreignKey: 'UserId2',
+    as: 'userId2Chat',
+  });
+  Chat.belongsTo(User, {
+    foreignKey: 'UserId2',
+  });
+
   //console.log(BusinessSpot.associations)
   //console.log(UserDate.associations)
 }

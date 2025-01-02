@@ -60,6 +60,11 @@ class UserUtil {
       .pattern(Joi.string().required(), Joi.number().min(0).required())
       .required(),
   });
+
+  verifyHandleGetChatHistory = Joi.object({
+    userId: Joi.number().integer().required(),
+  });
+
 }
 
 export default new UserUtil();

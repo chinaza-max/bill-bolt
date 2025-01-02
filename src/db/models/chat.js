@@ -11,11 +11,11 @@ export function init(connection) {
         primaryKey: true,
         autoIncrement: true,
       },
-      clientId: {
+      userId1: {
         type: DataTypes.INTEGER ,
         allowNull: true,
       },
-      merchantId: {
+      UserId2: {
         type: DataTypes.INTEGER ,
         allowNull: true
       },

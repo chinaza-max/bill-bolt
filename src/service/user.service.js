@@ -4,7 +4,7 @@ import {
   Setting,
   Mymatch,
   MerchantProfile,
-  MerchantAds,
+  MerchantAds,Orders,Chat
 } from '../db/models/index.js';
 import userUtil from '../utils/user.util.js';
 import authService from '../service/auth.service.js';
@@ -33,6 +33,7 @@ class UserService {
   MerchantProfileModel = MerchantProfile;
   MymatchModel = Mymatch;
   MerchantAdsModel = MerchantAds;
+  ChatModel=Chat
 
   async handleUpdatePin(data, file) {
     let { userId, role, image, ...updateData } =
@@ -219,6 +220,19 @@ class UserService {
       throw new SystemError(error.name, error.parent);
     }
   }
+  
+    
+  async handleGetChatHistory(data) {
+    const { minAmount, maxAmount, pricePerThousand, userId } =
+      await userUtil.verifyHandleGetChatHistory.validateAsync(data);
+
+    try {
+      
+    } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+  
   async handleCreateMerchantAds(data) {
     const { minAmount, maxAmount, pricePerThousand, userId } =
       await userUtil.verifyHandleCreateMerchantAds.validateAsync(data);
@@ -314,6 +328,41 @@ class UserService {
   async getActiveGateway() {
     const Setting = await this.SettingModel.findByPk(1);
     return Setting.activeGateway;
+  }
+
+
+
+  async getMessagesByRoom (roomId) {
+      return await this.ChatModel.findAll({ where: { roomId }, order: [['createdAt', 'ASC']] });
+    };
+
+    async saveMessage  (roomId, senderType, content) {
+      return await this.ChatModel.create({ roomId, senderType, content });
+    };
+
+    async getOrCreateRoom (userId, merchantId) {
+      let room = await this.ChatModel.findOne({ where: { userId, merchantId } });
+      if (!room) {
+        room = await this.ChatModel.create({ userId, merchantId });
+      }
+      return room;
+    };
+
+  async getQRCodeHash(){
+
+      const generateRandomPasswordResult=await this.generateRandomPassword()
+      let hashedPassCode;
+
+      try {
+        hashedPassCode = await bcrypt.hash(
+          generateRandomPasswordResult,
+          Number(serverConfig.SALT_ROUNDS)
+        );
+      } catch (error) {
+        console.log(error);
+        throw new SystemError(error);
+      }
+      return hashedPassCode
   }
 
   async generateRandomPassword(length = 12) {

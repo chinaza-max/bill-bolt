@@ -10,7 +10,10 @@ import { dirname } from 'path';
 import cron from "node-cron"
 import swaggerUi from 'swagger-ui-express';
 import swaggerJsDoc from 'swagger-jsdoc';
-import cookieParser from'cookie-parser'
+import cookieParser from'cookie-parser';
+import { Server } from 'socket.io';
+import { configureSocket } from './utils/socketUtils.js';
+
 
 //import {  Op } from "sequelize";
      
@@ -96,6 +99,16 @@ class Server {
 
         this.app.use(routes); 
         this.app.use(systemMiddleware.errorHandler);
+
+        const httpServer = http.createServer(app);
+        const io = new Server(httpServer, {
+          cors: {
+            origin: '*',
+            methods: ['GET', 'POST'],
+          },
+        });
+
+        configureSocket(io);
 
     }
   
