@@ -21,6 +21,8 @@ import { addMonths, format } from 'date-fns';
 import { fn, col, literal } from 'sequelize';
 import axios from 'axios';
 import { loadActiveGateway } from '../utils/gatewayLoader.js';
+import { getSocketInstance } from '../utils/socketUtils.js';
+import { sendPushNotification } from '../service/push.service.js';
 
 import {
   NotFoundError,
@@ -251,6 +253,13 @@ class UserService {
           this.callbackUrl,
           TransactionModelResult.id
         );
+      /**
+       * -accountniumber
+       * -sessionIdVirtualAcct
+       * -orderId
+       */
+      /*generateVirtualAccountResult[fieldName] = newValue; // Update the specific field
+        await transaction.save(); */
       return generateVirtualAccountResult;
     } catch (error) {
       throw new SystemError(error.name, error.parent);
@@ -385,7 +394,29 @@ class UserService {
       content,
     });
   }
-
+  async updateTransaction(sessionIdVirtualAcct) {
+    const TransactionModelResult = await this.TransactionModel.findOne({
+      sessionIdVirtualAcct,
+    });
+    if (!this.gateway) {
+      await this.loadGateWay();
+    }
+    if (TransactionModelResult) {
+      const transactionStatus =
+        await this.gateway.getVirtualAccountTransferStatus(
+          sessionIdVirtualAcct
+        );
+    }
+  }
+  clientTransactionUpdateSocket(roomId, data) {
+    const io = getSocketInstance();
+    io.to(roomId).emit('transactionUpdate', {
+      data,
+    });
+  }
+  clientTransactionUpdatePushNofication(fcmToken, data) {
+    sendPushNotification(fcmToken, data);
+  }
   async getOrCreateRoom(userId, merchantId) {
     let room = await this.ChatModel.findOne({ where: { userId, merchantId } });
     if (!room) {

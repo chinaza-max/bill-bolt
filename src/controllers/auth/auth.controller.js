@@ -503,7 +503,41 @@ export default class AuthenticationController {
       next(error);
     }
   }
+  async virtualAccountCollection(req, res, next) {
+    try {
+      const data = req.body;
 
+      let my_bj = {
+        ...data,
+      };
+      const result = await authService.handleVirtualAccountCollection(my_bj);
+
+      if (result == 'Refresh token missing') {
+        res.status(401).json({
+          status: 401,
+          message: "'Refresh token missing'",
+        });
+      } else if (result == 'Invalid token type for refreshing') {
+        res.status(401).json({
+          status: 401,
+          message: 'Refresh token missing',
+        });
+      } else if (result == 'contact support user does not exist') {
+        res.status(401).json({
+          status: 404,
+          message: 'contact support user does not exist',
+        });
+      }
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully',
+        data: { accessToken: result },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
   async refreshAccessToken(req, res, next) {
     try {
       const result = await authService.handleRefreshAccessToken(req);

@@ -1,4 +1,4 @@
-import { Model, DataTypes } from "sequelize";
+import { Model, DataTypes } from 'sequelize';
 
 class Order extends Model {}
 
@@ -20,21 +20,22 @@ export function init(connection) {
       },
       orderStatus: {
         type: DataTypes.ENUM(
-            'cancelled',
-            'inProgress',
-            'completed',
-          ),
+          'cancelled', // order cancelled by client
+          'inProgress', // order is being processed by merchant
+          'completed', // order has been completed by merchant
+          'notAccepted' // order not accepted by merchant
+        ),
         allowNull: false,
       },
       moneyStatus: {
         type: DataTypes.ENUM(
-            'pending',// order created money has not been received
-            'received',// money has beeen received be merchant
-            'refund',// cancelled order
-            'paid'// money paid to merchant 
-          ),
+          'pending', // order created money has not been received
+          'received', // money has beeen received be merchant
+          'refund', // cancelled order
+          'paid' // money paid to merchant
+        ),
         allowNull: false,
-        defaultValue:'pending',
+        defaultValue: 'pending',
       },
       transactionTime: {
         type: DataTypes.FLOAT,
@@ -51,27 +52,27 @@ export function init(connection) {
       hasIssues: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue: false
-      },  
+        defaultValue: false,
+      },
       note: {
         type: DataTypes.TEXT,
         allowNull: true,
-        defaultValue: false
+        defaultValue: false,
       },
-      transactionId: { 
+      transactionId: {
         type: DataTypes.INTEGER,
         allowNull: true,
       },
       isDeleted: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue:false,
-      }
+        defaultValue: false,
+      },
     },
     {
-      tableName: 'Order', 
+      tableName: 'Order',
       sequelize: connection,
-      timestamps: true, 
+      timestamps: true,
       underscored: false,
     }
   );

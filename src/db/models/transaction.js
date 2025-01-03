@@ -14,11 +14,27 @@ export function init(connection) {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
+      orderId: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+      },
+      virtualAccount: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+      sessionIdVirtualAcct: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
       amount: {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
       paymentReference: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+      virtualAccount: {
         type: DataTypes.STRING,
         allowNull: false,
       },
