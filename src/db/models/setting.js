@@ -44,6 +44,14 @@ export function init(connection) {
         allowNull: false,
         defaultValue: false,
       },
+      gatewayService: {
+        type: DataTypes.JSON,
+        allowNull: true,
+      },
+      serviceCharge: {
+        type: DataTypes.JSON,
+        allowNull: true,
+      },
       gatewayList: {
         type: DataTypes.JSON,
         allowNull: true,

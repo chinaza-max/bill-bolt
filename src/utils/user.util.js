@@ -64,10 +64,29 @@ class UserUtil {
     userId: Joi.number().integer().required(),
     amount: Joi.number().integer().min(0).required(),
   });
-
+  verifyHandleGetMyOrderDetails = Joi.object({
+    userId: Joi.number().integer().required(),
+    orderId: Joi.number().integer().required(),
+    type: Joi.string().required(),
+  });
+  verifyHandleOrderAcceptOrCancel = Joi.object({
+    userId: Joi.number().integer().required(),
+    orderId: Joi.number().integer().required(),
+    type: Joi.string().required(),
+  });
   verifyHandleGetChatHistory = Joi.object({
     userId: Joi.number().integer().required(),
     roomId: Joi.number().integer().required(),
+  });
+  verifyHandleGetMyOrders = Joi.object({
+    userId: Joi.number().integer().required(),
+    type: Joi.string().required(),
+    userType: Joi.string().valid('client', 'merchant').required(),
+  });
+  handleverifyCompleteOrder = Joi.object({
+    userId: Joi.number().integer().required(),
+    type: Joi.string().required(),
+    userType: Joi.string().valid('client', 'merchant').required(),
   });
 }
 

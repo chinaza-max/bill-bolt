@@ -7,6 +7,7 @@ class ServerConfig {
   PORT = process.env.PORT;
   DOMAIN = process.env.DOMAIN;
   SALT_ROUNDS = process.env.SALT_ROUNDS;
+  GET_QR_CODE_HASH = process.env.GET_QR_CODE_HASH;
 
   MONNIFY_CLIENT_SECRET = process.env.MONNIFY_CLIENT_SECRET;
   MONNIFY_IP = process.env.MONNIFY_IP;
@@ -49,6 +50,9 @@ class ServerConfig {
 
   ACCOUNT_NUMBER = process.env.ACCOUNT_NUMBER;
   BANK_CODE = process.env.BANK_CODE;
+
+  GEO_API_KEY = process.env.GEO_API_KEY;
+  GEO_BASE_URL = process.env.GEO_BASE_URL;
 }
 
 export default new ServerConfig();

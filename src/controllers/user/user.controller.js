@@ -223,7 +223,87 @@ export default class UserController {
       next(error);
     }
   }
+  async getMyOrderDetails(req, res, next) {
+    try {
+      const data = req.body;
 
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      await userService.handleGetMyOrderDetails(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+  async verifyCompleteOrder(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      await userService.handleverifyCompleteOrder(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+  async orderAcceptOrCancel(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      await userService.handleOrderAcceptOrCancel(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+  async getMyOrders(req, res, next) {
+    try {
+      const data = req.params;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleGetMyOrders(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
   async getChatHistory(req, res, next) {
     try {
       const data = req.params;

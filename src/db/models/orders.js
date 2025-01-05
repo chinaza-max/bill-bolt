@@ -38,8 +38,20 @@ export function init(connection) {
         defaultValue: 'pending',
       },
       transactionTime: {
-        type: DataTypes.FLOAT,
+        type: DataTypes.STRING,
         allowNull: true,
+      },
+      distance: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      amountOrder: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+      },
+      totalAmount: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
       },
       rating: {
         type: DataTypes.INTEGER,

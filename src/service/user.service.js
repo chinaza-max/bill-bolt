@@ -40,10 +40,12 @@ class UserService {
   MerchantAdsModel = MerchantAds;
   ChatModel = Chat;
   TransactionModel = Transaction;
+  OrdersModel = Orders;
   constructor() {
     this.gateway;
     this.validFor;
     this.callbackUrl;
+    // this.getRouteSummary(-74.044502, 40.689247, -73.98513, 40.758896);
   }
   async loadGateWay(alternativeGateway) {
     const Setting = await this.SettingModel.findByPk(1);
@@ -238,6 +240,104 @@ class UserService {
       throw new SystemError(error.name, error.parent);
     }
   }
+  async handleOrderAcceptOrCancel(data) {
+    const { orderId, userId, type } =
+      await userUtil.verifyHandleOrderAcceptOrCancel.validateAsync(data);
+    try {
+      const OrdersModelResult = await this.OrdersModel.findByPk(orderId);
+      if (!OrdersModelResult) throw new NotFoundError('Order not found');
+      if (type === 'cancel') {
+        if (OrdersModelResult.orderStatus === 'notAccepted') {
+          OrdersModelResult.update({ orderStatus: 'cancelled' });
+        }
+      } else if (type === 'accept') {
+        if (OrdersModelResult.orderStatus === 'notAccepted') {
+          OrdersModelResult.update({ orderStatus: 'inProgress' });
+        }
+      }
+    } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+  async handleGetMyOrderDetails(data) {
+    const { orderId, type, userId } =
+      await userUtil.verifyHandleGetMyOrderDetails.validateAsync(data);
+    try {
+      const orderResult = await this.OrdersModel.findByPk(orderId);
+      const merchantAdsModelResult = await this.MerchantAdsModel.findOne({
+        where: { UserId: orderResult.merchantId },
+      });
+      const userResult = await this.UserModel.findByPk(orderResult.clientId);
+      const merchantResult = await this.UserModel.findByPk(
+        orderResult.merchantId
+      );
+      const settingResult = await this.SettingModel.findByPk(1);
+      const AmountSummary = this.getdeliveryAmountSummary(
+        merchantAdsModelResult.pricePerThousand,
+        orderResult.amountOrder,
+        settingResult.serviceCharge,
+        settingResult.gatewayService
+      );
+      if (type === 'client') {
+        return {
+          orderDetails: {
+            orderId: orderResult.id,
+            distance: orderResult.distance,
+            charges: AmountSummary,
+            qrCodeHash: orderResult.qrCodeHash,
+            merchantDetails: {
+              displayname: merchantResult.displayname,
+              tel: merchantResult.tel,
+              image: merchantResult.image,
+              merchantAds: merchantAdsModelResult,
+            },
+          },
+        };
+      } else if (type === 'merchant') {
+        return {
+          orderDetails: {
+            orderId: orderResult.id,
+            distance: orderResult.distance,
+            amount: orderResult.amount,
+            clientDetails: {
+              displayname: userResult.displayname,
+              tel: userResult.tel,
+              image: userResult.image,
+            },
+          },
+        };
+      }
+    } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+  async handleverifyCompleteOrder(data) {
+    const { userId, orderId, hash } =
+      await userUtil.verifyHandleOrderAcceptOrCancel.validateAsync(data);
+
+    try {
+      /*-------------------------------
+      the first part is use to validate 
+      that the person accessing this route
+      is the right person
+      ---------------------------------*/
+      const orderResult = await this.OrdersModel.findByPk(orderId);
+      const userResult = await this.UserModel.findByPk(orderResult.clientId);
+
+      const unConvertedHash =
+        orderId +
+        orderResult.clientId +
+        userId +
+        userResult.password +
+        serverConfig.GET_QR_CODE_HASH;
+      //const orderResult = await this.OrdersModel.findByPk(orderId);
+      if (!(await bcrypt.compare(unConvertedHash, hash))) return null;
+
+      orderResult.update({ orderStatus: 'completed' });
+    } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
+  }
   async handleGenerateAccountVirtual(data) {
     const { amount, userId } =
       await userUtil.verifyHandleGenerateAccountVirtual.validateAsync(data);
@@ -265,7 +365,77 @@ class UserService {
       throw new SystemError(error.name, error.parent);
     }
   }
+  async handleGetMyOrders(data) {
+    const { userId, userType, type } =
+      await userUtil.verifyHandleGetMyOrders.validateAsync(data);
+    let orderResult = [];
+    try {
+      // Fetch orders based on user type and order type
+      if (userType === 'client') {
+        if (type === 'active') {
+          orderResult = await this.OrdersModel.findAll({
+            where: {
+              clientId: userId,
+              orderStatus: {
+                [Op.or]: ['inProgress', 'notAccepted'],
+              },
+            },
+          });
+        } else if (type === 'completed') {
+          orderResult = await this.OrdersModel.findAll({
+            where: {
+              clientId: userId,
+              orderStatus: 'completed',
+            },
+          });
+        }
+      } else if (userType === 'merchant') {
+        if (type === 'active') {
+          orderResult = await this.OrdersModel.findAll({
+            where: {
+              merchantId: userId,
+              orderStatus: {
+                [Op.or]: ['inProgress', 'notAccepted'], // Sequelize OR condition
+              },
+            },
+          });
+        } else if (type === 'completed') {
+          orderResult = await this.OrdersModel.findAll({
+            where: {
+              merchantId: userId,
+              orderStatus: 'completed',
+            },
+          });
+        }
+      }
 
+      // Add distance and transaction time details
+      for (const order of orderResult) {
+        const clientDetails = await this.getUserDetails(order.clientId);
+        const merchantDetails = await this.getUserDetails(order.merchantId);
+
+        order.clientDetails = clientDetails;
+        order.merchantDetails = merchantDetails;
+
+        // Calculate distance
+        const distance = this.calculateDistance(
+          clientDetails.lat,
+          clientDetails.lng,
+          clientDetails.lat,
+          merchantDetails.lng
+        );
+        order.distance = distance;
+
+        // Fetch transaction time
+        const transactionTime = await Utility.getTransactionTime();
+        order.transactionTime = transactionTime;
+      }
+
+      return orderResult;
+    } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
+  }
   async handleGetChatHistory(data) {
     const { userId, roomId } =
       await userUtil.verifyHandleGetChatHistory.validateAsync(data);
@@ -425,20 +595,29 @@ class UserService {
     return room;
   }
 
-  async getQRCodeHash() {
-    const generateRandomPasswordResult = await this.generateRandomPassword();
-    let hashedPassCode;
+  async getQRCodeHash(orderId, clientId, merchantId, passwordHash) {
+    //passwordHash for the user;
+    const convertToHash =
+      orderId +
+      clientId +
+      merchantId +
+      passwordHash +
+      serverConfig.GET_QR_CODE_HASH;
+    let myHash;
 
     try {
-      hashedPassCode = await bcrypt.hash(
-        generateRandomPasswordResult,
+      myHash = await bcrypt.hash(
+        convertToHash,
         Number(serverConfig.SALT_ROUNDS)
       );
     } catch (error) {
       console.log(error);
       throw new SystemError(error);
     }
-    return hashedPassCode;
+    return myHash;
+  }
+  async getUserDetails(userId) {
+    return await this.UserModel.findOne({ where: { id: userId } });
   }
 
   async generateRandomPassword(length = 12) {
@@ -453,6 +632,106 @@ class UserService {
 
     return password;
   }
-}
+  async getRouteSummary(fromLat, fromLng, toLat, toLng) {
+    try {
+      const response = await axios.post(
+        serverConfig.GEO_BASE_URL,
+        {
+          coordinates: [
+            [fromLat, fromLng],
+            [toLat, toLng],
+          ],
+          //radiuses: [1000, 1000],
+        },
+        {
+          headers: {
+            Authorization: serverConfig.GEO_API_KEY,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      // console.log(response.data);
+      if (response.data && response.data.routes.length > 0) {
+        const route = response.data.routes[0]; // Get the first route
+        const details = {
+          distance: route.summary.distance, // Distance in meters
+          duration: route.summary.duration, // Duration in seconds
+          waypoints: route.geometry, // Encoded polyline for route geometry
+          bbox: route.bbox, // Bounding box of the route
+        };
+        console.log('Route details:', details);
+      } else {
+        throw new Error('No route found.');
+      }
+    } catch (error) {
+      console.error('Error calculating route:', error.message);
+      throw error;
+    }
+  }
+  async getdeliveryAmountSummary(
+    merchantads,
+    amount,
+    serviceCharge,
+    gatewayService
+  ) {
+    // Sort all arrays by the amount in ascending order
+    merchantads.sort((a, b) => a.amount - b.amount);
+    serviceCharge.sort((a, b) => a.amount - b.amount);
+    gatewayService.sort((a, b) => a.amount - b.amount);
 
+    let closestMerchantAmount = null;
+    let closestServiceCharge = null;
+    let closestGatewayCharge = null;
+
+    // Find the closest merchant amount that is less than or equal to the provided amount
+    for (let i = 0; i < merchantads.length; i++) {
+      if (merchantads[i].amount <= amount) {
+        closestMerchantAmount = merchantads[i];
+      } else {
+        break;
+      }
+    }
+
+    // Find the closest service charge that is less than or equal to the provided amount
+    for (let i = 0; i < serviceCharge.length; i++) {
+      if (serviceCharge[i].amount <= amount) {
+        closestServiceCharge = serviceCharge[i];
+      } else {
+        break;
+      }
+    }
+
+    // Find the closest gateway charge that is less than or equal to the provided amount
+    for (let i = 0; i < gatewayService.length; i++) {
+      if (gatewayService[i].amount <= amount) {
+        closestGatewayCharge = gatewayService[i];
+      } else {
+        break;
+      }
+    }
+
+    // If valid closest amounts are found, calculate and return the summary
+    if (closestMerchantAmount && closestServiceCharge && closestGatewayCharge) {
+      const totalAmountToPay =
+        amount +
+        closestMerchantAmount.charge +
+        closestServiceCharge.charge +
+        closestGatewayCharge.charge;
+
+      return {
+        totalAmount: totalAmountToPay,
+        merchantCharge: closestMerchantAmount.charge,
+        serviceCharge: closestServiceCharge.charge,
+        gatewayCharge: closestGatewayCharge.charge,
+      };
+    } else {
+      throw new Error('No valid charge found for the given amount');
+    }
+  }
+}
+/**const merchantads = [
+    { amount: 1000, charge: 100 },
+    { amount: 5000, charge: 300 },
+    { amount: 7000, charge: 500 },
+]; */
 export default new UserService();
