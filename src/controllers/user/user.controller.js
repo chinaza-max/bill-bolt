@@ -232,11 +232,12 @@ export default class UserController {
         userId: req.user.id,
       };
 
-      await userService.handleGetMyOrderDetails(my_bj);
+      const result = await userService.handleGetMyOrderDetails(my_bj);
 
       return res.status(200).json({
         status: 200,
         message: 'successfully.',
+        data: result,
       });
     } catch (error) {
       console.log(error);
