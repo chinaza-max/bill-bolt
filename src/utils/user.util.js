@@ -69,6 +69,46 @@ class UserUtil {
     orderId: Joi.number().integer().required(),
     type: Joi.string().required(),
   });
+  verifyHandleDashBoardStatistic = Joi.object({
+    userId: Joi.number().integer().required(),
+    orderId: Joi.number().integer().required(),
+    type: Joi.string().required(),
+  });
+  verifyHandleSubmitComplain = Joi.object({
+    userId: Joi.number().integer().required(),
+    orderId: Joi.number().integer().required(),
+    type: Joi.string().required(),
+  });
+  verifyHandleSetWithdrawalBank = Joi.object({
+    userId: Joi.number().integer().required(),
+    orderId: Joi.number().integer().required(),
+    type: Joi.string().required(),
+  });
+  verifyHandleGetBank = Joi.object({
+    userId: Joi.number().integer().required(),
+    orderId: Joi.number().integer().required(),
+    type: Joi.string().required(),
+  });
+  verifyHandleGetUsers = Joi.object({
+    userId: Joi.number().integer().required(),
+    orderId: Joi.number().integer().required(),
+    type: Joi.string().required(),
+  });
+  verifyHandleNameEnquiry = Joi.object({
+    userId: Joi.number().integer().required(),
+    orderId: Joi.number().integer().required(),
+    type: Joi.string().required(),
+  });
+  verifyHandleGetTransactionHistory = Joi.object({
+    userId: Joi.number().integer().required(),
+    orderId: Joi.number().integer().required(),
+    type: Joi.string().required(),
+  });
+  verifyHandleGetOrderStatistic = Joi.object({
+    userId: Joi.number().integer().required(),
+    orderId: Joi.number().integer().required(),
+    type: Joi.string().required(),
+  });
   verifyHandleOrderAcceptOrCancel = Joi.object({
     userId: Joi.number().integer().required(),
     orderId: Joi.number().integer().required(),

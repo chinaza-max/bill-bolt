@@ -34,6 +34,11 @@ export function init(connection) {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      walletBalance: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue: '0',
+      },
       repliedMessageId: {
         type: DataTypes.INTEGER,
         allowNull: true,

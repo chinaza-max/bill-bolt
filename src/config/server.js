@@ -54,6 +54,7 @@ class ServerConfig {
 
   GEO_API_KEY = process.env.GEO_API_KEY;
   GEO_BASE_URL = process.env.GEO_BASE_URL;
+  ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 }
 
 export default new ServerConfig();

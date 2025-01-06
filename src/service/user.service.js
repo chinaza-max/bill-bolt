@@ -8,6 +8,7 @@ import {
   Orders,
   Chat,
   Transaction,
+  Complaint,
 } from '../db/models/index.js';
 import userUtil from '../utils/user.util.js';
 import authService from '../service/auth.service.js';
@@ -41,6 +42,7 @@ class UserService {
   ChatModel = Chat;
   TransactionModel = Transaction;
   OrdersModel = Orders;
+  ComplaintModel = Complaint;
   constructor() {
     this.gateway;
     this.validFor;
@@ -177,19 +179,23 @@ class UserService {
   }
 
   async handleGetMyMerchant(data) {
-    const { userId } = await userUtil.verifyHandleGetMyMerchant.validateAsync(
-      data
-    );
+    const { userId, distance, range } =
+      await userUtil.verifyHandleGetMyMerchant.validateAsync(data);
 
     try {
       const MymatchModel = await this.MymatchModel.findOne({
         userId: userId,
       });
+
       if (MymatchModel) {
         let matches = matchData.matches;
+
         if (typeof matches === 'string') {
           matches = JSON.parse(matches);
         }
+
+        const filteredMatches = [];
+
         for (let i = 0; i < matches.length; i++) {
           let merchant = await this.UserModel.findOne({
             where: { id: matches[i].merchantId },
@@ -198,6 +204,9 @@ class UserService {
                 model: MerchantProfile,
                 as: 'MerchantProfile',
                 attributes: ['displayname'],
+                where: {
+                  accountStatus: 'active',
+                },
               },
               {
                 model: this.MerchantAdsModel,
@@ -211,12 +220,37 @@ class UserService {
                 required: true,
               },
             ],
-            attributes: ['tel'],
+            attributes: ['tel', 'isOnline'],
           });
+
+          let OrdersModelResult = await this.OrdersModel.count({
+            where: {
+              isDeleted: false,
+              merchantId: userId,
+              hasIssues: false,
+            },
+          });
+
+          // Add distance to merchant
           merchant.distance = matches[i].distance;
-          matches[i] = merchant;
+          merchant.numberOfOrder = OrdersModelResult;
+          // Apply filters
+          /* const isWithinAccuracy = accuracy
+            ? matches[i].accuracy <= accuracy
+            : true;*/
+          const isWithinDistance = distance
+            ? matches[i].distance <= distance
+            : true;
+          const isWithinRange = range
+            ? merchant.UserMerchantAds.some((ad) => ad.deliveryRange <= range)
+            : true;
+
+          if (isWithinDistance && isWithinRange) {
+            filteredMatches.push(merchant);
+          }
         }
-        return matches;
+
+        return filteredMatches;
       } else {
         return [];
       }
@@ -311,6 +345,396 @@ class UserService {
       throw new SystemError(error.name, error.parent);
     }
   }
+  async handleGetOrderStatistic(data) {
+    const { userId } =
+      await userUtil.verifyHandleGetOrderStatistic.validateAsync(data);
+    try {
+      const UserModelResult = await this.UserModel.findByPk(userId);
+      const SuccessFullCount = await this.OrdersModel.count({
+        where: {
+          merchantId: userId,
+          orderStatus: 'completed',
+          hasIssues: false,
+        },
+      });
+      const CancellCount = await this.OrdersModel.count({
+        where: { merchantId: userId, orderStatus: 'cancelled' },
+      });
+      const PendingCount = await this.OrdersModel.count({
+        where: { merchantId: userId, orderStatus: 'inProgress' },
+      });
+
+      const OrdersModelResult = await this.OrdersModel.findAll({
+        where: { orderStatus: 'inProgress', merchantId: userId },
+      });
+      const merchantAdsModelResult = await this.MerchantAdsModel.findOne({
+        where: { userId },
+      });
+      const settingResult = await this.SettingModel.findByPk(1);
+      let totalMerchantCharge = 0;
+      for (let order of OrdersModelResult) {
+        const amountSummary = this.getdeliveryAmountSummary(
+          merchantAdsModelResult.pricePerThousand,
+          order.amountOrder,
+          settingResult.serviceCharge,
+          settingResult.gatewayService
+        );
+        totalMerchantCharge += amountSummary.merchantCharge;
+      }
+
+      return {
+        Balance: UserModelResult.walletBalance,
+        EscrowBalance: totalMerchantCharge,
+        SuccessFullCount,
+        PendingCount,
+        CancellCount,
+      };
+    } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+  async handleGetTransaction(data) {
+    try {
+      return await this.TransactionModel.findAll();
+    } catch (error) {
+      console.error('Error fetching transactions with details:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+  async handleGetUsers(data) {
+    const { type } = await userUtil.verifyHandleGetUsers.validateAsync(data);
+
+    try {
+      if (type === 'client') {
+        return await this.UserModel.findAll({
+          // where: { role: 'client' },
+          attributes: {
+            exclude: [
+              'password',
+              'refreshToken',
+              'ipAdress',
+              'tel',
+              'bankCode',
+            ],
+          },
+        });
+      } else if (type === 'merchant') {
+        return await this.UserModel.findAll({
+          where: { merchantActivated: true },
+          attributes: {
+            exclude: [
+              'password',
+              'refreshToken',
+              'ipAdress',
+              'tel',
+              'bankCode',
+            ],
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching transactions with details:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+  async handleTransferMoney(data) {
+    const { passCode, amount, userId, sessionId } =
+      await userUtil.verifyHandleNameEnquiry.validateAsync(data);
+
+    try {
+      const userResult = await this.UserModel.findByPk(userId);
+
+      let myPassCode = passCode + '';
+
+      if (!(await bcrypt.compare(myPassCode, userResult.passCode))) return null;
+      if (!this.gateway) {
+        await this.loadGateWay();
+      }
+      return {};
+    } catch (error) {
+      console.error('Error fetching transactions with details:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+  async handleNameEnquiry(data) {
+    const { userId, bankCode, accountNumber } =
+      await userUtil.verifyHandleNameEnquiry.validateAsync(data);
+    if (!this.gateway) {
+      await this.loadGateWay();
+    }
+    try {
+      return {};
+    } catch (error) {
+      console.error('Error fetching transactions with details:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+  async handleGetBank(data) {
+    const { userId } = await userUtil.verifyHandleGetBank.validateAsync(data);
+    try {
+      return {};
+    } catch (error) {
+      console.error('Error fetching transactions with details:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+  async handleDashBoardStatistic(data) {
+    const { userId } =
+      await userUtil.verifyHandleDashBoardStatistic.validateAsync(data);
+    try {
+      const userResult = await this.UserModel.count({
+        where: { isEmailValid: true },
+      });
+      const userMerchantResult = await this.UserModel.count({
+        where: { isEmailValid: true, merchantActivated: true },
+      });
+      const settingModelResult = await this.SettingModel.findByPk(1);
+      const OrdersModelResult = await this.OrdersModel.findAll({
+        where: { orderStatus: 'inProgress' },
+      });
+      const merchantAdsModelResult = await this.MerchantAdsModel.findOne({
+        where: { userId },
+      });
+      let totalServiceCharge = 0;
+      for (let order of OrdersModelResult) {
+        const amountSummary = this.getdeliveryAmountSummary(
+          merchantAdsModelResult.pricePerThousand,
+          order.amountOrder,
+          settingModelResult.serviceCharge,
+          settingModelResult.gatewayService
+        );
+        totalServiceCharge += amountSummary.serviceCharge;
+      }
+      return {
+        numberOfUser: userResult,
+        numberOfMerchant: userMerchantResult,
+        balance: settingModelResult.walletBalance,
+        EscrowBalance: totalServiceCharge,
+      };
+    } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+  async handleSubmitComplain(data) {
+    const { userId } = await userUtil.verifyHandleSubmitComplain.validateAsync(
+      data
+    );
+    await this.ComplaintModel.create({});
+    try {
+    } catch (error) {
+      console.error('Error fetching transactions with details:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+  async handleSetWithdrawalBank(data) {
+    const { userId, ba, endDate } =
+      await userUtil.verifyHandleSetWithdrawalBank.validateAsync(data);
+    try {
+      // Define date filter if provided
+      const dateFilter =
+        startDate && endDate
+          ? {
+              createdAt: {
+                [Op.between]: [new Date(startDate), new Date(endDate)],
+              },
+            }
+          : {};
+
+      // Query transactions
+      const transactions = await Transaction.findAll({
+        where: {
+          isDeleted: false,
+          userId,
+          transactionType: 'order',
+          dateFilter,
+        },
+        limit: startDate && endDate ? undefined : 15, // Limit to 15 if no date range provided
+        include: [
+          {
+            model: this.OrdersModel,
+            as: 'OrderTransaction',
+            where: { isDeleted: false },
+            include: [
+              {
+                model: this.UserModel,
+                as: 'merchantOrder',
+                attributes: ['firstName', 'lastName', 'emailAddress', 'tel'],
+              },
+            ],
+          },
+        ],
+        order: [['createdAt', 'DESC']],
+      });
+
+      // Transform and return data
+      return transactions.map((transaction) => ({
+        id: transaction.id,
+        amount: transaction.amount,
+        paymentStatus: transaction.paymentStatus,
+        transactionType: transaction.transactionType,
+        orderDetails: transaction.Order
+          ? {
+              id: transaction.Order.id,
+              amountOrder: transaction.Order.amountOrder,
+              totalAmount: transaction.Order.totalAmount,
+              orderStatus: transaction.Order.orderStatus,
+            }
+          : null,
+        merchantDetails: transaction.Order?.Merchant
+          ? {
+              firstName: transaction.Order.merchantOrder.firstName,
+              lastName: transaction.Order.merchantOrder.lastName,
+              emailAddress: transaction.Order.merchantOrder.emailAddress,
+              tel: transaction.Order.merchantOrder.tel,
+              profile: transaction.Order.merchantOrder.MerchantProfile || null,
+            }
+          : null,
+      }));
+    } catch (error) {
+      console.error('Error fetching transactions with details:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+  async handleGetTransactionHistory(data) {
+    const { userId, startDate, endDate } =
+      await userUtil.verifyHandleGetTransactionHistory.validateAsync(data);
+    try {
+      // Define date filter if provided
+      const dateFilter =
+        startDate && endDate
+          ? {
+              createdAt: {
+                [Op.between]: [new Date(startDate), new Date(endDate)],
+              },
+            }
+          : {};
+
+      // Query transactions
+      const transactions = await Transaction.findAll({
+        where: {
+          isDeleted: false,
+          userId,
+          transactionType: 'order',
+          dateFilter,
+        },
+        limit: startDate && endDate ? undefined : 15, // Limit to 15 if no date range provided
+        include: [
+          {
+            model: this.OrdersModel,
+            as: 'OrderTransaction',
+            where: { isDeleted: false },
+            include: [
+              {
+                model: this.UserModel,
+                as: 'merchantOrder',
+                attributes: ['firstName', 'lastName', 'emailAddress', 'tel'],
+              },
+            ],
+          },
+        ],
+        order: [['createdAt', 'DESC']],
+      });
+
+      // Transform and return data
+      return transactions.map((transaction) => ({
+        id: transaction.id,
+        amount: transaction.amount,
+        paymentStatus: transaction.paymentStatus,
+        transactionType: transaction.transactionType,
+        orderDetails: transaction.Order
+          ? {
+              id: transaction.Order.id,
+              amountOrder: transaction.Order.amountOrder,
+              totalAmount: transaction.Order.totalAmount,
+              orderStatus: transaction.Order.orderStatus,
+            }
+          : null,
+        merchantDetails: transaction.Order?.Merchant
+          ? {
+              firstName: transaction.Order.merchantOrder.firstName,
+              lastName: transaction.Order.merchantOrder.lastName,
+              emailAddress: transaction.Order.merchantOrder.emailAddress,
+              tel: transaction.Order.merchantOrder.tel,
+              profile: transaction.Order.merchantOrder.MerchantProfile || null,
+            }
+          : null,
+      }));
+    } catch (error) {
+      console.error('Error fetching transactions with details:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+  async handleGetTransactionHistoryOrder(data) {
+    const { userId, startDate, endDate } =
+      await userUtil.verifyHandleOrderAcceptOrCancel.validateAsync(data);
+    try {
+      // Define date filter if provided
+      const dateFilter =
+        startDate && endDate
+          ? {
+              createdAt: {
+                [Op.between]: [new Date(startDate), new Date(endDate)],
+              },
+            }
+          : {};
+
+      // Query transactions
+      const transactions = await Transaction.findAll({
+        where: {
+          isDeleted: false,
+          userId,
+          dateFilter,
+          transactionType: {
+            [Op.ne]: 'order',
+          },
+        },
+        limit: startDate && endDate ? undefined : 15, // Limit to 15 if no date range provided
+        include: [
+          {
+            model: this.OrdersModel,
+            as: 'OrderTransaction',
+            where: { isDeleted: false },
+            include: [
+              {
+                model: this.UserModel,
+                as: 'merchantOrder',
+                attributes: ['firstName', 'lastName', 'emailAddress', 'tel'],
+              },
+            ],
+          },
+        ],
+        order: [['createdAt', 'DESC']],
+      });
+
+      // Transform and return data
+      return transactions.map((transaction) => ({
+        id: transaction.id,
+        amount: transaction.amount,
+        paymentStatus: transaction.paymentStatus,
+        transactionType: transaction.transactionType,
+        orderDetails: transaction.Order
+          ? {
+              id: transaction.Order.id,
+              amountOrder: transaction.Order.amountOrder,
+              totalAmount: transaction.Order.totalAmount,
+              orderStatus: transaction.Order.orderStatus,
+            }
+          : null,
+        merchantDetails: transaction.Order?.Merchant
+          ? {
+              firstName: transaction.Order.merchantOrder.firstName,
+              lastName: transaction.Order.merchantOrder.lastName,
+              emailAddress: transaction.Order.merchantOrder.emailAddress,
+              tel: transaction.Order.merchantOrder.tel,
+              profile: transaction.Order.merchantOrder.MerchantProfile || null,
+            }
+          : null,
+      }));
+    } catch (error) {
+      console.error('Error fetching transactions with details:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
   async handleverifyCompleteOrder(data) {
     const { userId, orderId, hash } =
       await userUtil.verifyHandleOrderAcceptOrCancel.validateAsync(data);
@@ -333,24 +757,60 @@ class UserService {
       //const orderResult = await this.OrdersModel.findByPk(orderId);
       if (!(await bcrypt.compare(unConvertedHash, hash))) return null;
 
-      orderResult.update({ orderStatus: 'completed' });
+      orderResult.update({ orderStatus: 'completed', moneyStatus: 'paid' });
+
+      const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
+        where: {
+          userId: orderResult.merchantId,
+        },
+      });
+      const settingResult = await this.SettingModel.findByPk(1);
+
+      const getdeliveryAmountSummary = await this.getdeliveryAmountSummary(
+        MerchantAdsModelResult.pricePerThousand,
+        orderResult.amountOrder,
+        settingResult.serviceCharge,
+        settingResult.gatewayService
+      );
+      this.updateWallet(userId, getdeliveryAmountSummary.merchantCharge);
+      this.updateAdminWallet(1);
     } catch (error) {
       throw new SystemError(error.name, error.parent);
     }
   }
+
   async handleGenerateAccountVirtual(data) {
-    const { amount, userId } =
+    const { amount, userId, merchantId } =
       await userUtil.verifyHandleGenerateAccountVirtual.validateAsync(data);
     try {
+      const OrderModelResult = await this.OrdersModel.create({
+        userId,
+        orderStatus: 'notAccepted',
+        moneyStatus: 'pending',
+        clientId: userId,
+        merchantId,
+        amountOrder: amount,
+      });
       const TransactionModelResult = await this.TransactionModel.create({
         userId,
+        orderId: OrderModelResult.id,
       });
       await this.loadGateWay();
+      const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
+        where: { userId: merchantId },
+      });
+      const settingResult = await this.SettingModel.findByPk(1);
+      const getdeliveryAmountSummary = this.getdeliveryAmountSummary(
+        MerchantAdsModelResult.pricePerThousand,
+        amount,
+        settingResult.serviceCharge,
+        settingResult.gatewayService
+      );
       const generateVirtualAccountResult =
         await this.gateway.generateVirtualAccount(
           this.validFor,
-          amount,
-          this.callbackUrl,
+          getdeliveryAmountSummary.totalAmount,
+          getdeliveryAmountSummary.callbackUrl,
           TransactionModelResult.id
         );
       /**
@@ -578,6 +1038,15 @@ class UserService {
         );
     }
   }
+  async updateOrder(orderId, data) {
+    try {
+      const orderResult = await this.OrdersModel.findByPk(orderId);
+      if (!orderResult) return;
+      //orderResult.update(data);
+    } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
+  }
   clientTransactionUpdateSocket(roomId, data) {
     const io = getSocketInstance();
     io.to(roomId).emit('transactionUpdate', {
@@ -667,6 +1136,18 @@ class UserService {
       console.error('Error calculating route:', error.message);
       throw error;
     }
+  }
+  async updateWallet(userId, amount) {
+    const UserModelResult = await this.UserModel.findByPk(userId);
+    let walletBalance =
+      parseFloat(UserModelResult.walletBalance) + parseFloat(amount);
+    UserModelResult.update({ walletBalance });
+  }
+  async updateAdminWallet(userId, amount) {
+    const SettingModelResult = await this.SettingModel.findByPk(userId);
+    let walletBalance =
+      parseFloat(SettingModelResult.walletBalance) + parseFloat(amount);
+    SettingModelResult.update({ walletBalance });
   }
   async getdeliveryAmountSummary(
     merchantads,

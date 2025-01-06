@@ -16,7 +16,7 @@ export function init(connection) {
       },
       orderId: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true,
       },
       virtualAccount: {
         type: DataTypes.STRING,

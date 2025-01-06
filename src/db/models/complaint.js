@@ -1,4 +1,4 @@
-import { Model, DataTypes } from "sequelize";
+import { Model, DataTypes } from 'sequelize';
 
 class Complaint extends Model {}
 
@@ -14,35 +14,35 @@ export function init(connection) {
         // The user who submitted the complaint (can be client or merchant)
         type: DataTypes.INTEGER,
         allowNull: false,
-        comment: "ID of the user (client or merchant) who submitted the complaint",
+        comment:
+          'ID of the user (client or merchant) who submitted the complaint',
       },
       orderId: {
         // The order related to the complaint, if applicable
         type: DataTypes.INTEGER,
         allowNull: true,
-        comment: "ID of the order the complaint is associated with",
+        comment: 'ID of the order the complaint is associated with',
       },
       complaintType: {
         // Type of complaint, can be about the transaction, user behavior, etc.
-        type: DataTypes.ENUM('transaction','user', 'service'),
+        type: DataTypes.ENUM('transaction', 'user', 'service'),
         allowNull: false,
-        comment: "The type of complaint",
+        comment: 'The type of complaint',
       },
       complaintReason: {
         // Reason or description of the complaint
         type: DataTypes.TEXT,
         allowNull: false,
-        comment: "Detailed reason for the complaint",
+        comment: 'Detailed reason for the complaint',
       },
       status: {
         // Status of the complaint (open, under investigation, resolved, etc.)
         type: DataTypes.ENUM('open', 'inProgress', 'resolved', 'dismissed'),
         allowNull: false,
         defaultValue: 'open',
-        comment: "The current status of the complaint",
+        comment: 'The current status of the complaint',
       },
       isDeleted: {
-        // Soft delete flag for the complaint
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,

@@ -1,5 +1,4 @@
-import { Model, DataTypes } from "sequelize";
-
+import { Model, DataTypes } from 'sequelize';
 
 class User extends Model {}
 
@@ -8,17 +7,17 @@ export function init(connection) {
     {
       id: {
         type: DataTypes.INTEGER,
-        primaryKey: true,        
-        autoIncrement: true
+        primaryKey: true,
+        autoIncrement: true,
       },
-      emailAddress: {    
+      emailAddress: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: false,
       },
       isEmailValid: {
         type: DataTypes.BOOLEAN,
-        defaultValue:false, 
-        allowNull: false
+        defaultValue: false,
+        allowNull: false,
       },
       refundAccount: {
         type: DataTypes.STRING,
@@ -47,7 +46,7 @@ export function init(connection) {
       lastName: {
         type: DataTypes.STRING,
         allowNull: false,
-      }, 
+      },
       lat: {
         type: DataTypes.STRING,
         allowNull: false,
@@ -59,65 +58,74 @@ export function init(connection) {
       country: {
         type: DataTypes.STRING,
         allowNull: false,
-        defaultValue:"NIGERIA"
+        defaultValue: 'NIGERIA',
       },
       role: {
         type: DataTypes.STRING,
         allowNull: false,
-        defaultValue:"user"
+        defaultValue: 'user',
       },
       password: {
         type: DataTypes.STRING,
         allowNull: false,
-      }, 
+      },
       dateOfBirth: {
         type: DataTypes.DATE,
         allowNull: false,
       },
       passCode: {
         type: DataTypes.STRING,
-        allowNull: true,      
+        allowNull: true,
       },
       describeYou: {
-        type: DataTypes.STRING,  
+        type: DataTypes.STRING,
         allowNull: true,
       },
       merchantActivated: {
         type: DataTypes.BOOLEAN,
-        defaultValue: false,    
-        allowNull: true
+        defaultValue: false,
+        allowNull: true,
+      },
+      isOnline: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
       },
       disableAccount: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue:false
+        defaultValue: false,
       },
       refreshToken: {
         type: DataTypes.TEXT,
         allowNull: true,
       },
+      walletBalance: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue: '0',
+      },
+      ipAdress: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
       notificationAllowed: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue:true
-      },   
+        defaultValue: true,
+      },
       isDeleted: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue:false,
-      }
-    }, {
+        defaultValue: false,
+      },
+    },
+    {
       tableName: 'User',
       sequelize: connection,
       timestamps: true,
-      underscored:false
-  });
-  }
+      underscored: false,
+    }
+  );
+}
 
-export default User ;
-
-
-
-  
-
-  
+export default User;

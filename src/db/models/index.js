@@ -13,6 +13,7 @@ import Orders, { init as initOrders } from './orders.js';
 import Setting, { init as initSetting } from './setting.js';
 import Mymatch, { init as initMymatch } from './mymatch.js';
 import Transaction, { init as initTransaction } from './transaction.js';
+import Admin, { init as initAdmin } from './admin.js';
 
 function associate() {
   User.hasOne(MerchantProfile, {
@@ -21,6 +22,22 @@ function associate() {
   });
   MerchantProfile.belongsTo(User, {
     foreignKey: 'userId',
+  });
+
+  User.hasMany(Transaction, {
+    foreignKey: 'userId',
+    as: 'UserTransaction',
+  });
+  Transaction.belongsTo(User, {
+    foreignKey: 'userId',
+  });
+
+  Orders.hasMany(Transaction, {
+    foreignKey: 'orderId',
+    as: 'OrderTransaction',
+  });
+  Transaction.belongsTo(Orders, {
+    foreignKey: 'orderId',
   });
 
   User.hasOne(Mymatch, {
@@ -96,6 +113,7 @@ export {
   Setting,
   Mymatch,
   Transaction,
+  Admin,
 };
 
 export function init(connection) {
@@ -110,6 +128,7 @@ export function init(connection) {
   initSetting(connection);
   initMymatch(connection);
   initTransaction(connection);
+  initAdmin(connection);
   associate();
   authenticateConnection(connection);
 }

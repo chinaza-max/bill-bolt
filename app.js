@@ -11,7 +11,7 @@ import cron from 'node-cron';
 import swaggerUi from 'swagger-ui-express';
 import swaggerJsDoc from 'swagger-jsdoc';
 import cookieParser from 'cookie-parser';
-import { Setting } from './src/db/models/index.js';
+import { Setting, Admin } from './src/db/models/index.js';
 import { Server as SocketIOServer } from 'socket.io';
 import { configureSocket } from './src/utils/socketUtils.js';
 import http from 'http';
@@ -88,6 +88,17 @@ class Server {
         isDeleted: false,
       },
     });
+    /* await Admin.findOrCreate({
+      where: { emailAddress: 'admin@gmail.com' },
+      defaults: {
+        firstName: 'Admin',
+        lastName: 'Admin',
+        password: serverConfig.ADMIN_PASSWORD, // Ensure this password is securely hashed
+        image: null,
+        role: 'admin',
+        privilege: 'super_admin',
+      },
+    });*/
     //cron.schedule('0 */2 * * *', async () => {
     /* checktransactionUpdateWebHook
         checktransactionUpdateSingleTransfer

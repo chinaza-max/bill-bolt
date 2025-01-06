@@ -41,6 +41,10 @@ export function init(connection) {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      sessionId: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
       distance: {
         type: DataTypes.STRING,
         allowNull: true,

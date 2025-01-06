@@ -255,7 +255,7 @@ class AuthenticationService {
       if (data.type === 'virtualAccount.transfer') {
         /*const TransactionModelResult = await this.TransactionModel.findByPk(
           data.data._id
-        );
+        ); 
         TransactionModelResult.update({});*/
         userService.updateTransaction(data.sessionId);
       }

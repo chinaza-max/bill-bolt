@@ -20,7 +20,7 @@ class UserRoutes extends UserController {
     this.router.post('/setPin', this.setPin);
     this.router.post('/enterPassCode', this.enterPassCode);
     this.router.post('/signupMerchant', this.signupMerchant);
-    this.router.post('/getMyMerchant', this.getMyMerchant);
+    this.router.get('/getMyMerchant', this.getMyMerchant);
     this.router.post('/createMerchantAds', this.createMerchantAds);
     this.router.post('/generateAccountVirtual', this.generateAccountVirtual);
     this.router.get('/getChatHistory', this.getChatHistory);
@@ -28,6 +28,22 @@ class UserRoutes extends UserController {
     this.router.post('/orderAcceptOrCancel', this.orderAcceptOrCancel);
     this.router.post('/verifyCompleteOrder', this.verifyCompleteOrder);
     this.router.post('/getMyOrderDetails', this.verifyCompleteOrder);
+    //Transaction api
+    this.router.post(
+      '/getTransactionHistoryOrder',
+      this.getTransactionHistoryOrder
+    );
+    this.router.post('/getTransactionHistory', this.getTransactionHistory);
+    this.router.post('/getOrderStatistic', this.getOrderStatistic);
+    this.router.post('/setWithdrawalBank', this.setWithdrawalBank);
+    this.router.get('/getBank', this.getBank);
+    this.router.get('/nameEnquiry', this.nameEnquiry);
+    this.router.get('/transferMoney', this.transferMoney);
+    this.router.post('/submitComplain', this.submitComplain);
+    //ADMIN
+    this.router.post('/dashBoardStatistic', this.dashBoardStatistic);
+    this.router.get('/getUsers', this.getUsers);
+    this.router.get('/getTransaction', this.getTransaction);
 
     /*
     this.router.get("/whoIAm", this.whoIAm);

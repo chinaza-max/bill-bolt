@@ -20,6 +20,11 @@ export function init(connection) {
         allowNull: false,
         defaultValue: 900,
       },
+      walletBalance: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue: '0',
+      },
       callbackUrl: {
         type: DataTypes.STRING,
         allowNull: false,
