@@ -34,10 +34,6 @@ export function init(connection) {
         type: DataTypes.STRING,
         allowNull: true,
       },
-      nin: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
       accountStatus: {
         type: DataTypes.ENUM('active', 'processing', 'notActive', 'rejected'),
         allowNull: false,

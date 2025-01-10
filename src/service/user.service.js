@@ -67,34 +67,32 @@ class UserService {
   }
 
   async handleUpdateProfile(data, file) {
-    if (data.role == 'user') {
-      let { userId, role, image, ...updateData } =
-        await userUtil.verifyHandleUpdateProfile.validateAsync(data);
+    let { userId, role, image, ...updateData } =
+      await userUtil.verifyHandleUpdateProfile.validateAsync(data);
 
-      try {
-        let imageUrl = '';
-        if (file) {
-          if (serverConfig.NODE_ENV == 'production') {
-            imageUrl = serverConfig.DOMAIN + file.path.replace('/home', '');
-          } else if (serverConfig.NODE_ENV == 'development') {
-            imageUrl = serverConfig.DOMAIN + file.path.replace('public', '');
-          }
+    try {
+      let imageUrl = '';
+      if (file) {
+        if (serverConfig.NODE_ENV == 'production') {
+          imageUrl = serverConfig.DOMAIN + file.path.replace('/home', '');
+        } else if (serverConfig.NODE_ENV == 'development') {
+          imageUrl = serverConfig.DOMAIN + file.path.replace('public', '');
         }
-
-        const UserModelResult = await this.UserModel.findByPk(userId);
-
-        if (file) {
-          await UserModelResult.update(
-            { image: imageUrl, ...updateData },
-            { where: { id: userId } }
-          );
-        } else {
-          await UserModelResult.update(updateData, { where: { id: userId } });
-        }
-      } catch (error) {
-        console.log(error);
-        throw new SystemError(error.name, error.parent);
       }
+
+      const UserModelResult = await this.UserModel.findByPk(userId);
+
+      if (file) {
+        await UserModelResult.update(
+          { image: imageUrl, ...updateData }
+          //{ where: { id: userId } }
+        );
+      } else {
+        await UserModelResult.update(updateData /*{ where: { id: userId } }*/);
+      }
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
     }
   }
 
@@ -118,9 +116,9 @@ class UserService {
         }
       );
 
-      const phone = response.data.responseBody.mobileNumber;
+      // const phone = response.data.responseBody.mobileNumber;
 
-      //authService.sendNINVerificationCode(phone, userId, role)
+      // authService.sendNINVerificationCode(phone, userId, role)
     } catch (error) {
       console.log(error?.response?.data);
       throw new SystemError(error.name, error?.response?.data?.error);
@@ -198,7 +196,7 @@ class UserService {
 
         for (let i = 0; i < matches.length; i++) {
           let merchant = await this.UserModel.findOne({
-            where: { id: matches[i].merchantId },
+            where: { id: matches[i].merchantId, disableAccount: false },
             include: [
               {
                 model: MerchantProfile,
@@ -260,10 +258,15 @@ class UserService {
   }
 
   async handleSignupMerchant(data) {
-    const { displayname, userId } =
+    const { displayname, userId, nin, ninName } =
       await userUtil.verifyHandleSignupMerchant.validateAsync(data);
 
     try {
+      const UserModelResult = await this.UserModel.findOne({
+        id: userId,
+      });
+      await UserModelResult.update({ nin, ninName, accountStatus: true });
+
       await this.MerchantProfileModel.create({
         displayname: displayname,
         accoutTier: 1,
@@ -271,6 +274,7 @@ class UserService {
         accountStatus: 'active',
       });
     } catch (error) {
+      console.log(error);
       throw new SystemError(error.name, error.parent);
     }
   }

@@ -46,7 +46,8 @@ class UserUtil {
   verifyHandleSignupMerchant = Joi.object({
     userId: Joi.number().required().label('User ID'),
     displayname: Joi.string().required().label('Display Name'),
-    nin: Joi.string().required().label('Display Name'),
+    nin: Joi.string().required().label('nin'),
+    ninName: Joi.string().required(),
   });
   verifyHandleGetMyMerchant = Joi.object({
     userId: Joi.number().required().label('User ID'),

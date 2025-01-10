@@ -77,6 +77,14 @@ export function init(connection) {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      nin: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      ninName: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
       describeYou: {
         type: DataTypes.STRING,
         allowNull: true,
