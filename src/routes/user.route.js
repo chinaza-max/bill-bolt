@@ -40,7 +40,7 @@ class UserRoutes extends UserController {
     this.router.get('/nameEnquiry', this.nameEnquiry);
     this.router.get('/transferMoney', this.transferMoney);
     this.router.post('/submitComplain', this.submitComplain);
-    //ADMIN
+    //ADMIN s
     this.router.post('/dashBoardStatistic', this.dashBoardStatistic);
     this.router.get('/getUsers', this.getUsers);
     this.router.get('/getTransaction', this.getTransaction);
