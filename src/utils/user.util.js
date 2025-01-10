@@ -1,5 +1,5 @@
 import Joi from 'joi';
-
+const dateFormat = /^\d{4}-\d{2}-\d{2}$/;
 class UserUtil {
   verifyHandleUpdatePin = Joi.object().keys({
     NIN: Joi.string().required(),
@@ -101,9 +101,17 @@ class UserUtil {
   });
   verifyHandleGetTransactionHistory = Joi.object({
     userId: Joi.number().integer().required(),
-    orderId: Joi.number().integer().required(),
-    type: Joi.string().required(),
+    limit: Joi.number().integer().optional(),
+    startDate: Joi.string()
+      .optional()
+      .pattern(dateFormat)
+      .message('startDate must be in the format YYYY-MM-DD'),
+    endDate: Joi.string()
+      .optional()
+      .pattern(dateFormat)
+      .message('endDate must be in the format YYYY-MM-DD'),
   });
+
   verifyHandleGetOrderStatistic = Joi.object({
     userId: Joi.number().integer().required(),
     orderId: Joi.number().integer().required(),

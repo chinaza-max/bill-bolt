@@ -33,7 +33,7 @@ class UserRoutes extends UserController {
       '/getTransactionHistoryOrder',
       this.getTransactionHistoryOrder
     );
-    this.router.post('/getTransactionHistory', this.getTransactionHistory);
+    this.router.get('/getTransactionHistory', this.getTransactionHistory);
     this.router.post('/getOrderStatistic', this.getOrderStatistic);
     this.router.post('/setWithdrawalBank', this.setWithdrawalBank);
     this.router.get('/getBank', this.getBank);

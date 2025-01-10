@@ -407,7 +407,6 @@ class UserService {
     try {
       if (type === 'client') {
         return await this.UserModel.findAll({
-          // where: { role: 'client' },
           attributes: {
             exclude: [
               'password',
@@ -596,7 +595,7 @@ class UserService {
     }
   }
   async handleGetTransactionHistory(data) {
-    const { userId, startDate, endDate } =
+    const { userId, limit, startDate, endDate } =
       await userUtil.verifyHandleGetTransactionHistory.validateAsync(data);
     try {
       // Define date filter if provided
@@ -608,25 +607,26 @@ class UserService {
               },
             }
           : {};
+      console.log('transactions');
 
       // Query transactions
-      const transactions = await Transaction.findAll({
+      const transactions = await this.TransactionModel.findAll({
         where: {
           isDeleted: false,
           userId,
-          transactionType: 'order',
-          dateFilter,
+          // transactionType: 'order',
+          ...(dateFilter && { ...dateFilter }),
         },
-        limit: startDate && endDate ? undefined : 15, // Limit to 15 if no date range provided
+        limit: startDate && endDate ? undefined : limit,
         include: [
           {
             model: this.OrdersModel,
-            as: 'OrderTransaction',
+            as: 'TransactionOrder',
             where: { isDeleted: false },
             include: [
               {
                 model: this.UserModel,
-                as: 'merchantOrder',
+                as: 'OrderMerchant',
                 attributes: ['firstName', 'lastName', 'emailAddress', 'tel'],
               },
             ],
@@ -635,7 +635,6 @@ class UserService {
         order: [['createdAt', 'DESC']],
       });
 
-      // Transform and return data
       return transactions.map((transaction) => ({
         id: transaction.id,
         amount: transaction.amount,
@@ -668,7 +667,6 @@ class UserService {
     const { userId, startDate, endDate } =
       await userUtil.verifyHandleOrderAcceptOrCancel.validateAsync(data);
     try {
-      // Define date filter if provided
       const dateFilter =
         startDate && endDate
           ? {
@@ -684,9 +682,7 @@ class UserService {
           isDeleted: false,
           userId,
           dateFilter,
-          transactionType: {
-            [Op.ne]: 'order',
-          },
+          transactionType: 'order',
         },
         limit: startDate && endDate ? undefined : 15, // Limit to 15 if no date range provided
         include: [

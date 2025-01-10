@@ -86,7 +86,7 @@ export default class UserController {
 
       return res.status(200).json({
         status: 200,
-        message: 'login successfully.',
+        message: 'successfully.',
       });
     } catch (error) {
       console.log(error);
@@ -108,7 +108,7 @@ export default class UserController {
       if (user == null) {
         return res.status(400).json({
           status: 400,
-          message: 'Invalid login credentials',
+          message: 'Invalid pass code',
         });
       } else if (user == 'disabled') {
         return res.status(400).json({
@@ -117,7 +117,6 @@ export default class UserController {
         });
       }
 
-      //let generateTokenFrom={id:user.dataValues.id,role:user.dataValues.emailAddress}
       let generateTokenFrom = {
         id: user.dataValues.id,
         role: user.dataValues.role,
@@ -293,11 +292,12 @@ export default class UserController {
         userId: req.user.id,
       };
 
-      await userService.handleGetTransaction(my_bj);
+      const result = await userService.handleGetTransaction(my_bj);
 
       return res.status(200).json({
         status: 200,
         message: 'successfully.',
+        data: result,
       });
     } catch (error) {
       console.log(error);
@@ -453,11 +453,12 @@ export default class UserController {
         userId: req.user.id,
       };
 
-      await userService.handleGetTransactionHistory(my_bj);
+      const result = await userService.handleGetTransactionHistory(my_bj);
 
       return res.status(200).json({
         status: 200,
         message: 'successfully.',
+        data: result,
       });
     } catch (error) {
       console.log(error);

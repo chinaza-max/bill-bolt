@@ -49,11 +49,11 @@ export function init(connection) {
       },
       lat: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       lng: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       country: {
         type: DataTypes.STRING,

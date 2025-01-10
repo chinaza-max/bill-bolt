@@ -95,7 +95,6 @@ export default class AuthenticationController {
       const result = await authService.handleUserCreation(my_bj);
 
       const keysToRemove = ['password'];
-
       const filteredUser = this.filterObject(result.dataValues, keysToRemove);
 
       return res.status(200).json({

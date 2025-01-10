@@ -30,6 +30,7 @@ function associate() {
   });
   Transaction.belongsTo(User, {
     foreignKey: 'userId',
+    as: 'TransactionUser',
   });
 
   Orders.hasMany(Transaction, {
@@ -38,6 +39,7 @@ function associate() {
   });
   Transaction.belongsTo(Orders, {
     foreignKey: 'orderId',
+    as: 'TransactionOrder',
   });
 
   User.hasOne(Mymatch, {
@@ -58,23 +60,25 @@ function associate() {
 
   User.hasMany(Orders, {
     foreignKey: 'clientId',
-    as: 'clientOrder',
+    as: 'ClientOrder',
   });
   Orders.belongsTo(User, {
     foreignKey: 'clientId',
+    as: 'OrderClient',
   });
 
   User.hasMany(Orders, {
     foreignKey: 'merchantId',
-    as: 'merchantOrder',
+    as: 'MerchantOrder',
   });
   Orders.belongsTo(User, {
     foreignKey: 'merchantId',
+    as: 'OrderMerchant',
   });
 
   User.hasMany(Chat, {
     foreignKey: 'userId1',
-    as: 'userId1Chat',
+    as: 'UserId1Chat',
   });
   Chat.belongsTo(User, {
     foreignKey: 'userId1',
@@ -82,7 +86,7 @@ function associate() {
 
   User.hasMany(Chat, {
     foreignKey: 'userId2',
-    as: 'userId2Chat',
+    as: 'UserId2Chat',
   });
   Chat.belongsTo(User, {
     foreignKey: 'userId2',
