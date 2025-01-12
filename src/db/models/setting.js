@@ -49,6 +49,10 @@ export function init(connection) {
         allowNull: false,
         defaultValue: false,
       },
+      defaultAds: {
+        type: DataTypes.JSON,
+        allowNull: true,
+      },
       gatewayService: {
         type: DataTypes.JSON,
         allowNull: true,

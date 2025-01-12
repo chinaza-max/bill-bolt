@@ -404,6 +404,24 @@ export default class UserController {
       next(error);
     }
   }
+  async getdefaultAds(req, res, next) {
+    try {
+      let my_bj = {
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleGetdefaultAds(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
   async submitComplain(req, res, next) {
     try {
       const data = req.body;

@@ -84,6 +84,10 @@ class Server {
         gateWayEnvironment: 'sandBox',
         activeGateway: 'safeHaven.gateway',
         isMatchRunning: false,
+        defaultAds: JSON.stringify([
+          { amount: 1000, charge: 100 },
+          { amount: 5000, charge: 300 },
+        ]),
         gatewayList: JSON.stringify(['safeHaven.gateway']),
         isDeleted: false,
       },

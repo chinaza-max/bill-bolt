@@ -518,6 +518,15 @@ class UserService {
       throw new SystemError(error.name, error.parent);
     }
   }
+  async handleGetdefaultAds() {
+    try {
+      const settingModelResult = await this.SettingModel.findByPk(1);
+      return JSON.parse(settingModelResult.defaultAds);
+    } catch (error) {
+      console.error('Error fetching default with details:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
   async handleSubmitComplain(data) {
     const { userId } = await userUtil.verifyHandleSubmitComplain.validateAsync(
       data
