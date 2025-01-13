@@ -272,11 +272,12 @@ export default class UserController {
         userId: req.user.id,
       };
 
-      await userService.handleGetOrderStatistic(my_bj);
+      const result = await userService.handleGetOrderStatistic(my_bj);
 
       return res.status(200).json({
         status: 200,
         message: 'successfully.',
+        data: result,
       });
     } catch (error) {
       console.log(error);
@@ -411,6 +412,60 @@ export default class UserController {
       };
 
       const result = await userService.handleGetdefaultAds(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+  async setMerchantAccountStatus(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = { ...data, userId: req.user.id };
+
+      const result = await userService.handleSetMerchantAccountStatus(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+  async getMyRangeLimit(req, res, next) {
+    try {
+      let my_bj = {
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleGetMyRangeLimit(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+  async getMyAds(req, res, next) {
+    try {
+      let my_bj = {
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleGetMyAds(my_bj);
 
       return res.status(200).json({
         status: 200,

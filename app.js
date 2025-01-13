@@ -58,37 +58,39 @@ class Server {
       where: { id: 1 },
       defaults: {
         distanceThreshold: 10,
-        tiers: JSON.stringify([
+        tiers: [
           {
             name: 'bronze',
-            maxAmount: 1000,
+            maxAmount: 10000,
             maxTransfersPerDay: 5,
             uniqueNumber: 1,
-            country: 'USA',
+            country: 'NIGERIA',
           },
           {
             name: 'silver',
-            maxAmount: 5000,
+            maxAmount: 50000,
             maxTransfersPerDay: 10,
             uniqueNumber: 2,
-            country: 'Canada',
+            country: 'NIGERIA',
           },
           {
             name: 'gold',
-            maxAmount: 10000,
+            maxAmount: 100000,
             maxTransfersPerDay: 20,
             uniqueNumber: 3,
-            country: 'UK',
+            country: 'NIGERIA',
           },
-        ]),
+        ],
         gateWayEnvironment: 'sandBox',
         activeGateway: 'safeHaven.gateway',
         isMatchRunning: false,
-        defaultAds: JSON.stringify([
+        defaultAds: [
           { amount: 1000, charge: 100 },
           { amount: 5000, charge: 300 },
-        ]),
-        gatewayList: JSON.stringify(['safeHaven.gateway']),
+          { amount: 20000, charge: 500 },
+          { amount: 30000, charge: 1000 },
+        ],
+        gatewayList: ['safeHaven.gateway'],
         isDeleted: false,
       },
     });

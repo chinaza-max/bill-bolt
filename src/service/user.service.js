@@ -518,10 +518,26 @@ class UserService {
       throw new SystemError(error.name, error.parent);
     }
   }
+  async handleGetMyAds(data) {
+    const { userId } = await userUtil.verifyHandleGetMyAds.validateAsync(data);
+    try {
+      const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
+        where: { userId },
+      });
+      MerchantAdsModelResult.pricePerThousand = JSON.parse(
+        MerchantAdsModelResult.pricePerThousand
+      );
+      return MerchantAdsModelResult;
+    } catch (error) {
+      console.error('Error fetching default with details:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
   async handleGetdefaultAds() {
     try {
       const settingModelResult = await this.SettingModel.findByPk(1);
-      return JSON.parse(settingModelResult.defaultAds);
+      const settingModelResultPared = JSON.parse(settingModelResult.defaultAds);
+      return settingModelResultPared;
     } catch (error) {
       console.error('Error fetching default with details:', error);
       throw new SystemError(error.name, error.parent);
@@ -916,18 +932,83 @@ class UserService {
       throw new SystemError(error.name, error.parent);
     }
   }
+  async handleSetMerchantAccountStatus(data) {
+    const { userId, accountStatus } =
+      await userUtil.verifyHandleSetMerchantAccountStatus.validateAsync(data);
+    try {
+      const MerchantProfileModelResult =
+        await this.MerchantProfileModel.findOne({ where: { userId } });
+      console.log(MerchantProfileModelResult);
+      MerchantProfileModelResult.update({ accountStatus });
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+  async handleGetMyRangeLimit(data) {
+    const { userId } = await userUtil.verifyHandleGetMyRangeLimit.validateAsync(
+      data
+    );
+    try {
+      const SettingModelResult = await this.SettingModel.findByPk(1);
+      const MerchantProfileModelResult =
+        await this.MerchantProfileModel.findOne({
+          where: { userId },
+        });
 
+      const SettingModelResultTiers = JSON.parse(SettingModelResult.tiers);
+
+      for (let index = 0; index < SettingModelResultTiers.length; index++) {
+        const element = SettingModelResultTiers[index];
+
+        if (element.uniqueNumber === MerchantProfileModelResult.accoutTier) {
+          return element.maxAmount;
+        }
+      }
+    } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
+  }
   async handleCreateMerchantAds(data) {
     const { minAmount, maxAmount, pricePerThousand, userId } =
       await userUtil.verifyHandleCreateMerchantAds.validateAsync(data);
+    const SettingModelResult = await this.SettingModel.findByPk(1);
+    const MerchantProfileModelResult = await this.MerchantProfileModel.findOne({
+      where: { userId },
+    });
 
+    const SettingModelResultTiers = JSON.parse(SettingModelResult.tiers);
+
+    //making sure merchant dont set price above there tier
+    for (let index = 0; index < SettingModelResultTiers.length; index++) {
+      const element = SettingModelResultTiers[index];
+
+      if (element.uniqueNumber === MerchantProfileModelResult.accoutTier) {
+        if (maxAmount <= element.maxAmount) {
+          break;
+        } else {
+          throw new ConflictError('You need to upgrade your account.');
+        }
+      }
+    }
     try {
-      await this.MerchantAdsModel.upsert({
-        minAmount,
-        maxAmount,
-        userId,
-        pricePerThousand,
+      const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
+        where: { userId },
       });
+      if (MerchantAdsModelResult) {
+        MerchantAdsModelResult.update({
+          minAmount,
+          maxAmount,
+          pricePerThousand,
+        });
+      } else {
+        await this.MerchantAdsModel.create({
+          minAmount,
+          maxAmount,
+          userId,
+          pricePerThousand,
+        });
+      }
     } catch (error) {
       throw new SystemError(error.name, error.parent);
     }

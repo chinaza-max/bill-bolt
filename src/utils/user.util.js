@@ -57,10 +57,16 @@ class UserUtil {
     userId: Joi.number().integer().required(),
     minAmount: Joi.number().integer().min(0).required(),
     maxAmount: Joi.number().integer().min(Joi.ref('minAmount')).required(),
-    pricePerThousand: Joi.object()
-      .pattern(Joi.string().required(), Joi.number().min(0).required())
+    pricePerThousand: Joi.array()
+      .items(
+        Joi.object({
+          amount: Joi.number().required(), // Adjust the field name to match your JSON object
+          charge: Joi.number().min(0).required(), // Adjust the field name to match your JSON object
+        })
+      )
       .required(),
   });
+
   verifyHandleGenerateAccountVirtual = Joi.object({
     userId: Joi.number().integer().required(),
     amount: Joi.number().integer().min(0).required(),
@@ -69,6 +75,15 @@ class UserUtil {
     userId: Joi.number().integer().required(),
     orderId: Joi.number().integer().required(),
     type: Joi.string().required(),
+  });
+  verifyHandleSetMerchantAccountStatus = Joi.object({
+    userId: Joi.number().integer().required(),
+    accountStatuse: Joi.string()
+      .valid('active', 'processing', 'notActive', 'rejected')
+      .required(),
+  });
+  verifyHandleGetMyRangeLimit = Joi.object({
+    userId: Joi.number().integer().required(),
   });
   verifyHandleDashBoardStatistic = Joi.object({
     userId: Joi.number().integer().required(),
@@ -79,6 +94,9 @@ class UserUtil {
     userId: Joi.number().integer().required(),
     orderId: Joi.number().integer().required(),
     type: Joi.string().required(),
+  });
+  verifyHandleGetMyAds = Joi.object({
+    userId: Joi.number().integer().required(),
   });
   verifyHandleSetWithdrawalBank = Joi.object({
     userId: Joi.number().integer().required(),
@@ -115,8 +133,6 @@ class UserUtil {
 
   verifyHandleGetOrderStatistic = Joi.object({
     userId: Joi.number().integer().required(),
-    orderId: Joi.number().integer().required(),
-    type: Joi.string().required(),
   });
   verifyHandleOrderAcceptOrCancel = Joi.object({
     userId: Joi.number().integer().required(),

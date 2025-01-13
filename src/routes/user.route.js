@@ -34,13 +34,19 @@ class UserRoutes extends UserController {
       this.getTransactionHistoryOrder
     );
     this.router.get('/getTransactionHistory', this.getTransactionHistory);
-    this.router.post('/getOrderStatistic', this.getOrderStatistic);
+    this.router.get('/getOrderStatistic', this.getOrderStatistic);
     this.router.post('/setWithdrawalBank', this.setWithdrawalBank);
     this.router.get('/getBank', this.getBank);
     this.router.get('/nameEnquiry', this.nameEnquiry);
     this.router.get('/transferMoney', this.transferMoney);
     this.router.post('/submitComplain', this.submitComplain);
     this.router.get('/getdefaultAds', this.getdefaultAds);
+    this.router.get('/getMyAds', this.getMyAds);
+    this.router.get('/getMyRangeLimit', this.getMyRangeLimit);
+    this.router.post(
+      '/setMerchantAccountStatus',
+      this.setMerchantAccountStatus
+    );
 
     //ADMIN
     this.router.post('/dashBoardStatistic', this.dashBoardStatistic);
