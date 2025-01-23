@@ -11,10 +11,10 @@ class AuthenticationMiddlewares {
   async validateUserToken( req,res,next){
     try {
 
-
       const { authorization } = req.headers;
 
       if ((req.path=='/')||(req.path=="/favicon.ico"))  return next();;
+      console.log("path ",req.path)
 
       if (!authorization) throw new BadRequestError("No token provided.");
 

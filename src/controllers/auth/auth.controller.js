@@ -61,13 +61,13 @@ export default class AuthenticationController {
         ...generateTokenFrom,
         scope: 'refresh',
       });
+          
 
       res.cookie('refresh_token', refreshToken, {
         httpOnly: true,
         secure: true,
         sameSite: 'Strict',
-        maxAge:
-          serverConfig.REFRESH_TOKEN_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000, // 30 days
+        maxAge:serverConfig.REFRESH_TOKEN_COOKIE_EXPIRES_IN
       });
 
       const UserModelResult = await this.UserModel.findByPk(user.dataValues.id);
@@ -155,11 +155,13 @@ export default class AuthenticationController {
           return acc;
         }, {})*/
 
+
+      const nineMonthsInMilliseconds = 9 * 30 * 24 * 60 * 60 * 1000;
       res.cookie('refresh_token', refreshToken, {
         httpOnly: true,
         secure: true,
         sameSite: 'Strict',
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        maxAge:serverConfig.REFRESH_TOKEN_COOKIE_EXPIRES_IN
       });
 
       const UserModelResult = await this.UserModel.findByPk(user.dataValues.id);

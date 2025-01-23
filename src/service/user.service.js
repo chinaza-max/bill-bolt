@@ -95,6 +95,34 @@ class UserService {
       throw new SystemError(error.name, error.parent);
     }
   }
+  async handleInitiateNINVerify(data) {
+    const { NIN, userId } =
+      await userUtil.validateHandleInitiateNINVerify.validateAsync(data);
+
+    const accessToken = await authService.getAuthTokenMonify();
+    const body = {
+      nin: NIN,
+    };
+
+    try {
+      const response = await axios.post(
+        `${serverConfig.MONNIFY_BASE_URL}/api/v1/vas/nin-details`,
+        body,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      // const phone = response.data.responseBody.mobileNumber;
+
+      // authService.sendNINVerificationCode(phone, userId, role)
+    } catch (error) {
+      console.log(error?.response?.data);
+      throw new SystemError(error.name, error?.response?.data?.error);
+    }
+  }
 
   async handleVerifyNIN(data) {
     var { NIN, userId, role } =
@@ -169,6 +197,7 @@ class UserService {
 
     let myPassCode = passCode + '';
 
+    if (!userResult.passCode) return null;
     if (!(await bcrypt.compare(myPassCode, userResult.passCode))) return null;
 
     if (userResult.disableAccount) return 'disabled';

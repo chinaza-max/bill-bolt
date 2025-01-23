@@ -51,6 +51,27 @@ export default class UserController {
     }
   }
 
+  initiateNINVerify(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+        role: req.user.role,
+      };
+
+      userService.handleInitiateNINVerify(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'opt has been sent to the number attached to the nin',
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
   async verifyNIN(req, res, next) {
     try {
       const data = req.body;
@@ -146,8 +167,7 @@ export default class UserController {
         httpOnly: true,
         secure: true,
         sameSite: 'Strict',
-        maxAge:
-          serverConfig.REFRESH_TOKEN_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000,
+        maxAge:serverConfig.REFRESH_TOKEN_COOKIE_EXPIRES_IN
       });
 
       return res.status(200).json({

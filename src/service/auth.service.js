@@ -112,7 +112,7 @@ class AuthenticationService {
   }
 
   async handleSendVerificationCodeEmailOrTel(data) {
-    let { userId, type, validateFor } =
+    let { emailAddress, type, validateFor } =
       await authUtil.verifyHandleSendVerificationCodeEmailOrTel.validateAsync(
         data
       );
@@ -121,11 +121,11 @@ class AuthenticationService {
 
     if (validateFor == 'user') {
       relatedUser = await this.UserModel.findOne({
-        where: { id: userId },
+        where: { emailAddress},
       });
     } else {
       relatedUser = await this.AdminModel.findOne({
-        where: { id: userId },
+        where: {emailAddress },
       });
     }
 
@@ -300,6 +300,7 @@ class AuthenticationService {
       }
     } catch (error) {
       console.log(error);
+      throw new SystemError(error.name ,error.parent);
     }
   }
 
@@ -401,6 +402,7 @@ class AuthenticationService {
 
       return token;
     } catch (error) {
+      console.log("error",error);
       return error;
     }
   }
@@ -415,18 +417,26 @@ class AuthenticationService {
 
       return token;
     } catch (error) {
+      console.log("error",error);
       return error;
     }
   }
 
   async handleVerifyEmailorTel(data) {
-    let { userId, verificationCode, validateFor, type } =
+    let { emailAddress, verificationCode, validateFor, type } =
       await authUtil.verifyHandleVerifyEmailorTel.validateAsync(data);
+
+
+    const  UserModelResult = await this.UserModel.findOne({
+        where: { emailAddress},
+      });
+
+    if(UserModelResult == null) throw new NotFoundError('No user found');
 
     let relatedEmailoRTelValidationCode =
       await this.EmailandTelValidationModel.findOne({
         where: {
-          userId: userId,
+          userId:UserModelResult.id,
           validateFor,
           verificationCode: verificationCode,
           type,

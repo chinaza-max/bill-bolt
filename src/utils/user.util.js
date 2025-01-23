@@ -27,6 +27,10 @@ class UserUtil {
     }).optional(),
   });
 
+  validateHandleInitiateNINVerify= Joi.object().keys({
+    NIN: Joi.string().required(),
+    userId: Joi.number().integer().required(),
+  })
   validateHandleValidateNIN = Joi.object().keys({
     NIN: Joi.string().required(),
     role: Joi.string().valid('list', 'rent'),

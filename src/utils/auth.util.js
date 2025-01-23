@@ -21,7 +21,7 @@ class authUtil {
 
 
   verifyHandleVerifyEmailorTel= Joi.object({
-    userId: Joi.number().required(),
+    emailAddress: Joi.string().required(),
     validateFor: Joi.string().valid(
       'user',
       'admin'
@@ -30,11 +30,11 @@ class authUtil {
     type: Joi.string().valid(
       'email',
       'tel'  
-    ).required()
+    ).required() 
   });
 
     verifyHandleSendVerificationCodeEmailOrTel= Joi.object({
-      userId: Joi.number().required(),
+      emailAddress: Joi.string().required(),
       validateFor: Joi.string().valid(
         'user',
         'admin'

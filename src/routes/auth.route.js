@@ -14,14 +14,14 @@ class AuthRoutes extends AuthController {
     const loginLimiter = rateLimit({
       windowMs: 3 * 60 * 1000, // 15 minutes
       max: 3, // limit each IP to 5 requests per windowMs
-    });
+    }); 
 
     this.router.post('/registerUser', this.signupUser);
     this.router.post('/verifyEmailorTel', this.verifyEmailorTel);
     this.router.post(
       '/sendVerificationCodeEmailOrTel',
-      this.sendVerificationCodeEmailOrTel
-    );
+      this.sendVerificationCodeEmailOrTel 
+    );  
     this.router.post('/loginUser' /*,loginLimiter*/, this.loginUser);
     this.router.post('/sendPasswordResetLink', this.sendPasswordResetLink);
     this.router.post('/resetPassword', this.resetPassword);

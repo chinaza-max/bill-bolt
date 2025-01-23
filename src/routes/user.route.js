@@ -17,9 +17,10 @@ class UserRoutes extends UserController {
     );
     this.router.post('/updatePin', this.updatePin);
     this.router.post('/verifyNIN', this.verifyNIN);
+    this.router.post('/initiateNINVerify', this.verifyNIN);
+
     this.router.post('/setPin', this.setPin);
     this.router.post('/enterPassCode', this.enterPassCode);
-    this.router.post('/signupMerchant', this.signupMerchant);
     this.router.get('/getMyMerchant', this.getMyMerchant);
     this.router.post('/createMerchantAds', this.createMerchantAds);
     this.router.post('/generateAccountVirtual', this.generateAccountVirtual);
@@ -28,7 +29,7 @@ class UserRoutes extends UserController {
     this.router.post('/orderAcceptOrCancel', this.orderAcceptOrCancel);
     this.router.post('/verifyCompleteOrder', this.verifyCompleteOrder);
     this.router.post('/getMyOrderDetails', this.verifyCompleteOrder);
-    //Transaction api
+    //Transaction api 
     this.router.post(
       '/getTransactionHistoryOrder',
       this.getTransactionHistoryOrder
@@ -47,6 +48,11 @@ class UserRoutes extends UserController {
       '/setMerchantAccountStatus',
       this.setMerchantAccountStatus
     );
+
+
+    //MERCHANT API
+    this.router.post('/signupMerchant', this.signupMerchant);
+
 
     //ADMIN
     this.router.post('/dashBoardStatistic', this.dashBoardStatistic);

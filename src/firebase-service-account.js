@@ -10,7 +10,7 @@ const firebaseConfig = {
   auth_uri: serverConfig.FIREBASE_AUTH_URI,
   token_uri: serverConfig.FIREBASE_TOKEN_URI,
   auth_provider_x509_cert_url:
-    serverConfig.FIREBASE_AUTH_PROVIDER_X509_CERT_URL,
+  serverConfig.FIREBASE_AUTH_PROVIDER_X509_CERT_URL,
   client_x509_cert_url: serverConfig.FIREBASE_CLIENT_X509_CERT_URL,
   universe_domain: serverConfig.FIREBASE_UNIVERSAL_DOMAIN,
 };
