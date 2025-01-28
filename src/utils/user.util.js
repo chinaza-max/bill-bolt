@@ -7,6 +7,19 @@ class UserUtil {
     userId: Joi.number().integer().required(),
   });
 
+  verifyHandleUpdateMerchantProfile = Joi.object().keys({
+    userId: Joi.number().required().label('user Id'),
+    displayname: Joi.string().optional().label('Display Name'),
+    passCode: Joi.string().optional().label('Pass Code'),
+    accountStatus: Joi.string()
+      .optional()
+      .valid('active', 'processing', 'notActive', 'rejected')
+      .label('Account Status'),
+    deliveryRange: Joi.string().optional().label('Delivery Range'),
+    notificationAllowed: Joi.boolean().optional().label('Notification Allowed'),
+    disableAccount: Joi.boolean().optional().label('Disable Account'),
+  });
+
   verifyHandleUpdateProfile = Joi.object({
     userId: Joi.number().required().label('user Id'),
     role: Joi.string().required().valid('user'),
@@ -17,6 +30,11 @@ class UserUtil {
     telCode: Joi.string().optional().label('Telephone Code'),
     lat: Joi.string().optional(),
     lng: Joi.string().optional(),
+    deviceType: Joi.string().optional(),
+    settlementAccount: Joi.string().optional(),
+    bankCode: Joi.string().optional(),
+    bankName: Joi.string().optional(),
+    deviceIp: Joi.string().optional(),
     about: Joi.string()
       .optional()
       .label('Information about your self and building'),
@@ -27,10 +45,10 @@ class UserUtil {
     }).optional(),
   });
 
-  validateHandleInitiateNINVerify= Joi.object().keys({
+  validateHandleInitiateNINVerify = Joi.object().keys({
     NIN: Joi.string().required(),
     userId: Joi.number().integer().required(),
-  })
+  });
   validateHandleValidateNIN = Joi.object().keys({
     NIN: Joi.string().required(),
     role: Joi.string().valid('list', 'rent'),
@@ -68,6 +86,7 @@ class UserUtil {
           charge: Joi.number().min(0).required(), // Adjust the field name to match your JSON object
         })
       )
+      .min(1)
       .required(),
   });
 
@@ -78,13 +97,15 @@ class UserUtil {
   verifyHandleGetMyOrderDetails = Joi.object({
     userId: Joi.number().integer().required(),
     orderId: Joi.number().integer().required(),
-    type: Joi.string().required(),
+    type: Joi.string().required().valid('client', 'merchant'),
   });
   verifyHandleSetMerchantAccountStatus = Joi.object({
     userId: Joi.number().integer().required(),
-    accountStatuse: Joi.string()
-      .valid('active', 'processing', 'notActive', 'rejected')
-      .required(),
+    accountStatus: Joi.string().valid('active', 'notActive').required(),
+  });
+
+  verifyHandleGetProfileInformation = Joi.object({
+    userId: Joi.number().integer().required(),
   });
   verifyHandleGetMyRangeLimit = Joi.object({
     userId: Joi.number().integer().required(),
@@ -149,7 +170,7 @@ class UserUtil {
   });
   verifyHandleGetMyOrders = Joi.object({
     userId: Joi.number().integer().required(),
-    type: Joi.string().required(),
+    type: Joi.string().required().valid('active', 'completed'),
     userType: Joi.string().valid('client', 'merchant').required(),
   });
   handleverifyCompleteOrder = Joi.object({

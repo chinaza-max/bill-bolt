@@ -9,7 +9,7 @@ class DB {
 
   async connectDB() {
     const options = {
-     // logging: console.log,
+      // logging: console.log,
       dialect: 'mysql',
       host: serverConfig.DB_HOST,
       username: serverConfig.DB_USERNAME,
@@ -32,6 +32,7 @@ class DB {
       //await this.sequelize.sync({ alter: true });
       //await this.sequelize.sync({ force: true });
     }
+
     /*      
         (async () => {
           try {  

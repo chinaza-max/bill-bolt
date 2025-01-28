@@ -19,11 +19,15 @@ export function init(connection) {
         defaultValue: false,
         allowNull: false,
       },
-      refundAccount: {
+      settlementAccount: {
         type: DataTypes.STRING,
         allowNull: true,
       },
       bankCode: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      bankName: {
         type: DataTypes.STRING,
         allowNull: true,
       },
@@ -98,6 +102,14 @@ export function init(connection) {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
       },
+      deviceType: {
+        type: DataTypes.ENUM('android', 'ios'),
+        allowNull: true,
+      },
+      deviceIp: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
       disableAccount: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
@@ -108,9 +120,12 @@ export function init(connection) {
         allowNull: true,
       },
       walletBalance: {
-        type: DataTypes.STRING,
+        type: DataTypes.JSON,
         allowNull: false,
-        defaultValue: '0',
+        defaultValue: {
+          previous: 0,
+          current: 0,
+        },
       },
       ipAdress: {
         type: DataTypes.STRING,

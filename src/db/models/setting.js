@@ -21,9 +21,12 @@ export function init(connection) {
         defaultValue: 900,
       },
       walletBalance: {
-        type: DataTypes.STRING,
+        type: DataTypes.JSON,
         allowNull: false,
-        defaultValue: '0',
+        defaultValue: {
+          previous: 0,
+          current: 0,
+        },
       },
       callbackUrl: {
         type: DataTypes.STRING,

@@ -29,6 +29,27 @@ export default class UserController {
     }
   }
 
+  async updateMerchantProfile(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      await userService.handleUpdateMerchantProfile(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'updated successfully',
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
   async updatePin(req, res, next) {
     try {
       const data = req.body;
@@ -167,7 +188,7 @@ export default class UserController {
         httpOnly: true,
         secure: true,
         sameSite: 'Strict',
-        maxAge:serverConfig.REFRESH_TOKEN_COOKIE_EXPIRES_IN
+        maxAge: serverConfig.REFRESH_TOKEN_COOKIE_EXPIRES_IN,
       });
 
       return res.status(200).json({
@@ -244,7 +265,7 @@ export default class UserController {
   }
   async getMyOrderDetails(req, res, next) {
     try {
-      const data = req.body;
+      const data = req.query;
 
       let my_bj = {
         ...data,
@@ -461,6 +482,47 @@ export default class UserController {
       next(error);
     }
   }
+
+  async getProfileInformation(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleGetProfileInformation(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+  async getMyRangeLimit(req, res, next) {
+    try {
+      let my_bj = {
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleGetMyRangeLimit(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
   async getMyRangeLimit(req, res, next) {
     try {
       let my_bj = {
@@ -598,9 +660,10 @@ export default class UserController {
       next(error);
     }
   }
+
   async getMyOrders(req, res, next) {
     try {
-      const data = req.params;
+      const data = req.query;
 
       let my_bj = {
         ...data,

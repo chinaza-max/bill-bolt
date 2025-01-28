@@ -66,6 +66,25 @@ class UserService {
     }
   }
 
+  async handleUpdateMerchantProfile(data) {
+    let { userId, role, ...updateData } =
+      await userUtil.verifyHandleUpdateMerchantProfile.validateAsync(data);
+
+    try {
+      const MerchantProfileModelResult =
+        await this.MerchantProfileModel.findOne({
+          where: { userId: userId },
+        });
+
+      await MerchantProfileModelResult.update(
+        updateData /*{ where: { id: userId } }*/
+      );
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
   async handleUpdateProfile(data, file) {
     let { userId, role, image, ...updateData } =
       await userUtil.verifyHandleUpdateProfile.validateAsync(data);
@@ -329,8 +348,12 @@ class UserService {
   async handleGetMyOrderDetails(data) {
     const { orderId, type, userId } =
       await userUtil.verifyHandleGetMyOrderDetails.validateAsync(data);
+
+    const orderResult = await this.OrdersModel.findByPk(orderId);
+
+    if (!orderResult) throw new NotFoundError('Order not found');
+
     try {
-      const orderResult = await this.OrdersModel.findByPk(orderId);
       const merchantAdsModelResult = await this.MerchantAdsModel.findOne({
         where: { UserId: orderResult.merchantId },
       });
@@ -416,7 +439,7 @@ class UserService {
       }
 
       return {
-        Balance: UserModelResult.walletBalance,
+        Balance: UserModelResult.walletBalance.current,
         EscrowBalance: totalMerchantCharge,
         SuccessFullCount,
         PendingCount,
@@ -547,12 +570,14 @@ class UserService {
       throw new SystemError(error.name, error.parent);
     }
   }
+
   async handleGetMyAds(data) {
     const { userId } = await userUtil.verifyHandleGetMyAds.validateAsync(data);
     try {
       const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
         where: { userId },
       });
+      if (!MerchantAdsModelResult) return [];
       MerchantAdsModelResult.pricePerThousand = JSON.parse(
         MerchantAdsModelResult.pricePerThousand
       );
@@ -974,6 +999,26 @@ class UserService {
       throw new SystemError(error.name, error.parent);
     }
   }
+
+  async handleGetProfileInformation(data) {
+    const { userId } =
+      await userUtil.verifyHandleGetProfileInformation.validateAsync(data);
+    try {
+      const UserModelResult = await this.UserModel.findByPk(userId);
+      const MerchantProfileModelResult =
+        await this.MerchantProfileModel.findOne({ where: { userId } });
+
+      return {
+        UserModelResult,
+        MerchantProfileModelResult,
+      };
+    } catch (error) {
+      console.log(error);
+      //throw new SystemError(error.name, error?.response?.data?.error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
   async handleGetMyRangeLimit(data) {
     const { userId } = await userUtil.verifyHandleGetMyRangeLimit.validateAsync(
       data
@@ -1005,9 +1050,20 @@ class UserService {
     const MerchantProfileModelResult = await this.MerchantProfileModel.findOne({
       where: { userId },
     });
+    console.log('MerchantProfileModelResult');
+    console.log(MerchantProfileModelResult);
+    console.log('MerchantProfileModelResult');
+
+    if (minAmount > maxAmount)
+      throw new BadRequestError(
+        'Minimum amount cannot be greater than maximum amount'
+      );
+    if (!MerchantProfileModelResult)
+      throw new NotFoundError('Merchant profile not found');
 
     const SettingModelResultTiers = JSON.parse(SettingModelResult.tiers);
 
+    console.log(SettingModelResultTiers);
     //making sure merchant dont set price above there tier
     for (let index = 0; index < SettingModelResultTiers.length; index++) {
       const element = SettingModelResultTiers[index];
@@ -1016,7 +1072,9 @@ class UserService {
         if (maxAmount <= element.maxAmount) {
           break;
         } else {
-          throw new ConflictError('You need to upgrade your account.');
+          throw new ConflictError(
+            `You need to upgrade your account. Your account tier allows you to set a maximum amount of ${element.maxAmount}`
+          );
         }
       }
     }

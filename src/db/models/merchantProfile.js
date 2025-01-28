@@ -14,14 +14,6 @@ export function init(connection) {
         type: DataTypes.STRING,
         allowNull: false,
       },
-      settlementAccount: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
-      bankCode: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
       accoutTier: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -43,6 +35,14 @@ export function init(connection) {
         type: DataTypes.STRING,
         allowNull: false,
         defaultValue: '10',
+      },
+      walletBalance: {
+        type: DataTypes.JSON,
+        allowNull: false,
+        defaultValue: {
+          previous: 0,
+          current: 0,
+        },
       },
       notificationAllowed: {
         type: DataTypes.BOOLEAN,
