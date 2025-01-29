@@ -5,6 +5,7 @@ import {
   PasswordReset,
   EmailandTelValidation,
   Transaction,
+  Setting,
 } from '../db/models/index.js';
 import serverConfig from '../config/server.js';
 import authUtil from '../utils/auth.util.js';
@@ -26,6 +27,8 @@ class AuthenticationService {
   PasswordResetModel = PasswordReset;
   EmailandTelValidationModel = EmailandTelValidation;
   TransactionModel = Transaction;
+  SettingModel = Setting;
+
   verifyAccessToken(token) {
     try {
       const payload = jwt.verify(token, serverConfig.ACCESS_TOKEN_SECRET);
@@ -121,11 +124,11 @@ class AuthenticationService {
 
     if (validateFor == 'user') {
       relatedUser = await this.UserModel.findOne({
-        where: { emailAddress},
+        where: { emailAddress },
       });
     } else {
       relatedUser = await this.AdminModel.findOne({
-        where: {emailAddress },
+        where: { emailAddress },
       });
     }
 
@@ -251,13 +254,14 @@ class AuthenticationService {
   }
 
   async handleVirtualAccountCollection(data) {
+    const settingModelResult = await this.SettingModel.findByPk(1);
+    if (settingModelResult) throw new NotFoundError('No setting found');
+
     try {
-      if (data.type === 'virtualAccount.transfer') {
-        /*const TransactionModelResult = await this.TransactionModel.findByPk(
-          data.data._id
-        ); 
-        TransactionModelResult.update({});*/
-        userService.updateTransaction(data.sessionId);
+      if (settingModelResult.activeGateway === 'safeHaven.gateway') {
+        if (data.type === 'virtualAccount.transfer') {
+          userService.updateTransactionSaveHaven(data.sessionId);
+        }
       }
     } catch (error) {
       console.log(error);
@@ -300,7 +304,7 @@ class AuthenticationService {
       }
     } catch (error) {
       console.log(error);
-      throw new SystemError(error.name ,error.parent);
+      throw new SystemError(error.name, error.parent);
     }
   }
 
@@ -402,7 +406,7 @@ class AuthenticationService {
 
       return token;
     } catch (error) {
-      console.log("error",error);
+      console.log('error', error);
       return error;
     }
   }
@@ -417,7 +421,7 @@ class AuthenticationService {
 
       return token;
     } catch (error) {
-      console.log("error",error);
+      console.log('error', error);
       return error;
     }
   }
@@ -426,17 +430,16 @@ class AuthenticationService {
     let { emailAddress, verificationCode, validateFor, type } =
       await authUtil.verifyHandleVerifyEmailorTel.validateAsync(data);
 
+    const UserModelResult = await this.UserModel.findOne({
+      where: { emailAddress },
+    });
 
-    const  UserModelResult = await this.UserModel.findOne({
-        where: { emailAddress},
-      });
-
-    if(UserModelResult == null) throw new NotFoundError('No user found');
+    if (UserModelResult == null) throw new NotFoundError('No user found');
 
     let relatedEmailoRTelValidationCode =
       await this.EmailandTelValidationModel.findOne({
         where: {
-          userId:UserModelResult.id,
+          userId: UserModelResult.id,
           validateFor,
           verificationCode: verificationCode,
           type,

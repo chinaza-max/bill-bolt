@@ -131,6 +131,10 @@ export function init(connection) {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      notificationId: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+      },
       notificationAllowed: {
         type: DataTypes.BOOLEAN,
         allowNull: false,

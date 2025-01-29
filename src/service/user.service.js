@@ -870,36 +870,43 @@ class UserService {
         merchantId,
         amountOrder: amount,
       });
-      const TransactionModelResult = await this.TransactionModel.create({
-        userId,
-        orderId: OrderModelResult.id,
-      });
-      await this.loadGateWay();
-      const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
-        where: { userId: merchantId },
-      });
-      const settingResult = await this.SettingModel.findByPk(1);
-      const getdeliveryAmountSummary = this.getdeliveryAmountSummary(
-        MerchantAdsModelResult.pricePerThousand,
-        amount,
-        settingResult.serviceCharge,
-        settingResult.gatewayService
-      );
-      const generateVirtualAccountResult =
-        await this.gateway.generateVirtualAccount(
-          this.validFor,
-          getdeliveryAmountSummary.totalAmount,
-          getdeliveryAmountSummary.callbackUrl,
-          TransactionModelResult.id
+
+      const settingModelResult = await this.SettingModel.findByPk(1);
+      if (settingModelResult) throw new NotFoundError('Setting not found');
+
+      if (settingModelResult.activeGateway === 'safeHaven.gateway') {
+        const TransactionModelResult = await this.TransactionModel.create({
+          userId,
+          orderId: OrderModelResult.id,
+        });
+        await this.loadGateWay();
+        const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
+          where: { userId: merchantId },
+        });
+        const settingResult = await this.SettingModel.findByPk(1);
+        const getdeliveryAmountSummary = this.getdeliveryAmountSummary(
+          MerchantAdsModelResult.pricePerThousand,
+          amount,
+          settingResult.serviceCharge,
+          settingResult.gatewayService
         );
-      /**
-       * -accountniumber
-       * -sessionIdVirtualAcct
-       * -orderId
-       */
-      /*generateVirtualAccountResult[fieldName] = newValue; // Update the specific field
-        await transaction.save(); */
-      return generateVirtualAccountResult;
+        const generateVirtualAccountResult =
+          await this.gateway.generateVirtualAccount(
+            this.validFor,
+            getdeliveryAmountSummary.totalAmount,
+            getdeliveryAmountSummary.callbackUrl,
+            TransactionModelResult.id
+          );
+
+        /**
+         * -accountniumber
+         * -sessionIdVirtualAcct
+         * -orderId
+         */
+        /*generateVirtualAccountResult[fieldName] = newValue; // Update the specific field
+          await transaction.save(); */
+        return generateVirtualAccountResult;
+      }
     } catch (error) {
       throw new SystemError(error.name, error.parent);
     }
@@ -1201,13 +1208,14 @@ class UserService {
       content,
     });
   }
-  async updateTransaction(sessionIdVirtualAcct) {
+  async updateTransactionSaveHaven(sessionIdVirtualAcct) {
     const TransactionModelResult = await this.TransactionModel.findOne({
       sessionIdVirtualAcct,
     });
     if (!this.gateway) {
       await this.loadGateWay();
     }
+
     if (TransactionModelResult) {
       const transactionStatus =
         await this.gateway.getVirtualAccountTransferStatus(
