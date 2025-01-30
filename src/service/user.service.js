@@ -24,6 +24,8 @@ import axios from 'axios';
 import { loadActiveGateway } from '../utils/gatewayLoader.js';
 import { getSocketInstance } from '../utils/socketUtils.js';
 import { sendPushNotification } from '../service/push.service.js';
+import fs from 'fs';
+import path from 'path';
 
 import {
   NotFoundError,
@@ -234,7 +236,7 @@ class UserService {
       });
 
       if (MymatchModel) {
-        let matches = matchData.matches;
+        let matches = MymatchModel.matches;
 
         if (typeof matches === 'string') {
           matches = JSON.parse(matches);
@@ -249,7 +251,7 @@ class UserService {
               {
                 model: MerchantProfile,
                 as: 'MerchantProfile',
-                attributes: ['displayname'],
+                attributes: ['displayname', 'deliveryRange'],
                 where: {
                   accountStatus: 'active',
                 },
@@ -257,12 +259,7 @@ class UserService {
               {
                 model: this.MerchantAdsModel,
                 as: 'UserMerchantAds',
-                attributes: [
-                  'minAmount',
-                  'maxAmount',
-                  'deliveryRange',
-                  'pricePerThousand',
-                ],
+                attributes: ['minAmount', 'maxAmount', 'pricePerThousand'],
                 required: true,
               },
             ],
@@ -280,17 +277,24 @@ class UserService {
           // Add distance to merchant
           merchant.distance = matches[i].distance;
           merchant.numberOfOrder = OrdersModelResult;
-          // Apply filters
-          /* const isWithinAccuracy = accuracy
-            ? matches[i].accuracy <= accuracy
-            : true;*/
+
           const isWithinDistance = distance
             ? matches[i].distance <= distance
             : true;
+
           const isWithinRange = range
-            ? merchant.UserMerchantAds.some((ad) => ad.deliveryRange <= range)
+            ? merchant.MerchantProfile.some((pr) => pr.deliveryRange <= range)
             : true;
 
+          if (typeof merchant.UserMerchantAds.pricePerThousand === 'string') {
+            try {
+              merchant.UserMerchantAds.pricePerThousand = JSON.parse(
+                merchant.UserMerchantAds.pricePerThousand
+              );
+            } catch (error) {
+              console.error('Invalid JSON format for pricePerThousand:', error);
+            }
+          }
           if (isWithinDistance && isWithinRange) {
             filteredMatches.push(merchant);
           }
@@ -301,6 +305,7 @@ class UserService {
         return [];
       }
     } catch (error) {
+      console.log(error);
       throw new SystemError(error.name, error.parent);
     }
   }
@@ -863,7 +868,6 @@ class UserService {
       await userUtil.verifyHandleGenerateAccountVirtual.validateAsync(data);
     try {
       const OrderModelResult = await this.OrdersModel.create({
-        userId,
         orderStatus: 'notAccepted',
         moneyStatus: 'pending',
         clientId: userId,
@@ -880,23 +884,37 @@ class UserService {
           orderId: OrderModelResult.id,
         });
         await this.loadGateWay();
+
         const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
           where: { userId: merchantId },
         });
-        const settingResult = await this.SettingModel.findByPk(1);
+
         const getdeliveryAmountSummary = this.getdeliveryAmountSummary(
           MerchantAdsModelResult.pricePerThousand,
           amount,
-          settingResult.serviceCharge,
-          settingResult.gatewayService
+          settingModelResult.serviceCharge,
+          settingModelResult.gatewayService
         );
+
+        /*
         const generateVirtualAccountResult =
           await this.gateway.generateVirtualAccount(
             this.validFor,
             getdeliveryAmountSummary.totalAmount,
             getdeliveryAmountSummary.callbackUrl,
             TransactionModelResult.id
-          );
+          );*/
+
+        const sessionId = `session${Date.now()}-${Math.floor(
+          Math.random() * 100000
+        )}`;
+        const generateVirtualAccountResult = {
+          bankName: 'kuda',
+          accountNumber: '393939939393',
+          accountName: 'chinaza ogbonna',
+          sessionId,
+          getdeliveryAmountSummary,
+        };
 
         /**
          * -accountniumber
@@ -905,6 +923,55 @@ class UserService {
          */
         /*generateVirtualAccountResult[fieldName] = newValue; // Update the specific field
           await transaction.save(); */
+
+        /**************************************************** 
+    TAKE OUT THIS SECTION IS FOR TESTING 
+*****************************************************/
+
+        const successufullPayment = {
+          _id: '1212334556654',
+          client: '',
+          virtualAccount: {
+            sessionId,
+            nameEnquiryReference: '',
+            paymentReference: TransactionModelResult.id,
+            isReversed: true,
+            reversalReference: '',
+            provider: '',
+            providerChannel: '',
+            providerChannelCode: '',
+            destinationInstitutionCode: '',
+            creditAccountName: '',
+            creditAccountNumber: '',
+            creditBankVerificationNumber: '',
+            creditKYCLevel: '',
+            debitAccountName: '',
+            debitAccountNumber: '',
+            debitBankVerificationNumber: '',
+            debitKYCLevel: '',
+            transactionLocation: '',
+            narration: '',
+            amount: getdeliveryAmountSummary.totalAmount,
+            fees: 0,
+            vat: 0,
+            stampDuty: 0,
+            responseCode: '',
+            responseMessage: '',
+            status: 'PAID',
+            isDeleted: true,
+            createdAt: '',
+            declinedAt: '',
+            updatedAt: '',
+            __v: 0,
+          },
+        };
+
+        this.writeToDirect(successufullPayment);
+
+        /**************************************************** 
+    END OF THE SECTION
+*****************************************************/
+
         return generateVirtualAccountResult;
       }
     } catch (error) {
@@ -1111,7 +1178,9 @@ class UserService {
     try {
       // Check if match process is running
       const setting = await this.SettingModel.findByPk(1);
-      if (setting.isMatchRunning) return;
+
+      //if (setting.isMatchRunning) return;
+
       setting.isMatchRunning = true;
       setting.save();
       let distanceThreshold = setting.distanceThreshold || 10; // Example threshold in kilometers
@@ -1119,12 +1188,16 @@ class UserService {
       // Fetch users
       const users = await this.UserModel.findAll({
         attributes: ['id', 'lat', 'lng'],
+        isEmailValid: true,
       });
 
       // Fetch merchants with active profiles
       const merchants = await this.UserModel.findAll({
         attributes: ['id', 'lat', 'lng'],
-        where: { merchantActivated: true },
+        where: {
+          isEmailValid: true,
+          merchantActivated: true,
+        },
         include: [
           {
             model: MerchantProfile,
@@ -1136,21 +1209,36 @@ class UserService {
         ],
       });
 
-      // Match users with merchants
+      const userMatchesMap = new Map();
+
+      // Pre-fetch existing matches in one query to avoid multiple DB calls
+      const existingMatches = await this.MymatchModel.findAll({
+        where: { userId: users.map((u) => u.id) },
+      });
+
+      // Convert fetched data into a map for faster lookup
+      const existingMatchesMap = new Map(
+        existingMatches.map((match) => [match.userId, match])
+      );
+
       for (const user of users) {
         const userMatches = [];
 
         for (const merchant of merchants) {
-          distanceThreshold =
-            merchant.deliveryRange > distanceThreshold
-              ? merchant.deliveryRange
-              : distanceThreshold;
+          if (user.id === merchant.id) continue; // Avoid matching user to themselves
+
+          if (merchant.deliveryRange) {
+            distanceThreshold = Math.max(
+              merchant.deliveryRange,
+              distanceThreshold
+            );
+          }
 
           const distance = this.calculateDistance(
-            user.lat,
-            user.lng,
-            merchant.lat,
-            merchant.lng
+            Number(user.lat),
+            Number(user.lng),
+            Number(merchant.lat),
+            Number(merchant.lng)
           );
 
           if (distance <= distanceThreshold) {
@@ -1158,11 +1246,90 @@ class UserService {
           }
         }
 
-        await this.MymatchModel.upsert({
-          userId: user.id,
-          matches: userMatches,
-        });
+        userMatchesMap.set(user.id, userMatches);
       }
+
+      // Prepare bulk insert/update arrays
+      const toInsert = [];
+      const toUpdate = [];
+
+      for (const [userId, matches] of userMatchesMap.entries()) {
+        const existingMatch = existingMatchesMap.get(userId);
+
+        if (existingMatch) {
+          toUpdate.push({ id: existingMatch.id, matches });
+        } else {
+          toInsert.push({ userId, matches });
+        }
+      }
+
+      // Perform bulk insert
+      if (toInsert.length > 0) {
+        await this.MymatchModel.bulkCreate(toInsert);
+      }
+
+      // Perform bulk update
+      if (toUpdate.length > 0) {
+        await Promise.all(
+          toUpdate.map((entry) =>
+            this.MymatchModel.update(
+              { matches: entry.matches },
+              { where: { id: entry.id } }
+            )
+          )
+        );
+      }
+
+      /*
+      const userMatchesMap = new Map();
+
+      // Pre-fetch existing matches in one query to avoid multiple DB calls
+      const existingMatches = await this.MymatchModel.findAll({
+        where: { userId: users.map((u) => u.id) },
+      });
+
+      console.log(existingMatches);
+      // Convert fetched data into a map for faster lookup
+      const existingMatchesMap = new Map(
+        existingMatches.map((match) => [match.userId, match])
+      );
+
+      // Match users with merchants
+      for (const user of users) {
+        const userMatches = [];
+
+        for (const merchant of merchants) {
+          if (user.id === merchant.id) continue;
+          distanceThreshold =
+            merchant.deliveryRange > distanceThreshold
+              ? merchant.deliveryRange
+              : distanceThreshold;
+
+          const distance = this.calculateDistance(
+            Number(user.lat),
+            Number(user.lng),
+            Number(merchant.lat),
+            Number(merchant.lng)
+          );
+
+          if (distance <= distanceThreshold) {
+            userMatches.push({ merchantId: merchant.id, distance });
+          }
+        }
+
+        const MymatchModelResult = await this.MymatchModel.findOne({
+          where: { userId: user.id },
+        });
+
+        if (!MymatchModelResult) {
+          await this.MymatchModel.create({
+            userId: user.id,
+            matches: userMatches,
+          });
+        } else {
+          MymatchModelResult.update({ matches: userMatches });
+        }
+      }*/
       setting.isMatchRunning = false;
       setting.save();
       console.log('User-Merchant matching completed.');
@@ -1394,10 +1561,28 @@ class UserService {
       throw new Error('No valid charge found for the given amount');
     }
   }
+
+  async writeToDirect() {
+    try {
+      const filePath = path.join(process.cwd(), 'data', 'data.json');
+      if (!fs.existsSync(filePath)) {
+        fs.writeFileSync(filePath, JSON.stringify([], null, 2));
+      }
+
+      let existingData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      const updatedData = [...existingData, ...newData];
+      fs.writeFileSync(filePath, JSON.stringify(updatedData, null, 2));
+    } catch (error) {
+      console.log(error);
+    }
+  }
 }
 /**const merchantads = [
     { amount: 1000, charge: 100 },
     { amount: 5000, charge: 300 },
     { amount: 7000, charge: 500 },
 ]; */
+/*
+const test = new UserService();
+test.writeToDirect();*/
 export default new UserService();

@@ -482,6 +482,7 @@ class AuthenticationService {
           isTelValid: true,
         });
 
+        userService.makeMatch();
         return relatedUser;
       }
     } catch (error) {

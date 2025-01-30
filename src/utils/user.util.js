@@ -15,7 +15,7 @@ class UserUtil {
       .optional()
       .valid('active', 'processing', 'notActive', 'rejected')
       .label('Account Status'),
-    deliveryRange: Joi.string().optional().label('Delivery Range'),
+    deliveryRange: Joi.number().optional().label('Delivery Range'),
     notificationAllowed: Joi.boolean().optional().label('Notification Allowed'),
     disableAccount: Joi.boolean().optional().label('Disable Account'),
   });

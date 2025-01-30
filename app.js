@@ -14,6 +14,8 @@ import cookieParser from 'cookie-parser';
 import { Setting, Admin } from './src/db/models/index.js';
 import { Server as SocketIOServer } from 'socket.io';
 import { configureSocket } from './src/utils/socketUtils.js';
+import userService from './src/service/user.service.js';
+
 import http from 'http';
 
 //import {  Op } from "sequelize";
@@ -50,6 +52,7 @@ class Server {
     this.app = express();
     this.initializeDbAndFirebase();
     this.initializeMiddlewaresAndRoutes();
+    this.loadCronJobs();
   }
 
   async initializeDbAndFirebase() {
@@ -151,6 +154,11 @@ class Server {
     configureSocket(io);
   }
 
+  loadCronJobs() {
+    cron.schedule('*/10  * * * * *', async () => {
+      //userService.makeMatch();
+    });
+  }
   start() {
     this.app.listen(this.port, () => {
       console.log(`Server is running on http://localhost:${this.port}`);
