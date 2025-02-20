@@ -33,6 +33,11 @@ export function init(connection) {
         allowNull: false,
         defaultValue: 'https/',
       },
+      maxOrderPerMerchant: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 5,
+      },
       tiers: {
         type: DataTypes.JSON,
         allowNull: false,

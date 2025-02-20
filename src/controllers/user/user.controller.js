@@ -326,6 +326,29 @@ export default class UserController {
       next(error);
     }
   }
+
+  async whoIAm(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleWhoIAm(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
   async getTransaction(req, res, next) {
     try {
       const data = req.body;

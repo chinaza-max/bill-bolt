@@ -159,6 +159,15 @@ class UserUtil {
   verifyHandleGetOrderStatistic = Joi.object({
     userId: Joi.number().integer().required(),
   });
+
+  verifyHandleGetOrderStatistic = Joi.object({
+    userId: Joi.number().integer().required(),
+  });
+
+  verifyHandleWhoIAm = Joi.object({
+    userId: Joi.number().integer().required(),
+  });
+
   verifyHandleOrderAcceptOrCancel = Joi.object({
     userId: Joi.number().integer().required(),
     orderId: Joi.number().integer().required(),

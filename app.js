@@ -128,10 +128,12 @@ class Server {
             callback(new Error('Not allowed by CORS'));
           }
         },
+        credentials: true,
       };
     } else {
       corsOptions = {
         origin: '*',
+        credentials: true,
       };
     }
 
@@ -156,7 +158,7 @@ class Server {
 
   loadCronJobs() {
     cron.schedule('*/10  * * * * *', async () => {
-      //userService.makeMatch();
+      userService.makeMatch();
     });
   }
   start() {

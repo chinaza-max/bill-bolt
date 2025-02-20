@@ -230,6 +230,8 @@ class UserService {
     const { userId, distance, range } =
       await userUtil.verifyHandleGetMyMerchant.validateAsync(data);
 
+    const SettingModelResult = await this.SettingModel.findByPk(1);
+
     try {
       const MymatchModel = await this.MymatchModel.findOne({
         userId: userId,
@@ -245,6 +247,11 @@ class UserService {
         const filteredMatches = [];
 
         for (let i = 0; i < matches.length; i++) {
+          const numberActiveOrder = await this.howmanyActiveOrder(
+            matches[i].merchantId
+          );
+          //if (numberActiveOrder > SettingModelResult.maxOrderPerMerchant)
+          // continue;
           let merchant = await this.UserModel.findOne({
             where: { id: matches[i].merchantId, disableAccount: false },
             include: [
@@ -454,6 +461,39 @@ class UserService {
       throw new SystemError(error.name, error.parent);
     }
   }
+
+  async handleWhoIAm(data) {
+    const { userId } = await userUtil.verifyHandleWhoIAm.validateAsync(data);
+
+    try {
+      let userResult = await this.UserModel.findOne({
+        where: {
+          id: userId,
+          isEmailValid: true,
+          isDeleted: false,
+        },
+        attributes: {
+          exclude: [
+            'password',
+            'refreshToken',
+            'nin',
+            'telCode',
+            'passCode',
+            'isDeleted',
+            'ipAdress',
+            'notificationId',
+            'disableAccount',
+          ],
+        },
+      });
+
+      return userResult;
+    } catch (error) {
+      console.error('Error fetching transactions with details:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
   async handleGetTransaction(data) {
     try {
       return await this.TransactionModel.findAll();
@@ -1124,9 +1164,6 @@ class UserService {
     const MerchantProfileModelResult = await this.MerchantProfileModel.findOne({
       where: { userId },
     });
-    console.log('MerchantProfileModelResult');
-    console.log(MerchantProfileModelResult);
-    console.log('MerchantProfileModelResult');
 
     if (minAmount > maxAmount)
       throw new BadRequestError(
@@ -1175,11 +1212,12 @@ class UserService {
     }
   }
   async makeMatch() {
+    const setting = await this.SettingModel.findByPk(1);
+
     try {
       // Check if match process is running
-      const setting = await this.SettingModel.findByPk(1);
 
-      //if (setting.isMatchRunning) return;
+      if (setting.isMatchRunning) return;
 
       setting.isMatchRunning = true;
       setting.save();
@@ -1335,6 +1373,9 @@ class UserService {
       console.log('User-Merchant matching completed.');
     } catch (error) {
       console.error('Error during matching:', error);
+
+      setting.isMatchRunning = true;
+      setting.save();
       throw new SystemError(error.name, error?.response?.data?.error);
     }
   }
@@ -1439,6 +1480,21 @@ class UserService {
   }
   async getUserDetails(userId) {
     return await this.UserModel.findOne({ where: { id: userId } });
+  }
+
+  async howmanyActiveOrder(userId) {
+    try {
+      const orderCount = await this.OrdersModel.count({
+        where: {
+          merchantId: userId,
+          orderStatus: 'inProgress',
+        },
+      });
+      return orderCount;
+    } catch (error) {
+      console.error('Error fetching active orders:', error);
+      throw error; // Re-throw the error after logging it
+    }
   }
 
   async generateRandomPassword(length = 12) {

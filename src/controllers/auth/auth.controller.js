@@ -1,6 +1,12 @@
 import authService from '../../service/auth.service.js';
 import serverConfig from '../../config/server.js';
 import { User } from '../../db/models/index.js';
+import path from 'path';
+import { dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export default class AuthenticationController {
   constructor() {
@@ -61,13 +67,12 @@ export default class AuthenticationController {
         ...generateTokenFrom,
         scope: 'refresh',
       });
-          
 
       res.cookie('refresh_token', refreshToken, {
         httpOnly: true,
         secure: true,
         sameSite: 'Strict',
-        maxAge:serverConfig.REFRESH_TOKEN_COOKIE_EXPIRES_IN
+        maxAge: serverConfig.REFRESH_TOKEN_COOKIE_EXPIRES_IN,
       });
 
       const UserModelResult = await this.UserModel.findByPk(user.dataValues.id);
@@ -77,6 +82,66 @@ export default class AuthenticationController {
         status: 200,
         message: 'verification completed',
         data: { accessToken: accessToken },
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async enterPassCode(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+      };
+
+      const user = await authService.handleEnterPassCode(my_bj);
+
+      if (user == null) {
+        return res.status(400).json({
+          status: 400,
+          message: 'Invalid pass code',
+        });
+      } else if (user == 'disabled') {
+        return res.status(400).json({
+          status: 400,
+          message: 'Your account has been disabled',
+        });
+      }
+
+      let generateTokenFrom = {
+        id: user.dataValues.id,
+        role: user.dataValues.role,
+        emailAddress: user.dataValues.emailAddress,
+      };
+
+      const accessToken = await authService.generateAccessToken({
+        ...generateTokenFrom,
+        scope: 'access',
+      });
+
+      const excludedProperties = [
+        'isDeleted',
+        'password',
+        'passCode',
+        'nin',
+        'deviceIp',
+        'refreshToken',
+      ];
+
+      const modifiedUser = Object.keys(user.dataValues)
+        .filter((key) => !excludedProperties.includes(key))
+        .reduce((acc, key) => {
+          acc[key] = user.dataValues[key];
+          return acc;
+        }, {});
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: { accessToken, modifiedUser },
       });
     } catch (error) {
       console.log(error);
@@ -128,6 +193,11 @@ export default class AuthenticationController {
           status: 400,
           message: 'Your account has been disabled',
         });
+      } else if (user == 'unverifiedEmail') {
+        return res.status(400).json({
+          status: 400,
+          message: 'Your email is not verified yet',
+        });
       }
 
       let generateTokenFrom = {
@@ -140,37 +210,41 @@ export default class AuthenticationController {
         ...generateTokenFrom,
         scope: 'access',
       });
+
       const refreshToken = await authService.generateRefreshToken({
         ...generateTokenFrom,
         scope: 'refresh',
       });
 
-      /*
-      const excludedProperties = ['isDeleted', 'password'];
+      const includedProperties = ['emailAddress'];
 
       const modifiedUser = Object.keys(user.dataValues)
-        .filter(key => !excludedProperties.includes(key))
+        .filter((key) => includedProperties.includes(key))
         .reduce((acc, key) => {
           acc[key] = user.dataValues[key];
           return acc;
-        }, {})*/
+        }, {});
 
-
-      const nineMonthsInMilliseconds = 9 * 30 * 24 * 60 * 60 * 1000;
-      res.cookie('refresh_token', refreshToken, {
+      // const nineMonthsInMilliseconds = 9 * 30 * 24 * 60 * 60 * 1000;
+      /*   res.cookie('refresh_token', refreshToken, {
         httpOnly: true,
-        secure: true,
-        sameSite: 'Strict',
-        maxAge:serverConfig.REFRESH_TOKEN_COOKIE_EXPIRES_IN
+        secure: false,
+        sameSite: 'none',
+        maxAge: serverConfig.REFRESH_TOKEN_COOKIE_EXPIRES_IN,
       });
-
+*/
       const UserModelResult = await this.UserModel.findByPk(user.dataValues.id);
       await UserModelResult.update({ refreshToken });
 
       return res.status(200).json({
         status: 200,
         message: 'login successfully.',
-        data: { accessToken: accessToken },
+        data: {
+          passCode: user.passCode,
+          describeYou: user.describeYou,
+          user: modifiedUser,
+          accessToken,
+        },
       });
     } catch (error) {
       console.log(error);
@@ -504,6 +578,20 @@ export default class AuthenticationController {
       next(error);
     }
   }
+
+  async resetPasswordPage(req, res, next) {
+    try {
+      console.log(__dirname);
+
+      res.sendFile(
+        path.join(__dirname, '../../../public', 'sendPasswordLink.html')
+      );
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
   async virtualAccountCollection(req, res, next) {
     try {
       const data = req.body;
@@ -540,13 +628,13 @@ export default class AuthenticationController {
           status: 404,
           message: 'contact support user does not exist',
         });
+      } else {
+        return res.status(200).json({
+          status: 200,
+          message: 'successfully',
+          data: { accessToken: result },
+        });
       }
-
-      return res.status(200).json({
-        status: 200,
-        message: 'successfully',
-        data: { accessToken: result },
-      });
     } catch (error) {
       next(error);
     }

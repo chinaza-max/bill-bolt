@@ -59,6 +59,30 @@ class AuthenticationService {
     }
   }
 
+  async handleEnterPassCode(data) {
+    const { passCode, emailAddress } =
+      await authUtil.verifyHandleEnterPassCode.validateAsync(data);
+
+    let userResult = await this.UserModel.findOne({
+      where: {
+        emailAddress: emailAddress,
+        isEmailValid: true,
+        isDeleted: false,
+      },
+    });
+
+    if (!userResult) throw new NotFoundError('User not found.');
+
+    let myPassCode = passCode + '';
+
+    if (!userResult.passCode) return null;
+    if (!(await bcrypt.compare(myPassCode, userResult.passCode))) return null;
+
+    if (userResult.disableAccount) return 'disabled';
+
+    return userResult;
+  }
+
   async handleUserCreation(data) {
     let {
       firstName,
@@ -154,7 +178,7 @@ class AuthenticationService {
       user = await this.UserModel.findOne({
         where: {
           emailAddress,
-          isEmailValid: true,
+          //isEmailValid: true,
           isDeleted: false,
         },
       });
@@ -174,6 +198,17 @@ class AuthenticationService {
 
     if (user.disableAccount) return 'disabled';
 
+    if (user.isEmailValid === false) {
+      const validateFor = 'user';
+      await this.sendEmailVerificationCode(emailAddress, user.id, validateFor);
+      return 'unverifiedEmail';
+    }
+    if (!user.passCode) {
+      user.passCode = false;
+    }
+    if (!user.describeYou) {
+      user.describeYou = false;
+    }
     return user;
   }
 
@@ -188,7 +223,7 @@ class AuthenticationService {
         matchedUser = await this.UserModel.findOne({
           where: {
             [Op.or]: [{ emailAddress: emailOrPhone }, { tel: emailOrPhone }],
-            isEmailValid: true,
+            /*isEmailValid: true,*/
             disableAccount: false,
             isDeleted: false,
           },
@@ -242,10 +277,12 @@ class AuthenticationService {
         variables: {
           resetLink:
             serverConfig.NODE_ENV === 'development'
-              ? `http://localhost/BillBolt/billBoltServer/resetPasswordfile/sendPasswordLink.html?${params.toString()}`
+              ? `${
+                  serverConfig.DOMAIN
+                }/resetPasswordPage.html?${params.toString()}`
               : `${
                   serverConfig.DOMAIN
-                }/adminpanel/Passwor?${params.toString()}`,
+                }/resetPasswordPage.html?${params.toString()}`,
         },
       });
     } catch (error) {
@@ -500,7 +537,7 @@ class AuthenticationService {
       });
 
       if (existingUser) {
-        return 'User with this email already exists.';
+        return 'User with this email already exists. try to login or do a password reset';
       }
       return null;
     } catch (error) {

@@ -1,76 +1,57 @@
-import Joi from "joi";
+import Joi from 'joi';
 
 class authUtil {
-
-  verifyUserCreationData= Joi.object({
+  verifyUserCreationData = Joi.object({
     firstName: Joi.string().required(),
     lastName: Joi.string().required(),
     emailAddress: Joi.string().email().required(),
     password: Joi.string().required(),
     tel: Joi.number().integer().required(),
-    telCode: Joi.string().required(),  
-    dateOfBirth: Joi.date()
-    .iso()
-    .required()
-    .messages({
+    telCode: Joi.string().required(),
+    dateOfBirth: Joi.date().iso().required().messages({
       'date.base': 'Date of birth must be a valid date.',
       'date.format': 'Date of birth must be in the format YYYY-MM-DD.',
       'any.required': 'Date of birth is required.',
     }),
   });
 
-
-  verifyHandleVerifyEmailorTel= Joi.object({
+  verifyHandleEnterPassCode = Joi.object({
     emailAddress: Joi.string().required(),
-    validateFor: Joi.string().valid(
-      'user',
-      'admin'
-    ).required(),
-    verificationCode: Joi.number().required(),
-    type: Joi.string().valid(
-      'email',
-      'tel'  
-    ).required() 
+    passCode: Joi.number().required(),
   });
 
-    verifyHandleSendVerificationCodeEmailOrTel= Joi.object({
-      emailAddress: Joi.string().required(),
-      validateFor: Joi.string().valid(
-        'user',
-        'admin'
-      ).required(),
-      type: Joi.string().required()
-    });
+  verifyHandleVerifyEmailorTel = Joi.object({
+    emailAddress: Joi.string().required(),
+    validateFor: Joi.string().valid('user', 'admin').required(),
+    verificationCode: Joi.number().required(),
+    type: Joi.string().valid('email', 'tel').required(),
+  });
 
+  verifyHandleSendVerificationCodeEmailOrTel = Joi.object({
+    emailAddress: Joi.string().required(),
+    validateFor: Joi.string().valid('user', 'admin').required(),
+    type: Joi.string().required(),
+  });
 
-    verifyHandleLoginUser= Joi.object({
-      password: Joi.string().required(),
-      type:Joi.string().valid(
-        'user',
-        'admin',
-      ).required(),
-      emailAddress: Joi.string().email().required()
-    })
-    
+  verifyHandleLoginUser = Joi.object({
+    password: Joi.string().required(),
+    type: Joi.string().valid('user', 'admin').required(),
+    emailAddress: Joi.string().email().required(),
+  });
 
-    validateHandleSendPasswordResetLink  = Joi.object({
-      emailOrPhone: Joi.alternatives().try(
-        Joi.string().email(), 
-        Joi.number(), 
-      ).required(),
-      type: Joi.string().valid(
-        'user',
-        'admin'
-      ).required(),
-    });
+  validateHandleSendPasswordResetLink = Joi.object({
+    emailOrPhone: Joi.alternatives()
+      .try(Joi.string().email(), Joi.number())
+      .required(),
+    type: Joi.string().valid('user', 'admin').required(),
+  });
 
+  validatePasswordReset = Joi.object().keys({
+    password: Joi.string().min(6).required(),
+    resetPasswordKey: Joi.string().min(1).required(),
+  });
 
-    validatePasswordReset = Joi.object().keys({
-      password: Joi.string().min(6).required(),
-      resetPasswordKey: Joi.string().min(1).required(),
-    });
- 
-    /*
+  /*
     verifyHandleUploadPicture= Joi.object({
       userId: Joi.number().required(),
       image: Joi.object({
