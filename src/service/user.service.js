@@ -1226,8 +1226,7 @@ class UserService {
 
       // Fetch users
       const users = await this.UserModel.findAll({
-        attributes: ['id', 'lat', 'lng'],
-        isEmailValid: true,
+        where: { attributes: ['id', 'lat', 'lng'], isEmailValid: true },
       });
 
       // Fetch merchants with active profiles
