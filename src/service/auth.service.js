@@ -111,7 +111,7 @@ class AuthenticationService {
       this.UserModel
     );
 
-    if (existingUser != null) throw new ConflictError(existingUser);
+    if (existingUser) throw new ConflictError(existingUser);
 
     try {
       const user = await this.UserModel.create({
