@@ -1214,6 +1214,7 @@ class UserService {
   async makeMatch() {
     const setting = await this.SettingModel.findByPk(1);
 
+    return;
     try {
       // Check if match process is running
 
