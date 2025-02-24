@@ -1216,7 +1216,7 @@ class UserService {
     const setting = await this.SettingModel.findByPk(1);
 
     try {
-      // Check if match process is running
+      // //Check if match process is running
 
       if (setting.isMatchRunning) return;
 
