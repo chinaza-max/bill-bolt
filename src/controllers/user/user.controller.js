@@ -625,7 +625,7 @@ export default class UserController {
   }
   async getTransactionHistory(req, res, next) {
     try {
-      const data = req.body;
+      const data = req.query;
 
       let my_bj = {
         ...data,

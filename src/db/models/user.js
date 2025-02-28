@@ -10,6 +10,12 @@ export function init(connection) {
         primaryKey: true,
         autoIncrement: true,
       },
+      imageUrl: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue:
+          'https://res.cloudinary.com/dvznn9s4g/image/upload/v1740438988/avatar_phzyrn.jpg',
+      },
       emailAddress: {
         type: DataTypes.STRING,
         allowNull: false,
