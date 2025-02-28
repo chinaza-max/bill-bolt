@@ -11,7 +11,7 @@ import MerchantAds, { init as initMerchantAds } from './merchantAds.js';
 import Complaint, { init as initComplaint } from './complaint.js';
 import Orders, { init as initOrders } from './orders.js';
 import Setting, { init as initSetting } from './setting.js';
-import Mymatch, { init as initMymatch } from './myMatch.js';
+import Mymatch, { init as initMymatch } from './mymatch.js';
 import Transaction, { init as initTransaction } from './transaction.js';
 import Admin, { init as initAdmin } from './admin.js';
 import Notification, { init as initNotification } from './notification.js';
