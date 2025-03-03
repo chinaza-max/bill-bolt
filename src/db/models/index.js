@@ -15,7 +15,7 @@ import Mymatch, { init as initMymatch } from './mymatch.js';
 import Transaction, { init as initTransaction } from './transaction.js';
 import Admin, { init as initAdmin } from './admin.js';
 import Notification, { init as initNotification } from './notification.js';
-
+//
 function associate() {
   User.hasOne(MerchantProfile, {
     foreignKey: 'userId',
