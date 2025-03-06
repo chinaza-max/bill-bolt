@@ -9,6 +9,7 @@ import {
   Chat,
   Transaction,
   Complaint,
+  NinOtp,
 } from '../db/models/index.js';
 import userUtil from '../utils/user.util.js';
 import authService from '../service/auth.service.js';
@@ -45,6 +46,7 @@ class UserService {
   TransactionModel = Transaction;
   OrdersModel = Orders;
   ComplaintModel = Complaint;
+  NinOtpModel = NinOtp;
   constructor() {
     this.gateway;
     this.validFor;
@@ -116,16 +118,44 @@ class UserService {
       throw new SystemError(error.name, error.parent);
     }
   }
+
   async handleInitiateNINVerify(data) {
-    const { NIN, userId } =
+    var { NIN, userId } =
       await userUtil.validateHandleInitiateNINVerify.validateAsync(data);
 
+    /*
     const accessToken = await authService.getAuthTokenMonify();
     const body = {
       nin: NIN,
-    };
+    };*/
 
     try {
+      //check if nin is already verified by another user or your self
+      const nin = await this.UserModel.findOne({
+        where: { nin: NIN, isNinVerified: true },
+      });
+
+      if (nin)
+        throw new ConflictError('NIN cannot be verified, it has been verified');
+
+      const ninOtp = await this.NinOtpModel.findOne({
+        where: { userId: userId, type: 'NIN' },
+      });
+      if (ninOtp) {
+        await this.NinOtpModel.create({
+          userId: userId,
+          type: 'NIN',
+          verificationCode: 1234,
+          expiresIn: new Date(),
+        });
+      } else {
+        await this.NinOtpModel.update(
+          { verificationCode: 1234, expiresIn: new Date() },
+          { where: { userId: userId, type: 'NIN' } }
+        );
+      }
+
+      /*
       const response = await axios.post(
         `${serverConfig.MONNIFY_BASE_URL}/api/v1/vas/nin-details`,
         body,
@@ -134,10 +164,8 @@ class UserService {
             Authorization: `Bearer ${accessToken}`,
           },
         }
-      );
-
+      );*/
       // const phone = response.data.responseBody.mobileNumber;
-
       // authService.sendNINVerificationCode(phone, userId, role)
     } catch (error) {
       console.log(error?.response?.data);
@@ -146,15 +174,29 @@ class UserService {
   }
 
   async handleVerifyNIN(data) {
-    var { NIN, userId, role } =
+    var { otpCode, userId } =
       await userUtil.validateHandleValidateNIN.validateAsync(data);
 
+    /*
     const accessToken = await authService.getAuthTokenMonify();
     const body = {
       nin: NIN,
-    };
+    };*/
 
     try {
+      //check if nin is already verified by another user or your self
+
+      const ninOtp = await this.NinOtpModel.findOne({
+        where: { userId: userId, type: 'NIN', verificationCode: otpCode },
+      });
+      if (ninOtp) {
+        const user = await this.UserModel.findByPk(userId);
+        await user.update({ isNinVerified: true });
+      } else {
+        throw new ConflictError('Invalid OTP');
+      }
+
+      /*
       const response = await axios.post(
         `${serverConfig.MONNIFY_BASE_URL}/api/v1/vas/nin-details`,
         body,
@@ -163,10 +205,8 @@ class UserService {
             Authorization: `Bearer ${accessToken}`,
           },
         }
-      );
-
+      );*/
       // const phone = response.data.responseBody.mobileNumber;
-
       // authService.sendNINVerificationCode(phone, userId, role)
     } catch (error) {
       console.log(error?.response?.data);
@@ -648,6 +688,26 @@ class UserService {
     );
     await this.ComplaintModel.create({});
     try {
+    } catch (error) {
+      console.error('Error fetching transactions with details:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleUpdateMerchantVerificationProcess(data) {
+    const { userId, markVerification } =
+      await userUtil.verifyHandleSetMerchantAccountStatus.validateAsync(data);
+    try {
+      const UserModelResult = await this.UserModel.findOne({
+        where: { userId },
+      });
+      if (markVerification === 'NinVerified') {
+        await UserModelResult.update({ isNinVerified: true });
+      } else if (markVerification === 'FaceVerified') {
+        await UserModelResult.update({ isFaceVerified: true });
+      } else if (markVerification === 'DisplayNameMerchantSet') {
+        await UserModelResult.update({ isDisplayNameMerchantSet: true });
+      }
     } catch (error) {
       console.error('Error fetching transactions with details:', error);
       throw new SystemError(error.name, error.parent);

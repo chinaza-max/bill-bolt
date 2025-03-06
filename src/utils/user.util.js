@@ -50,7 +50,7 @@ class UserUtil {
     userId: Joi.number().integer().required(),
   });
   validateHandleValidateNIN = Joi.object().keys({
-    NIN: Joi.string().required(),
+    otpCode: Joi.number().required(),
     role: Joi.string().valid('list', 'rent'),
     userId: Joi.number().integer().required(),
   });
@@ -122,6 +122,12 @@ class UserUtil {
   });
   verifyHandleGetMyAds = Joi.object({
     userId: Joi.number().integer().required(),
+  });
+  verifyHandleSetMerchantAccountStatus = Joi.object({
+    userId: Joi.number().integer().required(),
+    markVerification: Joi.string()
+      .valid('NinVerified', 'FaceVerified', 'DisplayNameMerchantSet')
+      .required(),
   });
   verifyHandleSetWithdrawalBank = Joi.object({
     userId: Joi.number().integer().required(),

@@ -1,41 +1,34 @@
-import authService from "../service/auth.service.js";
-import {
-  UnAuthorizedError,
-  BadRequestError,
-} from "../errors/index.js";
-
+import authService from '../service/auth.service.js';
+import { UnAuthorizedError, BadRequestError } from '../errors/index.js';
 
 class AuthenticationMiddlewares {
-
-
-  async validateUserToken( req,res,next){
+  async validateUserToken(req, res, next) {
     try {
-
       const { authorization } = req.headers;
 
-      if ((req.path=='/')||(req.path=="/favicon.ico"))  return next();;
-      console.log("path ",req.path)
+      if (req.path == '/' || req.path == '/favicon.ico') return next();
+      console.log('path ', req.path);
 
-      if (!authorization) throw new BadRequestError("No token provided.");
+      if (!authorization) throw new BadRequestError('No token provided.');
 
-      const token = authorization.split(" ")[1];
-
-      if (!token) throw new BadRequestError("No token provided.");
+      const token = authorization.split(' ')[1];
+      console.log('token ', token);
+      if (!token) throw new BadRequestError('No token provided.');
 
       const { payload, expired } = authService.verifyAccessToken(token);
 
-      if (expired) throw new UnAuthorizedError("Invalid token.");
+      if (expired) throw new UnAuthorizedError('Invalid token.');
 
       req.user = payload;
-      
+
       return next();
-    } catch (error) { 
-      console.log(error)
+    } catch (error) {
+      console.log(error);
       next(error);
     }
   }
-  
-/*
+
+  /*
   async validateRefreshToken( req,res,next){
     try {
 
@@ -69,8 +62,6 @@ class AuthenticationMiddlewares {
     }
   }
   */
-
-
 }
 
 export default new AuthenticationMiddlewares();

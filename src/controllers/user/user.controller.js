@@ -79,7 +79,7 @@ export default class UserController {
       let my_bj = {
         ...data,
         userId: req.user.id,
-        role: req.user.role,
+        // role: req.user.role,
       };
 
       userService.handleInitiateNINVerify(my_bj);
@@ -593,6 +593,27 @@ export default class UserController {
       };
 
       await userService.handleSubmitComplain(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async updateMerchantVerificationProcess(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      userService.handleUpdateMerchantVerificationProcess(my_bj);
 
       return res.status(200).json({
         status: 200,

@@ -18,7 +18,7 @@ class UserRoutes extends UserController {
     this.router.post('/updateMerchantProfile', this.updateMerchantProfile);
     this.router.post('/updatePin', this.updatePin);
     this.router.post('/verifyNIN', this.verifyNIN);
-    this.router.post('/initiateNINVerify', this.verifyNIN);
+    this.router.post('/initiateNINVerify', this.initiateNINVerify);
 
     this.router.post('/setPin', this.setPin);
     this.router.post('/enterPassCode', this.enterPassCode);
@@ -48,6 +48,10 @@ class UserRoutes extends UserController {
       this.setMerchantAccountStatus
     );
     this.router.get('/getProfileInformation', this.getProfileInformation);
+    this.router.post(
+      '/updateMerchantVerificationProcess',
+      this.getProfileInformation
+    );
 
     //MERCHANT API
     this.router.post('/signupMerchant', this.signupMerchant);

@@ -15,6 +15,8 @@ import Mymatch, { init as initMymatch } from './myMatch.js';
 import Transaction, { init as initTransaction } from './transaction.js';
 import Admin, { init as initAdmin } from './admin.js';
 import Notification, { init as initNotification } from './notification.js';
+import NinOtp, { init as initNinOtp } from './ninOtp.js';
+
 //
 function associate() {
   User.hasOne(MerchantProfile, {
@@ -120,6 +122,7 @@ export {
   Transaction,
   Admin,
   Notification,
+  NinOtp,
 };
 
 export function init(connection) {
@@ -136,6 +139,7 @@ export function init(connection) {
   initTransaction(connection);
   initAdmin(connection);
   initNotification(connection);
+  initNinOtp(connection);
   associate();
   authenticateConnection(connection);
 }

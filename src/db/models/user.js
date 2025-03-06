@@ -104,6 +104,21 @@ export function init(connection) {
         defaultValue: false,
         allowNull: true,
       },
+      isNinVerified: {
+        type: DataTypes.BOOLEAN,
+        allowNull: true,
+        defaultValue: false,
+      },
+      isDisplayNameMerchantSet: {
+        type: DataTypes.BOOLEAN,
+        allowNull: true,
+        defaultValue: false,
+      },
+      isFaceVerified: {
+        type: DataTypes.BOOLEAN,
+        allowNull: true,
+        defaultValue: false,
+      },
       isOnline: {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
@@ -133,10 +148,7 @@ export function init(connection) {
           current: 0,
         },
       },
-      ipAdress: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
+
       notificationId: {
         type: DataTypes.TEXT,
         allowNull: true,
