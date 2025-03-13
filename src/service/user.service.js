@@ -129,24 +129,30 @@ class UserService {
       nin: NIN,
     };*/
 
+    const userResult = await this.UserModel.findByPk(userId);
+
+    if (!userResult) {
+      throw new NotFoundError('User not found');
+    }
+
+    if (userResult.nin == NIN && userResult.isNinVerified === true) {
+      throw new ConflictError('NIN cannot be verified twice');
+    }
     try {
       //check if nin is already verified by another user or your self
-      const nin = await this.UserModel.findOne({
-        where: { nin: NIN, isNinVerified: true },
-      });
 
-      if (nin)
-        throw new ConflictError('NIN cannot be verified, it has been verified');
+      userResult.update({ nin: NIN });
 
       const ninOtp = await this.NinOtpModel.findOne({
         where: { userId: userId, type: 'NIN' },
       });
-      if (ninOtp) {
+      if (!ninOtp) {
         await this.NinOtpModel.create({
           userId: userId,
           type: 'NIN',
           verificationCode: 1234,
           expiresIn: new Date(),
+          validateFor: 'user',
         });
       } else {
         await this.NinOtpModel.update(
@@ -168,7 +174,7 @@ class UserService {
       // const phone = response.data.responseBody.mobileNumber;
       // authService.sendNINVerificationCode(phone, userId, role)
     } catch (error) {
-      console.log(error?.response?.data);
+      console.log(error);
       throw new SystemError(error.name, error?.response?.data?.error);
     }
   }
@@ -183,19 +189,17 @@ class UserService {
       nin: NIN,
     };*/
 
+    const ninOtp = await this.NinOtpModel.findOne({
+      where: { userId: userId, type: 'NIN', verificationCode: otpCode },
+    });
+    if (ninOtp) {
+      const user = await this.UserModel.findByPk(userId);
+      await user.update({ isNinVerified: true });
+    } else {
+      throw new ConflictError('Invalid OTP');
+    }
     try {
       //check if nin is already verified by another user or your self
-
-      const ninOtp = await this.NinOtpModel.findOne({
-        where: { userId: userId, type: 'NIN', verificationCode: otpCode },
-      });
-      if (ninOtp) {
-        const user = await this.UserModel.findByPk(userId);
-        await user.update({ isNinVerified: true });
-      } else {
-        throw new ConflictError('Invalid OTP');
-      }
-
       /*
       const response = await axios.post(
         `${serverConfig.MONNIFY_BASE_URL}/api/v1/vas/nin-details`,

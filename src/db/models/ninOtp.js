@@ -36,7 +36,7 @@ export function init(connection) {
       },
     },
     {
-      tableName: 'NINOTPValidation', // Renamed the table to reflect NIN OTP
+      tableName: 'NINOTPValidation',
       sequelize: connection,
       timestamps: true,
       underscored: false,

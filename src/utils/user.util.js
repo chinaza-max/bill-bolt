@@ -51,7 +51,7 @@ class UserUtil {
   });
   validateHandleValidateNIN = Joi.object().keys({
     otpCode: Joi.number().required(),
-    role: Joi.string().valid('list', 'rent'),
+    role: Joi.string(),
     userId: Joi.number().integer().required(),
   });
 

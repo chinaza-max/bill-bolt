@@ -72,7 +72,7 @@ export default class UserController {
     }
   }
 
-  initiateNINVerify(req, res, next) {
+  async initiateNINVerify(req, res, next) {
     try {
       const data = req.body;
 
@@ -82,7 +82,7 @@ export default class UserController {
         // role: req.user.role,
       };
 
-      userService.handleInitiateNINVerify(my_bj);
+      await userService.handleInitiateNINVerify(my_bj);
 
       return res.status(200).json({
         status: 200,
