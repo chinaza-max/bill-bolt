@@ -31,14 +31,14 @@ export default class UserController {
 
   async updateMerchantProfile(req, res, next) {
     try {
-      const data = req.body;
-
+      const { image, ...data } = req.body;
+      const { file } = req;
       let my_bj = {
         ...data,
         userId: req.user.id,
       };
 
-      await userService.handleUpdateMerchantProfile(my_bj);
+      await userService.handleUpdateMerchantProfile(my_bj, file);
 
       return res.status(200).json({
         status: 200,

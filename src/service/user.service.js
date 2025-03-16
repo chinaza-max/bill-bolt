@@ -34,6 +34,7 @@ import {
   BadRequestError,
   SystemError,
 } from '../errors/index.js';
+import { Console } from 'console';
 
 class UserService {
   EmailandTelValidationModel = EmailandTelValidation;
@@ -70,19 +71,50 @@ class UserService {
     }
   }
 
-  async handleUpdateMerchantProfile(data) {
+  async handleUpdateMerchantProfile(data, file) {
     let { userId, role, ...updateData } =
       await userUtil.verifyHandleUpdateMerchantProfile.validateAsync(data);
+    const userModelResult = await this.UserModel.findByPk(userId);
 
+    if (updateData.displayName) {
+      updateData.displayName = updateData.displayName
+        .toLowerCase()
+        .replace(/(?:^\w|\s\w)/g, (match) => match.toUpperCase());
+    }
     try {
+      let imageUrl = '';
+      if (file) {
+        if (serverConfig.NODE_ENV == 'production') {
+          imageUrl = serverConfig.DOMAIN + file.path.replace('/home', '');
+        } else if (serverConfig.NODE_ENV == 'development') {
+          imageUrl = serverConfig.DOMAIN + file.path.replace('public', '');
+        }
+      }
+
       const MerchantProfileModelResult =
         await this.MerchantProfileModel.findOne({
           where: { userId: userId },
         });
 
-      await MerchantProfileModelResult.update(
-        updateData /*{ where: { id: userId } }*/
-      );
+      if (!MerchantProfileModelResult) {
+        await this.MerchantProfileModel.create({
+          userId: userId,
+          accoutTier: 1,
+          ...updateData,
+        });
+      } else {
+        if (file) {
+          await MerchantProfileModelResult.update({ updateData, imageUrl });
+          userModelResult.update({ isFaceVerified: true });
+        } else {
+          await MerchantProfileModelResult.update(updateData);
+        }
+      }
+
+      if (updateData.displayName) {
+        console.log('updateData.displayname');
+        userModelResult.update({ isDisplayNameMerchantSet: true });
+      }
     } catch (error) {
       console.log(error);
       throw new SystemError(error.name, error.parent);
@@ -529,6 +561,14 @@ class UserService {
             'disableAccount',
           ],
         },
+        include: [
+          {
+            model: MerchantProfile,
+            as: 'MerchantProfile', // Ensure this matches the alias in associations
+            //attributes: ["id", "businessName", "businessType"], // Add required fields
+            required: false,
+          },
+        ],
       });
 
       return userResult;

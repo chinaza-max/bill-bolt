@@ -42,8 +42,6 @@ class AuthRoutes extends AuthController {
     );
 
     this.router.get('/ping', (req, res) => {
-      console.log('ddddddddddd');
-      console.log('ddddddddddd');
       res.status(200).json({ message: 'Pong!' });
     });
   }

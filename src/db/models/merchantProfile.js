@@ -10,9 +10,17 @@ export function init(connection) {
         primaryKey: true,
         autoIncrement: true,
       },
-      displayname: {
+      displayName: {
         type: DataTypes.STRING,
         allowNull: false,
+      },
+      tel: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      imageUrl: {
+        type: DataTypes.STRING,
+        allowNull: true,
       },
       accoutTier: {
         type: DataTypes.INTEGER,

@@ -9,7 +9,8 @@ class UserUtil {
 
   verifyHandleUpdateMerchantProfile = Joi.object().keys({
     userId: Joi.number().required().label('user Id'),
-    displayname: Joi.string().optional().label('Display Name'),
+    displayName: Joi.string().optional().label('Display Name'),
+    tel: Joi.number().optional().label('Telephone Number'),
     passCode: Joi.string().optional().label('Pass Code'),
     accountStatus: Joi.string()
       .optional()

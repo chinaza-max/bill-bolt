@@ -148,7 +148,6 @@ export function init(connection) {
           current: 0,
         },
       },
-
       notificationId: {
         type: DataTypes.TEXT,
         allowNull: true,

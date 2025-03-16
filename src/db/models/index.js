@@ -25,6 +25,7 @@ function associate() {
   });
   MerchantProfile.belongsTo(User, {
     foreignKey: 'userId',
+    as: 'UserProfile',
   });
 
   User.hasMany(Transaction, {
