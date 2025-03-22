@@ -6,6 +6,7 @@ import {
   EmailandTelValidation,
   Transaction,
   Setting,
+  MerchantProfile,
 } from '../db/models/index.js';
 import serverConfig from '../config/server.js';
 import authUtil from '../utils/auth.util.js';
@@ -28,6 +29,7 @@ class AuthenticationService {
   EmailandTelValidationModel = EmailandTelValidation;
   TransactionModel = Transaction;
   SettingModel = Setting;
+  MerchantProfileModel = MerchantProfile;
 
   verifyAccessToken(token) {
     try {
@@ -69,6 +71,14 @@ class AuthenticationService {
         isEmailValid: true,
         isDeleted: false,
       },
+      include: [
+        {
+          model: MerchantProfile,
+          as: 'MerchantProfile', // Ensure this matches the alias in associations
+          //attributes: ["id", "businessName", "businessType"], // Add required fields
+          required: false,
+        },
+      ],
     });
 
     if (!userResult) throw new NotFoundError('User not found.');
@@ -181,6 +191,14 @@ class AuthenticationService {
           //isEmailValid: true,
           isDeleted: false,
         },
+        include: [
+          {
+            model: MerchantProfile,
+            as: 'MerchantProfile', // Ensure this matches the alias in associations
+            //attributes: ["id", "businessName", "businessType"], // Add required fields
+            required: false,
+          },
+        ],
       });
     } else {
       user = await this.AdminModel.findOne({

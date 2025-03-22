@@ -35,7 +35,13 @@ export function init(connection) {
         allowNull: true,
       },
       accountStatus: {
-        type: DataTypes.ENUM('active', 'processing', 'notActive', 'rejected'),
+        type: DataTypes.ENUM(
+          'active',
+          'processing',
+          'notActive',
+          'rejected',
+          'suspended'
+        ),
         allowNull: false,
         defaultValue: 'processing',
       },

@@ -15,7 +15,7 @@ import userUtil from '../utils/user.util.js';
 import authService from '../service/auth.service.js';
 import bcrypt from 'bcrypt';
 import serverConfig from '../config/server.js';
-import { Op, Sequelize, where } from 'sequelize';
+import { json, Op, Sequelize, where } from 'sequelize';
 import mailService from '../service/mail.service.js';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
@@ -35,6 +35,7 @@ import {
   SystemError,
 } from '../errors/index.js';
 import { Console } from 'console';
+import { Json } from 'sequelize/lib/utils';
 
 class UserService {
   EmailandTelValidationModel = EmailandTelValidation;
@@ -526,8 +527,9 @@ class UserService {
         totalMerchantCharge += amountSummary.merchantCharge;
       }
 
+      const balance = JSON.parse(UserModelResult.walletBalance).current;
       return {
-        Balance: UserModelResult.walletBalance.current,
+        Balance: balance,
         EscrowBalance: totalMerchantCharge,
         SuccessFullCount,
         PendingCount,
