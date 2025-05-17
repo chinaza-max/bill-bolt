@@ -183,11 +183,11 @@ class Server {
 
   loadCronJobs() {
     cron.schedule('*/10  * * * * *', async () => {
-      userService.makeMatch();
+      //userService.makeMatch();
     });
 
     cron.schedule('*/5 * * * *', async () => {
-      this.checkTransaction();
+      // this.checkTransaction();
     });
   }
   async checkTransaction() {
@@ -220,7 +220,6 @@ class Server {
           },
         };
 
-        console.log(updatedPayload);
         authService.handleVirtualAccountCollection(updatedPayload);
       }
 
