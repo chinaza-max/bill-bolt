@@ -411,45 +411,79 @@ class AuthenticationService {
   }
 
   async updateWallet(amount, userId) {
-    if (!userId || amount <= 0) return;
+    console.log(
+      `[updateWallet] Called with amount: ${amount}, userId: ${userId}`
+    );
 
-    // Get access to the Sequelize instance
+    if (!userId || amount <= 0) {
+      console.warn(
+        `[updateWallet] Invalid input: userId=${userId}, amount=${amount}`
+      );
+      return;
+    }
+
     const sequelize = this.UserModel.sequelize;
 
-    // Use a transaction
-    const result = await sequelize.transaction(async (t) => {
-      // Get the latest user data within the transaction with row lock
-      const user = await this.UserModel.findByPk(userId, {
-        lock: true,
-        transaction: t,
+    try {
+      const result = await sequelize.transaction(async (t) => {
+        console.log(`[updateWallet] Starting transaction for userId=${userId}`);
+
+        const user = await this.UserModel.findByPk(userId, {
+          lock: true,
+          transaction: t,
+        });
+
+        if (!user) {
+          console.warn(`[updateWallet] User not found: userId=${userId}`);
+          return null;
+        }
+
+        console.log(
+          `[updateWallet] Fetched user: ${JSON.stringify(user.toJSON())}`
+        );
+
+        let balance = { previous: 0, current: 0 };
+
+        try {
+          if (typeof user.walletBalance === 'string') {
+            balance = JSON.parse(user.walletBalance);
+          } else if (typeof user.walletBalance === 'object') {
+            balance = user.walletBalance;
+          }
+        } catch (err) {
+          console.error(`[updateWallet] Error parsing walletBalance:`, err);
+          balance = { previous: 0, current: 0 };
+        }
+
+        const currentBalance = balance.current || 0;
+        const newBalance = {
+          previous: currentBalance,
+          current: currentBalance + amount,
+        };
+
+        console.log(
+          `[updateWallet] Updating balance: ${JSON.stringify(newBalance)}`
+        );
+
+        user.walletBalance = newBalance;
+
+        await user.save({ transaction: t });
+
+        console.log(
+          `[updateWallet] User saved with new walletBalance: ${JSON.stringify(
+            user.walletBalance
+          )}`
+        );
+
+        return user;
       });
 
-      if (!user) return null;
-
-      let balance = { previous: 0, current: 0 };
-
-      try {
-        if (typeof user.walletBalance === 'string') {
-          balance = JSON.parse(user.walletBalance);
-        } else if (typeof user.walletBalance === 'object') {
-          balance = user.walletBalance;
-        }
-      } catch {
-        balance = { previous: 0, current: 0 };
-      }
-
-      const currentBalance = balance.current || 0;
-      user.walletBalance = {
-        previous: currentBalance,
-        current: currentBalance + amount,
-      };
-
-      // Save within the transaction
-      await user.save({ transaction: t });
-      return user;
-    });
-
-    return result;
+      console.log(`[updateWallet] Transaction complete for userId=${userId}`);
+      return result;
+    } catch (err) {
+      console.error(`[updateWallet] Error during transaction:`, err);
+      throw err; // Let the caller handle or log further
+    }
   }
 
   async createOrder(transactionId, userId, merchantId) {
