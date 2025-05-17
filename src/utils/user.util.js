@@ -1,5 +1,13 @@
 import Joi from 'joi';
 const dateFormat = /^\d{4}-\d{2}-\d{2}$/;
+
+const breakPointSchema = Joi.array().items(
+  Joi.object({
+    amount: Joi.number().required(),
+    prices: Joi.array().items(Joi.number()).required(),
+  })
+);
+
 class UserUtil {
   verifyHandleUpdatePin = Joi.object().keys({
     NIN: Joi.string().required(),
@@ -94,7 +102,28 @@ class UserUtil {
   verifyHandleGenerateAccountVirtual = Joi.object({
     userId: Joi.number().integer().required(),
     amount: Joi.number().integer().min(0).required(),
+    type: Joi.string().valid('fundWallet', 'order').required(),
+    userId2: Joi.when('type', {
+      is: 'order',
+      then: Joi.number().integer().required(),
+      otherwise: Joi.number().integer().allow(null),
+    }),
   });
+
+  verifyHandleGetGeneralTransactionHistory = Joi.object({
+    userId: Joi.number().integer().required(),
+    limit: Joi.number().integer().optional(),
+    offset: Joi.number().integer().optional(),
+    startDate: Joi.string()
+      .optional()
+      .pattern(dateFormat)
+      .message('startDate must be in the format YYYY-MM-DD'),
+    endDate: Joi.string()
+      .optional()
+      .pattern(dateFormat)
+      .message('endDate must be in the format YYYY-MM-DD'),
+  });
+
   verifyHandleGetMyOrderDetails = Joi.object({
     userId: Joi.number().integer().required(),
     orderId: Joi.number().integer().required(),
@@ -113,8 +142,8 @@ class UserUtil {
   });
   verifyHandleDashBoardStatistic = Joi.object({
     userId: Joi.number().integer().required(),
-    orderId: Joi.number().integer().required(),
-    type: Joi.string().required(),
+    // orderId: Joi.number().integer().required(),
+    // type: Joi.string().required(),
   });
   verifyHandleSubmitComplain = Joi.object({
     userId: Joi.number().integer().required(),
@@ -142,14 +171,97 @@ class UserUtil {
   });
   verifyHandleGetUsers = Joi.object({
     userId: Joi.number().integer().required(),
-    orderId: Joi.number().integer().required(),
     type: Joi.string().required(),
+  });
+
+  verifyHandleGetUsersData = Joi.object({
+    userId: Joi.number().integer().required(),
   });
   verifyHandleNameEnquiry = Joi.object({
     userId: Joi.number().integer().required(),
     orderId: Joi.number().integer().required(),
     type: Joi.string().required(),
   });
+
+  verifyHandleManageBreakPoint = Joi.object({
+    userId: Joi.number().required(),
+    breakPoint: Joi.array().items(
+      Joi.object({
+        amount: Joi.number().required(),
+        prices: Joi.array().items(Joi.number()).required(),
+      })
+    ),
+  });
+
+  verifyHandleGetAdmins = Joi.object({
+    userId: Joi.number().integer().required(),
+    //  type: Joi.string().valid('admin', 'superAdmin').required(),
+  });
+
+  verifyHandleGetdefaultAds = Joi.object({
+    userId: Joi.number().integer().required(),
+  });
+
+  verifyHandleGetMerchantProfile = Joi.object({
+    userId: Joi.number().integer().required(),
+  });
+
+  verifyHandleSubmitUserMessage = Joi.object({
+    userId: Joi.number().integer().required(),
+    message: Joi.string().required(),
+    title: Joi.string().required(),
+    complaintType: Joi.string().required(),
+  });
+
+  verifyHandleUpdateComplainStatus = Joi.object({
+    userId: Joi.number().integer().required(),
+    complaintId: Joi.number().integer().required(),
+    status: Joi.string(),
+    view: Joi.string(),
+  });
+
+  verifyHandleGetChargeSummary = Joi.object({
+    userId: Joi.number().integer().required(),
+    userId2: Joi.number().integer().required(),
+    amount: Joi.number().integer().required(),
+  });
+
+  verifyHandleGetMerchantInformation = Joi.object({
+    userId: Joi.number().integer().required(),
+    userId2: Joi.number().integer().required(),
+  });
+
+  verifyHandleMakeOrderPayment = Joi.object({
+    userId: Joi.number().integer().required(),
+    userId2: Joi.number().integer().required(),
+    amount: Joi.number().integer().required(),
+  });
+
+  verifyHandleUpdateAdmin = Joi.object({
+    userId: Joi.number().integer().required(),
+    emailAddress: Joi.string().email().required(),
+    password: Joi.string().required(),
+    firstName: Joi.string().required(),
+    lastName: Joi.string().required(),
+    privilege: Joi.string().valid('admin', 'superAdmin').required(),
+  });
+
+  verifyHandleCreateAdmin = Joi.object({
+    userId: Joi.number().integer().required(),
+    emailAddress: Joi.string().email().required(),
+    password: Joi.string().required(),
+    firstName: Joi.string().required(),
+    lastName: Joi.string().required(),
+    privilege: Joi.string().valid('admin', 'superAdmin').required(),
+  });
+
+  verifyHandleUpdateMerchantStatus = Joi.object({
+    userId: Joi.number().integer().required(),
+    accountStatus: Joi.string()
+      .valid('active', 'processing', 'notActive', 'rejected', 'suspended')
+      .required(),
+  });
+
   verifyHandleGetTransactionHistory = Joi.object({
     userId: Joi.number().integer().required(),
     limit: Joi.number().integer().optional(),

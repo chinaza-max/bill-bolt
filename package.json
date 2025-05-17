@@ -1,7 +1,7 @@
 {
-  "name": "lagproperty",
+  "name": "bill-bolt",
   "version": "1.0.0",
-  "description": "for lagos property ",
+  "description": "Bill Bolt API",
   "main": "app.js",
   "type": "module",
   "scripts": {

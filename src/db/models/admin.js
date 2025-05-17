@@ -1,5 +1,4 @@
-import { Model, DataTypes } from "sequelize";
-
+import { Model, DataTypes } from 'sequelize';
 
 class Admin extends Model {}
 
@@ -26,14 +25,14 @@ export function init(connection) {
       lastName: {
         type: DataTypes.STRING,
         allowNull: false,
-      }, 
+      },
       password: {
         type: DataTypes.STRING,
         allowNull: false,
-      }, 
+      },
       image: {
         type: DataTypes.STRING,
-        allowNull: true,
+        allowNull: false,
       },
       role: {
         type: DataTypes.STRING,
@@ -46,30 +45,26 @@ export function init(connection) {
       disableAccount: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue:false
+        defaultValue: false,
       },
       notificationAllowed: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue:true
-      },   
+        defaultValue: true,
+      },
       isDeleted: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue:false ,
-      }
-    }, {
+        defaultValue: false,
+      },
+    },
+    {
       tableName: 'Admin',
       sequelize: connection,
       timestamps: true,
-      underscored:false
-    });
-  }
+      underscored: false,
+    }
+  );
+}
 
-export default Admin ;
-
-
-
-  
-
-  
+export default Admin;

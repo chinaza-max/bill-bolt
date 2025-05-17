@@ -10,6 +10,10 @@ export function init(connection) {
         primaryKey: true,
         autoIncrement: true,
       },
+      orderId: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
       clientId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -23,19 +27,17 @@ export function init(connection) {
           'cancelled', // order cancelled by client
           'inProgress', // order is being processed by merchant
           'completed', // order has been completed by merchant
-          'notAccepted' // order not accepted by merchant
+          'pending' // order not accepted by merchant
         ),
         allowNull: false,
       },
       moneyStatus: {
         type: DataTypes.ENUM(
-          'pending', // order created money has not been received
-          'received', // money has beeen received be merchant
+          'received', // money has beeen received in escrow
           'refund', // cancelled order
           'paid' // money paid to merchant
         ),
         allowNull: false,
-        defaultValue: 'pending',
       },
       transactionTime: {
         type: DataTypes.STRING,

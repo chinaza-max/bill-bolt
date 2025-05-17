@@ -73,6 +73,10 @@ export function init(connection) {
         type: DataTypes.JSON,
         allowNull: true,
       },
+      breakPoint: {
+        type: DataTypes.JSON,
+        allowNull: true,
+      },
       isDeleted: {
         type: DataTypes.BOOLEAN,
         allowNull: false,

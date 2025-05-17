@@ -11,10 +11,11 @@ import cron from 'node-cron';
 import swaggerUi from 'swagger-ui-express';
 import swaggerJsDoc from 'swagger-jsdoc';
 import cookieParser from 'cookie-parser';
-import { Setting, Admin } from './src/db/models/index.js';
+import { Setting, Admin, Transaction } from './src/db/models/index.js';
 import { Server as SocketIOServer } from 'socket.io';
 import { configureSocket } from './src/utils/socketUtils.js';
 import userService from './src/service/user.service.js';
+import authService from './src/service/auth.service.js';
 
 import http from 'http';
 
@@ -22,7 +23,7 @@ import http from 'http';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
+/*
 const swaggerOptions = {
   swaggerDefinition: {
     openapi: '3.0.0',
@@ -38,12 +39,13 @@ const swaggerOptions = {
       },
     ],
   },
-  apis: ['./src/routes/*.js', './src/controllers/**/*.js'], // Define where your route/controller files are located
-};
+  apis: ['./src/routes/*.js', './src/controllers/**/ //*.js'], // Define where your route/controller files are located
+/*};
+ */
 //        url: `http://localhost:${serverConfig.PORT}/api/v1/`, // Your base URL
 //      url: `${serverConfig.DOMAIN}/api/v1/`, // Your base URL
 
-const swaggerDocs = swaggerJsDoc(swaggerOptions);
+//const swaggerDocs = swaggerJsDoc(swaggerOptions);
 
 class Server {
   constructor(port, mode) {
@@ -57,7 +59,7 @@ class Server {
 
   async initializeDbAndFirebase() {
     await DB.connectDB();
-    await Setting.findOrCreate({
+    const [setting, created] = await Setting.findOrCreate({
       where: { id: 1 },
       defaults: {
         distanceThreshold: 10,
@@ -90,28 +92,51 @@ class Server {
         defaultAds: [
           { amount: 1000, charge: 100 },
           { amount: 5000, charge: 300 },
-          { amount: 20000, charge: 500 },
-          { amount: 30000, charge: 1000 },
+          { amount: 10000, charge: 500 },
+        ],
+
+        serviceCharge: [
+          { amount: 1000, charge: 20 },
+          { amount: 5000, charge: 45 },
+          { amount: 10000, charge: 80 },
+        ],
+        gatewayService: [
+          { amount: 1000, charge: 10 },
+          { amount: 5000, charge: 25 },
+          { amount: 10000, charge: 40 },
         ],
         gatewayList: ['safeHaven.gateway'],
         isDeleted: false,
       },
     });
-    /* await Admin.findOrCreate({
+    if (!setting.serviceCharge || !setting.gatewayService) {
+      await setting.update({
+        serviceCharge: setting.serviceCharge ?? [
+          { amount: 1000, charge: 20 },
+          { amount: 5000, charge: 45 },
+          { amount: 10000, charge: 80 },
+        ],
+        gatewayService: setting.gatewayService ?? [
+          { amount: 1000, charge: 10 },
+          { amount: 5000, charge: 25 },
+          { amount: 10000, charge: 40 },
+        ],
+      });
+    }
+
+    await Admin.findOrCreate({
       where: { emailAddress: 'admin@gmail.com' },
       defaults: {
         firstName: 'Admin',
         lastName: 'Admin',
+        isEmailValid: true,
         password: serverConfig.ADMIN_PASSWORD, // Ensure this password is securely hashed
-        image: null,
+        image:
+          'https://res.cloudinary.com/dvznn9s4g/image/upload/v1740438988/avatar_phzyrn.jpg',
         role: 'admin',
         privilege: 'super_admin',
       },
-    });*/
-    //cron.schedule('0 */2 * * *', async () => {
-    /* checktransactionUpdateWebHook
-        checktransactionUpdateSingleTransfer
-      })*/
+    });
   }
 
   initializeMiddlewaresAndRoutes() {
@@ -141,7 +166,7 @@ class Server {
     this.app.use(express.json());
     this.app.use(express.static(path.join(__dirname, 'public')));
     this.app.use(cors(corsOptions));
-    this.app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+    //this.app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
     this.app.use(cookieParser());
 
     this.app.use(routes);
@@ -160,6 +185,53 @@ class Server {
     cron.schedule('*/10  * * * * *', async () => {
       userService.makeMatch();
     });
+
+    cron.schedule('*/5 * * * *', async () => {
+      this.checkTransaction();
+    });
+  }
+  async checkTransaction() {
+    const dummyPayload = {
+      type: 'transfer',
+      data: {
+        // This object will be filled per transaction
+      },
+    };
+
+    try {
+      // 1. Retrieve all pending transactions
+      const pendingTransactions = await Transaction.findAll({
+        where: {
+          paymentStatus: 'pending',
+          isDeleted: false,
+        },
+      });
+
+      for (const tx of pendingTransactions) {
+        // 2. Build payload for each transaction
+        const updatedPayload = {
+          ...dummyPayload,
+          data: {
+            ...dummyPayload.data,
+            sessionId: tx.sessionIdVirtualAcct,
+            amount: tx.amount,
+            paymentReference: tx.paymentReference,
+            status: 'Completed',
+          },
+        };
+
+        console.log(updatedPayload);
+        authService.handleVirtualAccountCollection(updatedPayload);
+      }
+
+      console.log(
+        `[${new Date().toISOString()}] Processed ${
+          pendingTransactions.length
+        } pending transactions`
+      );
+    } catch (error) {
+      console.error('Error processing pending transactions:', error);
+    }
   }
   start() {
     this.app.listen(this.port, () => {

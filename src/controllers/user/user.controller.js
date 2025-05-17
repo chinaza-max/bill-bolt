@@ -243,6 +243,26 @@ export default class UserController {
       next(error);
     }
   }
+  async confirmTransfer(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      await userService.handleConfirmTransfer(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
   async generateAccountVirtual(req, res, next) {
     try {
       const data = req.body;
@@ -264,6 +284,29 @@ export default class UserController {
       next(error);
     }
   }
+
+  async getChargeSummary(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleGetChargeSummary(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
   async getMyOrderDetails(req, res, next) {
     try {
       const data = req.query;
@@ -299,6 +342,28 @@ export default class UserController {
       return res.status(200).json({
         status: 200,
         message: 'successfully.',
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async getMerchantProfile(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleGetMerchantProfile(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
       });
     } catch (error) {
       console.log(error);
@@ -370,7 +435,30 @@ export default class UserController {
       next(error);
     }
   }
-  async getUsers(req, res, next) {
+
+  async getAdmins(req, res, next) {
+    try {
+      const data = req.query;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleGetAdmins(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async updateAdmin(req, res, next) {
     try {
       const data = req.body;
 
@@ -379,7 +467,7 @@ export default class UserController {
         userId: req.user.id,
       };
 
-      await userService.handleGetUsers(my_bj);
+      await userService.handleUpdateAdmin(my_bj);
 
       return res.status(200).json({
         status: 200,
@@ -390,6 +478,112 @@ export default class UserController {
       next(error);
     }
   }
+  async deleteAdmin(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      await userService.handleDeleteAdmin(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+  async createAdmin(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      await userService.handleCreateAdmin(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async getUsers(req, res, next) {
+    try {
+      const data = req.query;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleGetUsers(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: { ...result },
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async getUsersData(req, res, next) {
+    try {
+      const data = req.query;
+
+      let my_bj = {
+        userId: data.id,
+      };
+      const result = await userService.handleGetUsersData(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async updateMerchantStatus(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        // userId: data.userId,
+      };
+
+      console.log(my_bj);
+
+      await userService.handleUpdateMerchantStatus(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
   async transferMoney(req, res, next) {
     try {
       const data = req.body;
@@ -452,18 +646,16 @@ export default class UserController {
   }
   async dashBoardStatistic(req, res, next) {
     try {
-      const data = req.body;
-
       let my_bj = {
-        ...data,
         userId: req.user.id,
       };
 
-      await userService.handleDashBoardStatistic(my_bj);
+      const result = await userService.handleDashBoardStatistic(my_bj);
 
       return res.status(200).json({
         status: 200,
         message: 'successfully.',
+        data: result,
       });
     } catch (error) {
       console.log(error);
@@ -481,6 +673,30 @@ export default class UserController {
       return res.status(200).json({
         status: 200,
         message: 'successfully.',
+        data: { ...result },
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async manageBreakPoint(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      console.log(my_bj);
+
+      const result = await userService.handleManageBreakPoint(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
         data: result,
       });
     } catch (error) {
@@ -488,6 +704,71 @@ export default class UserController {
       next(error);
     }
   }
+
+  async updateComplainStatus(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      await userService.handleUpdateComplainStatus(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+  async getComplain(req, res, next) {
+    try {
+      const data = req.query;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleGetComplain(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async getSettings(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleGetSettings(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
   async setMerchantAccountStatus(req, res, next) {
     try {
       const data = req.body;
@@ -500,6 +781,27 @@ export default class UserController {
         status: 200,
         message: 'successfully.',
         data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async submitUserMessage(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      await userService.handleSubmitUserMessage(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
       });
     } catch (error) {
       console.log(error);
@@ -546,7 +848,7 @@ export default class UserController {
       next(error);
     }
   }
-
+  /*
   async getMyRangeLimit(req, res, next) {
     try {
       let my_bj = {
@@ -564,7 +866,7 @@ export default class UserController {
       console.log(error);
       next(error);
     }
-  }
+  }*/
   async getMyAds(req, res, next) {
     try {
       let my_bj = {
@@ -638,6 +940,69 @@ export default class UserController {
       return res.status(200).json({
         status: 200,
         message: 'successfully.',
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+  async makeOrderPayment(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      await userService.handleMakeOrderPayment(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+  async getMerchantInformation(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleGetMerchantInformation(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async getGeneralTransaction(req, res, next) {
+    try {
+      const data = req.query;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleGetGeneralTransaction(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
       });
     } catch (error) {
       console.log(error);

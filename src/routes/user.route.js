@@ -23,19 +23,23 @@ class UserRoutes extends UserController {
     this.router.post('/updatePin', this.updatePin);
     this.router.post('/verifyNIN', this.verifyNIN);
     this.router.post('/initiateNINVerify', this.initiateNINVerify);
-
     this.router.post('/setPin', this.setPin);
     this.router.post('/enterPassCode', this.enterPassCode);
-
     this.router.get('/getMyMerchant', this.getMyMerchant);
     this.router.post('/generateAccountVirtual', this.generateAccountVirtual);
+    this.router.post('/confirmTransfer', this.confirmTransfer);
     this.router.get('/getChatHistory', this.getChatHistory);
     this.router.get('/getMyOrders', this.getMyOrders);
     this.router.post('/orderAcceptOrCancel', this.orderAcceptOrCancel);
     this.router.post('/verifyCompleteOrder', this.verifyCompleteOrder);
     this.router.post('/getMyOrderDetails', this.getMyOrderDetails);
+    this.router.post('/getChargeSummary', this.getChargeSummary);
+    this.router.post('/getMerchantInformation', this.getMerchantInformation);
+    this.router.post('/makeOrderPayment', this.makeOrderPayment);
 
     //Transaction api
+
+    this.router.get('/getGeneralTransaction', this.getGeneralTransaction);
     this.router.post(
       '/getTransactionHistoryOrder',
       this.getTransactionHistoryOrder
@@ -56,6 +60,7 @@ class UserRoutes extends UserController {
       '/updateMerchantVerificationProcess',
       this.getProfileInformation
     );
+    this.router.post('/submitUserMessage', this.submitUserMessage);
 
     //MERCHANT API
     this.router.post('/signupMerchant', this.signupMerchant);
@@ -64,11 +69,23 @@ class UserRoutes extends UserController {
     this.router.get('/getdefaultAds', this.getdefaultAds);
     this.router.get('/getMyRangeLimit', this.getMyRangeLimit);
     this.router.get('/getOrderStatistic', this.getOrderStatistic);
+    this.router.get('/getMerchantProfile', this.getMerchantProfile);
 
     //ADMIN
-    this.router.post('/dashBoardStatistic', this.dashBoardStatistic);
+    this.router.get('/dashBoardStatistic', this.dashBoardStatistic);
     this.router.get('/getUsers', this.getUsers);
+    this.router.get('/getUsersData', this.getUsersData);
+    this.router.post('/updateMerchantStatus', this.updateMerchantStatus);
+    this.router.post('/manageBreakPoint', this.manageBreakPoint);
+    this.router.get('/getSettings', this.getSettings);
+    this.router.get('/getComplains', this.getComplain);
+    this.router.post('/updateComplainStatus', this.updateComplainStatus);
+
     this.router.get('/getTransaction', this.getTransaction);
+    this.router.post('/createAdmin', this.createAdmin);
+    this.router.get('/getadmins', this.getAdmins);
+    this.router.post('/updateAdmin', this.updateAdmin);
+    this.router.post('/deleteAdmin', this.deleteAdmin);
 
     this.router.get('/whoIAm', this.whoIAm);
   }

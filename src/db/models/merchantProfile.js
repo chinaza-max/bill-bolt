@@ -22,7 +22,7 @@ export function init(connection) {
         type: DataTypes.STRING,
         allowNull: true,
       },
-      accoutTier: {
+      accountTier: {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
@@ -51,6 +51,7 @@ export function init(connection) {
         defaultValue: '10',
       },
       walletBalance: {
+        //switch to a single wallet for simplicity
         type: DataTypes.JSON,
         allowNull: false,
         defaultValue: {

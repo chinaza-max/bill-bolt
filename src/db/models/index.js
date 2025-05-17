@@ -17,7 +17,6 @@ import Admin, { init as initAdmin } from './admin.js';
 import Notification, { init as initNotification } from './notification.js';
 import NinOtp, { init as initNinOtp } from './ninOtp.js';
 
-//
 function associate() {
   User.hasOne(MerchantProfile, {
     foreignKey: 'userId',
@@ -37,12 +36,21 @@ function associate() {
     as: 'TransactionUser',
   });
 
-  Orders.hasMany(Transaction, {
-    foreignKey: 'orderId',
+  Complaint.belongsTo(User, {
+    foreignKey: 'userId',
+    as: 'ComplaintUser',
+  });
+  User.hasMany(Complaint, {
+    foreignKey: 'userId',
+    as: 'UserComplaint',
+  });
+
+  Orders.hasOne(Transaction, {
+    foreignKey: 'transactionId',
     as: 'OrderTransaction',
   });
   Transaction.belongsTo(Orders, {
-    foreignKey: 'orderId',
+    foreignKey: 'transactionId',
     as: 'TransactionOrder',
   });
 

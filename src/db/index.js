@@ -19,7 +19,7 @@ class DB {
       logQueryParameters: true,
       /*  pool: {
         max: 4, // Maximum number of connections in the poo
-        min: 0, // Minimum number of connections in the pool
+        min: 0, // Minimum number of connections in  the pool
         acquire: 30000, // The maximum time, in milliseconds, that pool will try to get a connection before throwing an error
         idle: 10000, // The maximum time, in milliseconds, that a connection can be idle before being released
       },*/
@@ -35,8 +35,22 @@ class DB {
     initModels(this.sequelize);
 
     if (serverConfig.NODE_ENV === 'development') {
-      //await this.sequelize.sync({ alter: true });
+      await this.sequelize.sync({ alter: true });
       //await this.sequelize.sync({ force: true });
+
+      try {
+        await this.sequelize.query(`
+          ALTER TABLE MerchantProfile 
+          CHANGE COLUMN accoutTier accountTier INTEGER NOT NULL;
+        `);
+        console.log('Column name updated: accoutTier → accountTier');
+      } catch (error) {
+        if (error.original && error.original.code === 'ER_BAD_FIELD_ERROR') {
+          console.warn('Column accoutTier does not exist, skipping rename.');
+        } else {
+          console.error('Error updating column name:', error);
+        }
+      }
     }
 
     /*      

@@ -7,12 +7,12 @@ class AuthenticationMiddlewares {
       const { authorization } = req.headers;
 
       if (req.path == '/' || req.path == '/favicon.ico') return next();
-      console.log('path ', req.path);
+      console.log('current path ', req.path);
 
       if (!authorization) throw new BadRequestError('No token provided.');
 
       const token = authorization.split(' ')[1];
-      console.log('token ', token);
+
       if (!token) throw new BadRequestError('No token provided.');
 
       const { payload, expired } = authService.verifyAccessToken(token);

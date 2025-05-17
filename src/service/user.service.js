@@ -10,6 +10,7 @@ import {
   Transaction,
   Complaint,
   NinOtp,
+  Admin,
 } from '../db/models/index.js';
 import userUtil from '../utils/user.util.js';
 import authService from '../service/auth.service.js';
@@ -34,8 +35,6 @@ import {
   BadRequestError,
   SystemError,
 } from '../errors/index.js';
-import { Console } from 'console';
-import { Json } from 'sequelize/lib/utils';
 
 class UserService {
   EmailandTelValidationModel = EmailandTelValidation;
@@ -49,6 +48,7 @@ class UserService {
   OrdersModel = Orders;
   ComplaintModel = Complaint;
   NinOtpModel = NinOtp;
+  AdminModel = Admin;
   constructor() {
     this.gateway;
     this.validFor;
@@ -100,7 +100,7 @@ class UserService {
       if (!MerchantProfileModelResult) {
         await this.MerchantProfileModel.create({
           userId: userId,
-          accoutTier: 1,
+          accountTier: 1,
           ...updateData,
         });
       } else {
@@ -113,8 +113,20 @@ class UserService {
       }
 
       if (updateData.displayName) {
-        console.log('updateData.displayname');
         userModelResult.update({ isDisplayNameMerchantSet: true });
+      }
+
+      if (updateData.accountStatus) {
+        console.log('updateData', updateData.accountStatus);
+        await MerchantProfileModelResult.update({
+          accountStatus: updateData.accountStatus,
+        });
+      }
+
+      if (updateData.deliveryRange) {
+        await MerchantProfileModelResult.update({
+          deliveryRange: updateData.deliveryRange,
+        });
       }
     } catch (error) {
       console.log(error);
@@ -251,6 +263,70 @@ class UserService {
     }
   }
 
+  async handleUpdateComplainStatus(data) {
+    const { complaintId, status, view } =
+      await userUtil.verifyHandleUpdateComplainStatus.validateAsync(data);
+
+    try {
+      const complaintResult = await this.ComplaintModel.findByPk(complaintId);
+      if (!complaintResult) throw new NotFoundError('Complaint not found');
+
+      const updates = {};
+      if (status) updates.status = status;
+      if (view) updates.view = view;
+
+      if (Object.keys(updates).length === 0) {
+        throw new ValidationError('Nothing to update. Provide status or view.');
+      }
+
+      await complaintResult.update(updates);
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error?.parent || error?.message);
+    }
+  }
+
+  async handleGetComplain() {
+    try {
+      const complaintResult = await this.ComplaintModel.findAll({
+        where: { isDeleted: false },
+        include: [
+          {
+            model: this.UserModel,
+            as: 'ComplaintUser',
+            attributes: [
+              'firstName',
+              'lastName',
+              'imageUrl',
+              'emailAddress',
+              'tel',
+            ],
+          },
+        ],
+      });
+      return complaintResult;
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleSubmitUserMessage(data) {
+    const { userId, title, message, complaintType } =
+      await userUtil.verifyHandleSubmitUserMessage.validateAsync(data);
+
+    try {
+      await this.ComplaintModel.create({
+        userId: userId,
+        complaintReason: message,
+        title: title,
+        complaintType,
+      });
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
   async handleSetPin(data) {
     const { passCode, userId } =
       await userUtil.verifyHandleSetPin.validateAsync(data);
@@ -307,11 +383,13 @@ class UserService {
     const { userId, distance, range } =
       await userUtil.verifyHandleGetMyMerchant.validateAsync(data);
 
-    const SettingModelResult = await this.SettingModel.findByPk(1);
+    //  const SettingModelResult = await this.SettingModel.findByPk(1);
 
     try {
       const MymatchModel = await this.MymatchModel.findOne({
-        userId: userId,
+        where: {
+          userId,
+        },
       });
 
       if (MymatchModel) {
@@ -335,7 +413,7 @@ class UserService {
               {
                 model: MerchantProfile,
                 as: 'MerchantProfile',
-                attributes: ['displayname', 'deliveryRange'],
+                attributes: ['displayname', 'deliveryRange', 'imageUrl'],
                 where: {
                   accountStatus: 'active',
                 },
@@ -347,7 +425,7 @@ class UserService {
                 required: true,
               },
             ],
-            attributes: ['tel', 'isOnline'],
+            attributes: ['imageUrl', 'isOnline', 'id', 'firstName', 'lastName'],
           });
 
           let OrdersModelResult = await this.OrdersModel.count({
@@ -357,10 +435,6 @@ class UserService {
               hasIssues: false,
             },
           });
-
-          // Add distance to merchant
-          merchant.distance = matches[i].distance;
-          merchant.numberOfOrder = OrdersModelResult;
 
           const isWithinDistance = distance
             ? matches[i].distance <= distance
@@ -379,10 +453,22 @@ class UserService {
               console.error('Invalid JSON format for pricePerThousand:', error);
             }
           }
+
           if (isWithinDistance && isWithinRange) {
-            filteredMatches.push(merchant);
+            filteredMatches.push({
+              id: merchant.id,
+              name: merchant.MerchantProfile.dataValues.displayname,
+              avatar: merchant.MerchantProfile.dataValues.imageUrl,
+              online: merchant.isOnline,
+              badge: 'Verified',
+              priceRanges: merchant.UserMerchantAds,
+              accuracy: 10,
+              distance: matches[i].distance,
+              numberOfOrder: OrdersModelResult,
+            });
           }
         }
+        //await new Promise((resolve) => setTimeout(resolve, 20000));
 
         return filteredMatches;
       } else {
@@ -392,6 +478,15 @@ class UserService {
       console.log(error);
       throw new SystemError(error.name, error.parent);
     }
+  }
+
+  async handleGetMerchantProfile(data) {
+    const { userId } =
+      await userUtil.verifyHandleGetMerchantProfile.validateAsync(data);
+
+    return await this.MerchantProfileModel.findOne({
+      userId,
+    });
   }
 
   async handleSignupMerchant(data) {
@@ -406,7 +501,7 @@ class UserService {
 
       await this.MerchantProfileModel.create({
         displayname: displayname,
-        accoutTier: 1,
+        accountTier: 1,
         userId: userId,
         accountStatus: 'active',
       });
@@ -434,6 +529,17 @@ class UserService {
       throw new SystemError(error.name, error.parent);
     }
   }
+
+  async handleGetSettings() {
+    try {
+      const settings = await this.SettingModel.findByPk(1);
+      return settings;
+    } catch (error) {
+      console.error('Error fetching settings:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
   async handleGetMyOrderDetails(data) {
     const { orderId, type, userId } =
       await userUtil.verifyHandleGetMyOrderDetails.validateAsync(data);
@@ -580,6 +686,42 @@ class UserService {
     }
   }
 
+  async handleUpdateAdmin(data) {
+    const { userId, ...updateData } =
+      await userUtil.verifyHandleUpdateAdmin.validateAsync(data);
+    try {
+      const adminResult = await this.AdminModel.findByPk(userId);
+      if (!adminResult) throw new NotFoundError('Admin not found');
+      await adminResult.update(updateData);
+      return adminResult;
+    } catch (error) {
+      console.error('Error updating admin:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleGetAdmins(data) {
+    const { userId } = await userUtil.verifyHandleGetAdmins.validateAsync(data);
+    try {
+      const admins = await this.AdminModel.findAll({
+        where: { isDeleted: false },
+        attributes: [
+          'id',
+          'emailAddress',
+          'firstName',
+          'role',
+          'privilege',
+          'createdAt',
+          'disableAccount',
+        ],
+      });
+      return admins;
+    } catch (error) {
+      console.error('Error fetching transactions with details:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
   async handleGetTransaction(data) {
     try {
       return await this.TransactionModel.findAll();
@@ -588,41 +730,290 @@ class UserService {
       throw new SystemError(error.name, error.parent);
     }
   }
+
+  async handleCreateAdmin(data) {
+    const { emailAddress, password, privilege, firstName, lastName } =
+      await userUtil.verifyHandleCreateAdmin.validateAsync(data);
+    try {
+      const hashedPassword = await bcrypt.hash(
+        password,
+        Number(serverConfig.SALT_ROUNDS)
+      );
+      const adminResult = await this.AdminModel.create({
+        emailAddress,
+        password: hashedPassword,
+        firstName,
+        lastName,
+        privilege,
+        image:
+          'https://res.cloudinary.com/dvznn9s4g/image/upload/v1744630235/avatar_inchq3.jpg',
+      });
+
+      await this.sendEmailCredential(emailAddress, password, firstName);
+      return adminResult;
+    } catch (error) {
+      console.error('Error creating admin:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
   async handleGetUsers(data) {
     const { type } = await userUtil.verifyHandleGetUsers.validateAsync(data);
 
     try {
-      if (type === 'client') {
-        return await this.UserModel.findAll({
-          attributes: {
-            exclude: [
-              'password',
-              'refreshToken',
-              'ipAdress',
-              'tel',
-              'bankCode',
-            ],
+      const whereCondition = {};
+      if (type === 'merchant') {
+        whereCondition.merchantActivated = true;
+      }
+
+      const totalUsers = await this.UserModel.count({ where: whereCondition });
+      const activeUsers = await this.UserModel.count({
+        where: { ...whereCondition, isOnline: true },
+      });
+      const newUsersThisMonth = await this.UserModel.count({
+        where: {
+          ...whereCondition,
+          createdAt: {
+            [Op.gte]: new Date(new Date().setDate(1)), // First day of the current month
           },
-        });
-      } else if (type === 'merchant') {
-        return await this.UserModel.findAll({
-          where: { merchantActivated: true },
-          attributes: {
-            exclude: [
-              'password',
-              'refreshToken',
-              'ipAdress',
-              'tel',
-              'bankCode',
-            ],
+        },
+      });
+
+      const users = await this.UserModel.findAll({
+        where: whereCondition,
+        attributes: [
+          'id',
+          'imageUrl',
+          'emailAddress',
+          'firstName',
+          'lastName',
+          'walletBalance',
+          'createdAt',
+          'disableAccount',
+          'merchantActivated',
+          'tel',
+          'isOnline',
+        ],
+        include: [
+          {
+            model: Orders,
+            as: 'ClientOrder',
+            // attributes: ['id'],
+            required: false,
           },
+          {
+            model: Orders,
+            as: 'MerchantOrder',
+            // attributes: ['id'],
+            required: false,
+          },
+
+          {
+            model: MerchantProfile,
+            as: 'MerchantProfile',
+            required: false,
+          },
+        ],
+      });
+
+      const userData = users.map((user) => ({
+        id: user.id,
+        avatar:
+          type === 'merchant' && user.MerchantProfile
+            ? user.MerchantProfile.imageUrl
+            : user.imageUrl,
+        email: user.emailAddress,
+        name:
+          type === 'merchant'
+            ? `${user.firstName} ${user.lastName}(${user.MerchantProfile.displayName})`
+            : `${user.firstName} ${user.lastName}`,
+        walletBalance: JSON.parse(user.walletBalance).current,
+        orders: user.ClientOrder.length + user.MerchantOrder.length,
+        dateJoined: user.createdAt,
+        accountStatus: user.disableAccount ? 'Disabled' : 'Active',
+        merchantStatus: user.merchantActivated,
+        merchantAccountStatus: user?.MerchantProfile?.accountStatus,
+        tel: user.tel,
+        isOnline: user.isOnline,
+      }));
+
+      return {
+        totalUsers,
+        activeUsers,
+        newUsersThisMonth,
+        users: userData,
+      };
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleGetUsersData(data) {
+    const { userId } = await userUtil.verifyHandleGetUsersData.validateAsync(
+      data
+    );
+    try {
+      const user = await this.UserModel.findOne({
+        where: { id: userId },
+        attributes: [
+          'id',
+          'imageUrl',
+          'emailAddress',
+          'firstName',
+          'lastName',
+          'walletBalance',
+          'createdAt',
+          'disableAccount',
+          'merchantActivated',
+          'tel',
+          'bankName',
+          'bankCode',
+          'settlementAccount',
+        ],
+        include: [
+          {
+            model: Orders,
+            as: 'MerchantOrder',
+            attributes: [
+              'id',
+              'orderStatus',
+              'moneyStatus',
+              'transactionTime',
+              'sessionId',
+              'distance',
+              'amountOrder',
+              'totalAmount',
+              'rating',
+              'qrCodeHash',
+              'hasIssues',
+              'note',
+              'transactionId',
+              'createdAt',
+              'merchantId',
+            ],
+            required: false,
+          },
+          {
+            model: MerchantProfile,
+            as: 'MerchantProfile',
+            attributes: [
+              'id',
+              'displayName',
+              'tel',
+              'imageUrl',
+              'accountTier',
+              'accountStatus',
+              'deliveryRange',
+              'walletBalance',
+              'disableAccount',
+            ],
+            required: false,
+          },
+        ],
+      });
+
+      if (!user) {
+        throw new SystemError('UserNotFound', 'User does not exist');
+      }
+      // console.log(user);
+      const userData = {
+        id: user.id,
+        avatar:
+          user.merchantActivated && user.MerchantProfile
+            ? user.MerchantProfile.imageUrl
+            : user.imageUrl,
+        email: user.emailAddress,
+        name:
+          user.merchantActivated && user.MerchantProfile
+            ? `${user.firstName} ${user.lastName} (${user.MerchantProfile.displayName})`
+            : `${user.firstName} ${user.lastName}`,
+        walletBalance: user.walletBalance?.current || 0,
+        orders:
+          (user.ClientOrder?.length || 0) + (user.MerchantOrder?.length || 0),
+        dateJoined: user.createdAt,
+        accountStatus: user.disableAccount ? 'Disabled' : 'Active',
+        merchantStatus: user.merchantActivated,
+        tel: user.tel,
+        bankDetails: user.bankName
+          ? {
+              bankName: user.bankName,
+              bankCode: user.bankCode,
+              settlementAccount: user.settlementAccount,
+            }
+          : null,
+        merchantProfile: user.MerchantProfile
+          ? {
+              id: user.MerchantProfile.id,
+              displayName: user.MerchantProfile.displayName,
+              tel: user.MerchantProfile.tel,
+              imageUrl: user.MerchantProfile.imageUrl,
+              accountTier: user.MerchantProfile.accountTier,
+              accountStatus: user.MerchantProfile.accountStatus,
+              deliveryRange: user.MerchantProfile.deliveryRange,
+              walletBalance: user.MerchantProfile.walletBalance,
+              disableAccount: user.MerchantProfile.disableAccount,
+            }
+          : null,
+      };
+
+      const orders = [
+        ...user.MerchantOrder.map((order) => ({
+          orderId: order.id,
+          clientId: user.id,
+          merchantId: order.merchantId,
+          status: order.orderStatus,
+          moneyStatus: order.moneyStatus,
+          transactionTime: order.transactionTime,
+          sessionId: order.sessionId,
+          distance: order.distance,
+          amountOrder: order.amountOrder,
+          totalAmount: order.totalAmount,
+          rating: order.rating,
+          qrCodeHash: order.qrCodeHash,
+          hasIssues: order.hasIssues,
+          note: order.note,
+          transactionId: order.transactionId,
+          createdAt: order.createdAt,
+        })),
+      ];
+
+      return { user: userData, orders };
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleUpdateMerchantStatus(data) {
+    const { userId, ...updateData } =
+      await userUtil.verifyHandleUpdateMerchantStatus.validateAsync(data);
+    try {
+      const UserModelResult = await this.UserModel.findByPk(userId);
+
+      if (updateData.accountStatus === 'active') {
+        await UserModelResult.update({
+          merchantActivated: true,
         });
+        await this.MerchantProfileModel.update(
+          { accountStatus: 'active' },
+          { where: { userId: userId } }
+        );
+      } else {
+        console.log('updateData', updateData.accountStatus);
+        console.log('userId', userId);
+
+        await this.MerchantProfileModel.update(
+          { accountStatus: updateData.accountStatus },
+          { where: { userId: userId } }
+        );
       }
     } catch (error) {
       console.error('Error fetching transactions with details:', error);
       throw new SystemError(error.name, error.parent);
     }
   }
+
   async handleTransferMoney(data) {
     const { passCode, amount, userId, sessionId } =
       await userUtil.verifyHandleNameEnquiry.validateAsync(data);
@@ -691,11 +1082,33 @@ class UserService {
         );
         totalServiceCharge += amountSummary.serviceCharge;
       }
+      const orderStatusCancelled = await this.OrdersModel.count({
+        where: { orderStatus: 'cancelled', isDeleted: false },
+      });
+      const orderStatusInProgress = await this.OrdersModel.count({
+        where: { orderStatus: 'inProgress', isDeleted: false },
+      });
+      const orderStatusCompleted = await this.OrdersModel.count({
+        where: { orderStatus: 'completed', isDeleted: false },
+      });
+      const adminCount = await this.AdminModel.count({
+        where: { isDeleted: false },
+      });
+
+      const pendingRequest = await this.MerchantProfileModel.count({
+        where: { isDeleted: false, accountStatus: 'processing' },
+      });
+
       return {
         numberOfUser: userResult,
         numberOfMerchant: userMerchantResult,
         balance: settingModelResult.walletBalance,
         EscrowBalance: totalServiceCharge,
+        orderStatusCancelled: orderStatusCancelled,
+        orderStatusInProgress: orderStatusInProgress,
+        orderStatusCompleted: orderStatusCompleted,
+        adminCount: adminCount,
+        pendingRequest: pendingRequest,
       };
     } catch (error) {
       throw new SystemError(error.name, error.parent);
@@ -718,16 +1131,63 @@ class UserService {
       throw new SystemError(error.name, error.parent);
     }
   }
-  async handleGetdefaultAds() {
+  async handleGetdefaultAds(data) {
+    const { userId } = await userUtil.verifyHandleGetdefaultAds.validateAsync(
+      data
+    );
     try {
-      const settingModelResult = await this.SettingModel.findByPk(1);
-      const settingModelResultPared = JSON.parse(settingModelResult.defaultAds);
-      return settingModelResultPared;
+      const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
+        where: { userId },
+      });
+      let adsData = {};
+      if (MerchantAdsModelResult) {
+        adsData = {
+          min: MerchantAdsModelResult.minAmount,
+          max: MerchantAdsModelResult.maxAmount,
+          breaks: JSON.parse(MerchantAdsModelResult.pricePerThousand),
+        };
+      } else {
+        const settingModelResult = await this.SettingModel.findByPk(1);
+        const settingModelResultPared = JSON.parse(
+          settingModelResult.defaultAds
+        );
+
+        adsData = {
+          min: 1000,
+          max: 10000,
+          breaks: settingModelResultPared,
+        };
+      }
+
+      return adsData;
     } catch (error) {
       console.error('Error fetching default with details:', error);
       throw new SystemError(error.name, error.parent);
     }
   }
+
+  async handleManageBreakPoint(data) {
+    const { userId, action, breakPoint } =
+      await userUtil.verifyHandleManageBreakPoint.validateAsync(data);
+
+    try {
+      const setting = await this.SettingModel.findByPk(1);
+
+      if (!setting) {
+        throw new Error('Settings not found');
+      }
+      console.log('action', action);
+      await setting.update({ breakPoint });
+      return { message: 'Breakpoints updated successfully' };
+
+      // Unknown action
+      // throw new Error('Invalid action. Use "get" or "update".');
+    } catch (error) {
+      console.error('Error handling breakPoint:', error);
+      throw new SystemError(error.name, error.parent || error.message);
+    }
+  }
+
   async handleSubmitComplain(data) {
     const { userId } = await userUtil.verifyHandleSubmitComplain.validateAsync(
       data
@@ -841,7 +1301,6 @@ class UserService {
               },
             }
           : {};
-      console.log('transactions');
 
       // Query transactions
       const transactions = await this.TransactionModel.findAll({
@@ -896,6 +1355,92 @@ class UserService {
       console.error('Error fetching transactions with details:', error);
       throw new SystemError(error.name, error.parent);
     }
+  }
+
+  async handleGetGeneralTransaction(data) {
+    const {
+      userId,
+      limit,
+      offset = 0,
+      startDate,
+      endDate,
+    } = await userUtil.verifyHandleGetGeneralTransactionHistory.validateAsync(
+      data
+    );
+
+    try {
+      // Define date filter if provided
+      const dateFilter =
+        startDate && endDate
+          ? {
+              createdAt: {
+                [Op.between]: [new Date(startDate), new Date(endDate)],
+              },
+            }
+          : {};
+
+      // Query transactions with pagination and latest-first ordering
+      const transactions = await this.TransactionModel.findAll({
+        where: {
+          isDeleted: false,
+          userId,
+          ...(dateFilter && { ...dateFilter }),
+        },
+        order: [['createdAt', 'DESC']],
+        limit,
+        offset,
+      });
+
+      // Format each transaction
+      const formattedTransactions = transactions.map((txn) => {
+        let type, title, initials;
+
+        switch (txn.transactionType) {
+          case 'order':
+            type = 'outgoing';
+            title = 'Order Payment';
+            initials = 'OP';
+            break;
+          case 'widthdrawal':
+            type = 'outgoing';
+            title = 'Withdrawal';
+            initials = 'WD';
+            break;
+          case 'fundwallet':
+            type = 'incoming';
+            title = 'Wallet Funding';
+            initials = 'WF';
+            break;
+          default:
+            type = 'unknown';
+            title = 'Transaction';
+            initials = 'TX';
+        }
+
+        return {
+          id: txn.id,
+          title,
+          initials,
+          date: `${this.formatDate(txn.createdAt)}`,
+          type,
+          amount: `${txn.amount} ₦`,
+          paymentStatus: txn.paymentStatus,
+        };
+      });
+
+      return formattedTransactions;
+    } catch (error) {
+      console.error('Error fetching transactions with details:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  formatDate(date) {
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
   async handleGetTransactionHistoryOrder(data) {
     const { userId, startDate, endDate } =
@@ -1008,49 +1553,245 @@ class UserService {
       throw new SystemError(error.name, error.parent);
     }
   }
-
-  async handleGenerateAccountVirtual(data) {
-    const { amount, userId, merchantId } =
-      await userUtil.verifyHandleGenerateAccountVirtual.validateAsync(data);
+  async handleGetChargeSummary(data) {
+    const { amount, userId, userId2 } =
+      await userUtil.verifyHandleGetChargeSummary.validateAsync(data);
     try {
-      const OrderModelResult = await this.OrdersModel.create({
-        orderStatus: 'notAccepted',
-        moneyStatus: 'pending',
-        clientId: userId,
-        merchantId,
-        amountOrder: amount,
+      const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
+        where: { userId: userId2 },
       });
 
-      const settingModelResult = await this.SettingModel.findByPk(1);
-      if (settingModelResult) throw new NotFoundError('Setting not found');
-
-      if (settingModelResult.activeGateway === 'safeHaven.gateway') {
-        const TransactionModelResult = await this.TransactionModel.create({
-          userId,
-          orderId: OrderModelResult.id,
-        });
-        await this.loadGateWay();
-
-        const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
-          where: { userId: merchantId },
-        });
-
-        const getdeliveryAmountSummary = this.getdeliveryAmountSummary(
-          MerchantAdsModelResult.pricePerThousand,
-          amount,
-          settingModelResult.serviceCharge,
-          settingModelResult.gatewayService
+      if (!MerchantAdsModelResult)
+        throw new NotFoundError(
+          'Merchant ads not found, check if it has been created'
         );
 
-        /*
-        const generateVirtualAccountResult =
-          await this.gateway.generateVirtualAccount(
-            this.validFor,
-            getdeliveryAmountSummary.totalAmount,
-            getdeliveryAmountSummary.callbackUrl,
-            TransactionModelResult.id
-          );*/
+      const settingModelResult = await this.SettingModel.findByPk(1);
+      if (!settingModelResult)
+        throw new NotFoundError(
+          'admin Setting not found check if admin setting has been created'
+        );
 
+      let pricePerThousand = MerchantAdsModelResult.pricePerThousand;
+      let serviceCharge = settingModelResult.serviceCharge;
+      let gatewayService = settingModelResult.gatewayService;
+
+      if (typeof gatewayService === 'string') {
+        try {
+          gatewayService = JSON.parse(gatewayService);
+        } catch (e) {
+          console.error('Failed to parse gatewayService:', e);
+        }
+      }
+
+      if (typeof serviceCharge === 'string') {
+        try {
+          serviceCharge = JSON.parse(serviceCharge);
+        } catch (e) {
+          console.error('Failed to parse serviceCharge:', e);
+        }
+      }
+      if (typeof pricePerThousand === 'string') {
+        try {
+          pricePerThousand = JSON.parse(pricePerThousand);
+        } catch (e) {
+          console.error('Failed to parse pricePerThousand:', e);
+        }
+      }
+
+      const getdeliveryAmountSummary = await this.getdeliveryAmountSummary(
+        pricePerThousand,
+        amount,
+        serviceCharge,
+        gatewayService
+      );
+      return getdeliveryAmountSummary;
+    } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleMakeOrderPayment(data) {
+    const { userId, userId2, amount } =
+      await userUtil.verifyHandleMakeOrderPayment.validateAsync(data);
+
+    const userResult = await this.UserModel.findByPk(userId);
+    console.log(userResult.walletBalance.current);
+    if (userResult.walletBalance.current >= amount) {
+      throw new BadRequestError('Insufficient balance');
+    }
+    try {
+      const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
+        where: { userId: userId2 },
+      });
+
+      if (!MerchantAdsModelResult)
+        throw new NotFoundError(
+          'Merchant ads not found, check if it has been created'
+        );
+
+      const settingModelResult = await this.SettingModel.findByPk(1);
+      if (!settingModelResult)
+        throw new NotFoundError(
+          'admin Setting not found check if admin setting has been created'
+        );
+
+      let pricePerThousand = MerchantAdsModelResult.pricePerThousand;
+      let serviceCharge = settingModelResult.serviceCharge;
+      let gatewayService = settingModelResult.gatewayService;
+
+      if (typeof gatewayService === 'string') {
+        try {
+          gatewayService = JSON.parse(gatewayService);
+        } catch (e) {
+          console.error('Failed to parse gatewayService:', e);
+        }
+      }
+
+      if (typeof serviceCharge === 'string') {
+        try {
+          serviceCharge = JSON.parse(serviceCharge);
+        } catch (e) {
+          console.error('Failed to parse serviceCharge:', e);
+        }
+      }
+      if (typeof pricePerThousand === 'string') {
+        try {
+          pricePerThousand = JSON.parse(pricePerThousand);
+        } catch (e) {
+          console.error('Failed to parse pricePerThousand:', e);
+        }
+      }
+
+      const getdeliveryAmountSummary = await this.getdeliveryAmountSummary(
+        pricePerThousand,
+        amount,
+        serviceCharge,
+        gatewayService
+      );
+
+      const TransactionModelResult = await this.TransactionModel.create({
+        userId,
+        amount,
+        transactionType: 'order',
+        paymentStatus: 'successful',
+        transactionFrom: 'wallet',
+      });
+
+      const OrderModelResult = await this.OrdersModel.create({
+        orderStatus: 'notAccepted',
+        moneyStatus: 'received',
+        clientId: userId,
+        merchantId: userId2,
+        amountOrder: amount,
+        transactionId: TransactionModelResult.id,
+        totalAmount: getdeliveryAmountSummary.totalAmount,
+        amountOrder: amount,
+      });
+    } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleConfirmTransfer(data) {
+    const { userId, amount, sessionId } =
+      await userUtil.verifyHandleConfirmTransfer.validateAsync(data);
+    try {
+      const TransactionModelResult = await this.TransactionModel.findOne({
+        where: { sessionId },
+      });
+      if (!TransactionModelResult)
+        throw new NotFoundError('Transaction not found');
+      const OrderModelResult = await this.OrdersModel.findOne({
+        where: { id: TransactionModelResult.orderId },
+      });
+      if (!OrderModelResult) throw new NotFoundError('Order not found');
+      await OrderModelResult.update({ orderStatus: 'completed' });
+    } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleGenerateAccountVirtual(data) {
+    const { amount, userId, userId2, type } =
+      await userUtil.verifyHandleGenerateAccountVirtual.validateAsync(data);
+
+    const settingModelResult = await this.SettingModel.findByPk(1);
+    if (!settingModelResult) throw new NotFoundError('Setting not found');
+
+    try {
+      console.log('settingModelResult.activeGateway');
+      console.log(settingModelResult?.activeGateway);
+      console.log('settingModelResult.activeGateway');
+      if (settingModelResult.activeGateway === 'safeHaven.gateway') {
+        if (type == 'fundWallet') {
+          const sessionIdVirtualAcct = `session${Date.now()}-${Math.floor(
+            Math.random() * 100000
+          )}`;
+
+          const transactionModelResult = await this.TransactionModel.create({
+            userId,
+            amount,
+            transactionType: 'fundWallet',
+            paymentStatus: 'pending',
+            transactionFrom: 'external',
+            sessionIdVirtualAcct,
+          });
+
+          const generateVirtualAccountResult = {
+            bankName: 'kuda',
+            accountNumber: '393939939393',
+            accountName: 'chinaza ogbonna',
+            sessionId: sessionIdVirtualAcct,
+            countDown: 60,
+          };
+
+          return generateVirtualAccountResult;
+
+          /*
+          const generateVirtualAccountResult =
+            await this.gateway.generateVirtualAccount(
+              this.validFor,
+              amount,
+              settingModelResult.callbackUrl,
+              transactionModelResult.id
+            );
+
+          return generateVirtualAccountResult;*/
+        } else {
+          const sessionIdVirtualAcct = `session${Date.now()}-${Math.floor(
+            Math.random() * 100000
+          )}`;
+          const generateVirtualAccountResult = {
+            bankName: 'kuda',
+            accountNumber: '393939939393',
+            accountName: 'chinaza ogbonna',
+            sessionId: sessionIdVirtualAcct,
+          };
+
+          const transactionModelResult = await this.TransactionModel.create({
+            userId,
+            amount,
+            transactionType: 'order',
+            paymentStatus: 'pending',
+            transactionFrom: 'external',
+            merchantId: userId2,
+            sessionIdVirtualAcct,
+          });
+
+          return generateVirtualAccountResult;
+          /*const generateVirtualAccountResult =
+            await this.gateway.generateVirtualAccount(
+              this.validFor,
+              amount,
+              settingModelResult.callbackUrl,
+              transactionModelResult.id
+            );
+
+          return generateVirtualAccountResult;*/
+        }
+
+        /*
         const sessionId = `session${Date.now()}-${Math.floor(
           Math.random() * 100000
         )}`;
@@ -1074,6 +1815,7 @@ class UserService {
     TAKE OUT THIS SECTION IS FOR TESTING 
 *****************************************************/
 
+        /*
         const successufullPayment = {
           _id: '1212334556654',
           client: '',
@@ -1121,9 +1863,130 @@ class UserService {
         return generateVirtualAccountResult;
       }
     } catch (error) {
+      console.log(error);
       throw new SystemError(error.name, error.parent);
     }
   }
+
+  /*
+  async handleGenerateAccountVirtual(data) {
+    const { amount, userId, userId2 } =
+      await userUtil.verifyHandleGenerateAccountVirtual.validateAsync(data);
+    try {
+      const OrderModelResult = await this.OrdersModel.create({
+        orderStatus: 'notAccepted',
+        moneyStatus: 'pending',
+        clientId: userId,
+        merchantId:userId2,
+        amountOrder: amount,
+      });
+
+      const settingModelResult = await this.SettingModel.findByPk(1);
+      if (settingModelResult) throw new NotFoundError('Setting not found');
+
+      if (settingModelResult.activeGateway === 'safeHaven.gateway') {
+        const TransactionModelResult = await this.TransactionModel.create({
+          userId,
+          orderId: OrderModelResult.id,
+        });
+        await this.loadGateWay();
+
+        const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
+          where: { userId: merchantId },
+        });
+
+        const getdeliveryAmountSummary = this.getdeliveryAmountSummary(
+          MerchantAdsModelResult.pricePerThousand,
+          amount,
+          settingModelResult.serviceCharge,
+          settingModelResult.gatewayService
+        );
+
+        /*
+        const generateVirtualAccountResult =
+          await this.gateway.generateVirtualAccount(
+            this.validFor,
+            getdeliveryAmountSummary.totalAmount,
+            getdeliveryAmountSummary.callbackUrl,
+            TransactionModelResult.id
+          );*/
+  /*
+        const sessionId = `session${Date.now()}-${Math.floor(
+          Math.random() * 100000
+        )}`;
+        const generateVirtualAccountResult = {
+          bankName: 'kuda',
+          accountNumber: '393939939393',
+          accountName: 'chinaza ogbonna',
+          sessionId,
+          getdeliveryAmountSummary,
+        };
+
+        /**
+         * -accountniumber
+         * -sessionIdVirtualAcct
+         * -orderId
+         */
+  /*generateVirtualAccountResult[fieldName] = newValue; // Update the specific field
+          await transaction.save(); */
+
+  /**************************************************** 
+    TAKE OUT THIS SECTION IS FOR TESTING 
+*****************************************************/
+
+  /*
+        const successufullPayment = {
+          _id: '1212334556654',
+          client: '',
+          virtualAccount: {
+            sessionId,
+            nameEnquiryReference: '',
+            paymentReference: TransactionModelResult.id,
+            isReversed: true,
+            reversalReference: '',
+            provider: '',
+            providerChannel: '',
+            providerChannelCode: '',
+            destinationInstitutionCode: '',
+            creditAccountName: '',
+            creditAccountNumber: '',
+            creditBankVerificationNumber: '',
+            creditKYCLevel: '',
+            debitAccountName: '',
+            debitAccountNumber: '',
+            debitBankVerificationNumber: '',
+            debitKYCLevel: '',
+            transactionLocation: '',
+            narration: '',
+            amount: getdeliveryAmountSummary.totalAmount,
+            fees: 0,
+            vat: 0,
+            stampDuty: 0,
+            responseCode: '',
+            responseMessage: '',
+            status: 'PAID',
+            isDeleted: true,
+            createdAt: '',
+            declinedAt: '',
+            updatedAt: '',
+            __v: 0,
+          },
+        };
+
+        this.writeToDirect(successufullPayment);
+
+        /**************************************************** 
+    END OF THE SECTION
+*****************************************************/
+
+  /*
+        return generateVirtualAccountResult;
+      }
+    } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+  */
   async handleGetMyOrders(data) {
     const { userId, userType, type } =
       await userUtil.verifyHandleGetMyOrders.validateAsync(data);
@@ -1255,11 +2118,36 @@ class UserService {
       for (let index = 0; index < SettingModelResultTiers.length; index++) {
         const element = SettingModelResultTiers[index];
 
-        if (element.uniqueNumber === MerchantProfileModelResult.accoutTier) {
-          return element.maxAmount;
+        if (element.uniqueNumber === MerchantProfileModelResult.accountTier) {
+          return { maxAmount: element.maxAmount, minAmount: 1000 }; //element.maxAmount;
         }
       }
     } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleGetMerchantInformation(data) {
+    const { userId, userId2 } =
+      await userUtil.verifyHandleGetMerchantInformation.validateAsync(data);
+    try {
+      const MerchantProfileModelResult =
+        await this.MerchantProfileModel.findOne({
+          where: { userId: userId2 },
+        });
+      const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
+        where: { userId: userId2 },
+      });
+
+      if (!MerchantProfileModelResult) {
+        throw new NotFoundError('Merchant profile not found');
+      }
+      return {
+        ...MerchantProfileModelResult.dataValues,
+        ...MerchantAdsModelResult.dataValues,
+      };
+    } catch (error) {
+      console.log(error);
       throw new SystemError(error.name, error.parent);
     }
   }
@@ -1285,7 +2173,7 @@ class UserService {
     for (let index = 0; index < SettingModelResultTiers.length; index++) {
       const element = SettingModelResultTiers[index];
 
-      if (element.uniqueNumber === MerchantProfileModelResult.accoutTier) {
+      if (element.uniqueNumber === MerchantProfileModelResult.accountTier) {
         if (maxAmount <= element.maxAmount) {
           break;
         } else {
@@ -1318,12 +2206,12 @@ class UserService {
     }
   }
   async makeMatch() {
-    return;
     const setting = await this.SettingModel.findByPk(1);
 
     try {
       // //Check if match process is running
-
+      console.log('Running every 10 seconds');
+      console.log(setting.isMatchRunning);
       if (setting.isMatchRunning) return;
 
       setting.isMatchRunning = true;
@@ -1332,7 +2220,8 @@ class UserService {
 
       // Fetch users
       const users = await this.UserModel.findAll({
-        where: { attributes: ['id', 'lat', 'lng'], isEmailValid: true },
+        attributes: ['id', 'lat', 'lng'],
+        where: { isEmailValid: true },
       });
 
       // Fetch merchants with active profiles
@@ -1424,65 +2313,18 @@ class UserService {
         );
       }
 
-      /*
-      const userMatchesMap = new Map();
-
-      // Pre-fetch existing matches in one query to avoid multiple DB calls
-      const existingMatches = await this.MymatchModel.findAll({
-        where: { userId: users.map((u) => u.id) },
-      });
-
-      console.log(existingMatches);
-      // Convert fetched data into a map for faster lookup
-      const existingMatchesMap = new Map(
-        existingMatches.map((match) => [match.userId, match])
-      );
-
-      // Match users with merchants
-      for (const user of users) {
-        const userMatches = [];
-
-        for (const merchant of merchants) {
-          if (user.id === merchant.id) continue;
-          distanceThreshold =
-            merchant.deliveryRange > distanceThreshold
-              ? merchant.deliveryRange
-              : distanceThreshold;
-
-          const distance = this.calculateDistance(
-            Number(user.lat),
-            Number(user.lng),
-            Number(merchant.lat),
-            Number(merchant.lng)
-          );
-
-          if (distance <= distanceThreshold) {
-            userMatches.push({ merchantId: merchant.id, distance });
-          }
-        }
-
-        const MymatchModelResult = await this.MymatchModel.findOne({
-          where: { userId: user.id },
-        });
-
-        if (!MymatchModelResult) {
-          await this.MymatchModel.create({
-            userId: user.id,
-            matches: userMatches,
-          });
-        } else {
-          MymatchModelResult.update({ matches: userMatches });
-        }
-      }*/
       setting.isMatchRunning = false;
       setting.save();
       console.log('User-Merchant matching completed.');
     } catch (error) {
       console.error('Error during matching:', error);
 
-      setting.isMatchRunning = true;
+      setting.isMatchRunning = false;
       setting.save();
       throw new SystemError(error.name, error?.response?.data?.error);
+    } finally {
+      setting.isMatchRunning = false;
+      setting.save();
     }
   }
 
@@ -1498,7 +2340,11 @@ class UserService {
         Math.sin(dLng / 2) ** 2;
 
     const EARTH_RADIUS_KM = 6371; // Earth's radius in kilometers
-    return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    const value =
+      EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const rounded = Math.floor(value * 100) / 100;
+    return rounded;
   }
 
   async getActiveGateway() {
@@ -1531,10 +2377,11 @@ class UserService {
     }
 
     if (TransactionModelResult) {
+      /*
       const transactionStatus =
         await this.gateway.getVirtualAccountTransferStatus(
           sessionIdVirtualAcct
-        );
+        );*/
     }
   }
   async updateOrder(orderId, data) {
@@ -1714,10 +2561,11 @@ class UserService {
         closestGatewayCharge.charge;
 
       return {
-        totalAmount: totalAmountToPay,
-        merchantCharge: closestMerchantAmount.charge,
-        serviceCharge: closestServiceCharge.charge,
-        gatewayCharge: closestGatewayCharge.charge,
+        totalAmount: totalAmountToPay, // Total amount to be paid
+        merchantCharge: closestMerchantAmount.charge, // Merchant charge
+        serviceCharge: closestServiceCharge.charge, // Service charge
+        gatewayCharge: closestGatewayCharge.charge, // Gateway charge
+        amountOrder: amount, // Amount to be ordered
       };
     } else {
       throw new Error('No valid charge found for the given amount');
@@ -1734,6 +2582,28 @@ class UserService {
       let existingData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
       const updatedData = [...existingData, ...newData];
       fs.writeFileSync(filePath, JSON.stringify(updatedData, null, 2));
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  async sendEmailCredential(emailAddress, password, firstName) {
+    try {
+      try {
+        await mailService.sendMail({
+          to: emailAddress,
+          subject: 'login credential',
+          templateName: 'sendAdminCredential',
+          variables: {
+            admin_email: emailAddress,
+            admin_password: password,
+            admin_name: firstName,
+            // admin_link: serverConfig.CLIENT_URL,
+          },
+        });
+      } catch (error) {
+        console.log(error);
+      }
     } catch (error) {
       console.log(error);
     }

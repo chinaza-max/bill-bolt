@@ -200,52 +200,90 @@ export default class AuthenticationController {
         });
       }
 
-      let generateTokenFrom = {
-        id: user.dataValues.id,
-        role: user.dataValues.role,
-        emailAddress: user.dataValues.emailAddress,
-      };
+      if ('admin' == user.role) {
+        let generateTokenFrom = {
+          id: user.dataValues.id,
+          role: user.dataValues.role,
+          emailAddress: user.dataValues.emailAddress,
+        };
 
-      const accessToken = await authService.generateAccessToken({
-        ...generateTokenFrom,
-        scope: 'access',
-      });
+        const accessToken = await authService.generateAccessToken({
+          ...generateTokenFrom,
+          scope: 'access',
+        });
 
-      const refreshToken = await authService.generateRefreshToken({
-        ...generateTokenFrom,
-        scope: 'refresh',
-      });
+        const refreshToken = await authService.generateRefreshToken({
+          ...generateTokenFrom,
+          scope: 'refresh',
+        });
 
-      const includedProperties = ['emailAddress'];
+        const excludedProperties = ['password', 'isEmailValid'];
 
-      const modifiedUser = Object.keys(user.dataValues)
-        .filter((key) => includedProperties.includes(key))
-        .reduce((acc, key) => {
-          acc[key] = user.dataValues[key];
-          return acc;
-        }, {});
+        const modifiedUser = Object.keys(user.dataValues)
+          .filter((key) => !excludedProperties.includes(key))
+          .reduce((acc, key) => {
+            acc[key] = user.dataValues[key];
+            return acc;
+          }, {});
 
-      // const nineMonthsInMilliseconds = 9 * 30 * 24 * 60 * 60 * 1000;
-      /*   res.cookie('refresh_token', refreshToken, {
-        httpOnly: true,
-        secure: false,
-        sameSite: 'none',
-        maxAge: serverConfig.REFRESH_TOKEN_COOKIE_EXPIRES_IN,
-      });
-*/
-      const UserModelResult = await this.UserModel.findByPk(user.dataValues.id);
-      await UserModelResult.update({ refreshToken });
+        return res.status(200).json({
+          status: 200,
+          message: 'login successfully.',
+          data: {
+            user: { ...modifiedUser },
+            accessToken,
+          },
+        });
+      } else {
+        let generateTokenFrom = {
+          id: user.dataValues.id,
+          role: user.dataValues.role,
+          emailAddress: user.dataValues.emailAddress,
+        };
 
-      return res.status(200).json({
-        status: 200,
-        message: 'login successfully.',
-        data: {
-          passCode: user.passCode,
-          describeYou: user.describeYou,
-          user: modifiedUser,
-          accessToken,
-        },
-      });
+        const accessToken = await authService.generateAccessToken({
+          ...generateTokenFrom,
+          scope: 'access',
+        });
+
+        const refreshToken = await authService.generateRefreshToken({
+          ...generateTokenFrom,
+          scope: 'refresh',
+        });
+
+        const includedProperties = ['emailAddress'];
+
+        const modifiedUser = Object.keys(user.dataValues)
+          .filter((key) => includedProperties.includes(key))
+          .reduce((acc, key) => {
+            acc[key] = user.dataValues[key];
+            return acc;
+          }, {});
+
+        // const nineMonthsInMilliseconds = 9 * 30 * 24 * 60 * 60 * 1000;
+        /*   res.cookie('refresh_token', refreshToken, {
+          httpOnly: true,
+          secure: false,
+          sameSite: 'none',
+          maxAge: serverConfig.REFRESH_TOKEN_COOKIE_EXPIRES_IN,
+        });
+  */
+        const UserModelResult = await this.UserModel.findByPk(
+          user.dataValues.id
+        );
+        await UserModelResult.update({ refreshToken });
+
+        return res.status(200).json({
+          status: 200,
+          message: 'login successfully.',
+          data: {
+            passCode: user.passCode,
+            describeYou: user.describeYou,
+            user: modifiedUser,
+            accessToken,
+          },
+        });
+      }
     } catch (error) {
       console.log(error);
       next(error);
@@ -609,6 +647,7 @@ export default class AuthenticationController {
       next(error);
     }
   }
+
   async refreshAccessToken(req, res, next) {
     try {
       const result = await authService.handleRefreshAccessToken(req);

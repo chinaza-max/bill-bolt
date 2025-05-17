@@ -7,6 +7,9 @@ import {
   Transaction,
   Setting,
   MerchantProfile,
+  Admin,
+  Orders,
+  MerchantAds,
 } from '../db/models/index.js';
 import serverConfig from '../config/server.js';
 import authUtil from '../utils/auth.util.js';
@@ -14,6 +17,8 @@ import userService from '../service/user.service.js';
 import { Buffer } from 'buffer';
 import mailService from '../service/mail.service.js';
 import axios from 'axios';
+import { loadActiveGateway } from '../utils/gatewayLoader.js';
+import crypto from 'crypto';
 
 import {
   ConflictError,
@@ -30,7 +35,17 @@ class AuthenticationService {
   TransactionModel = Transaction;
   SettingModel = Setting;
   MerchantProfileModel = MerchantProfile;
-
+  AdminModel = Admin;
+  OrdersModel = Orders;
+  MerchantAdsModel = MerchantAds;
+  async loadGateWay(alternativeGateway) {
+    const Setting = await this.SettingModel.findByPk(1);
+    this.gateway = await loadActiveGateway(
+      alternativeGateway || Setting.activeGateway
+    );
+    this.validFor = Setting.validFor;
+    this.callbackUrl = Setting.callbackUrl;
+  }
   verifyAccessToken(token) {
     try {
       const payload = jwt.verify(token, serverConfig.ACCESS_TOKEN_SECRET);
@@ -215,16 +230,18 @@ class AuthenticationService {
     if (!(await bcrypt.compare(password, user.password))) return null;
 
     if (user.disableAccount) return 'disabled';
-
-    if (user.isEmailValid === false) {
+    await user.update({
+      isOnline: true,
+    });
+    if (user?.isEmailValid === false) {
       const validateFor = 'user';
       await this.sendEmailVerificationCode(emailAddress, user.id, validateFor);
       return 'unverifiedEmail';
     }
-    if (!user.passCode) {
+    if (!user?.passCode) {
       user.passCode = false;
     }
-    if (!user.describeYou) {
+    if (!user?.describeYou) {
       user.describeYou = false;
     }
     return user;
@@ -310,16 +327,155 @@ class AuthenticationService {
 
   async handleVirtualAccountCollection(data) {
     const settingModelResult = await this.SettingModel.findByPk(1);
-    if (settingModelResult) throw new NotFoundError('No setting found');
+    if (!settingModelResult) throw new NotFoundError('No setting found');
 
     try {
       if (settingModelResult.activeGateway === 'safeHaven.gateway') {
-        if (data.type === 'virtualAccount.transfer') {
-          userService.updateTransactionSaveHaven(data.sessionId);
+        if (data.type === 'transfer') {
+          this.updateTransactionSaveHaven(data);
         }
       }
     } catch (error) {
       console.log(error);
+    }
+  }
+
+  async updateTransactionSaveHaven(data) {
+    const sessionId = data?.data?.sessionId;
+    const transactionStatus = data?.data?.status;
+    const transactionAmount = data?.data?.amount;
+    const transactionType = data?.type;
+
+    if (!sessionId || !transactionStatus || !transactionAmount) return;
+
+    const transaction = await this.TransactionModel.findOne({
+      where: { sessionIdVirtualAcct: sessionId },
+    });
+
+    if (!transaction) return;
+
+    if (!this.gateway) {
+      await this.loadGateWay();
+    }
+
+    if (transactionStatus !== 'Completed') return;
+
+    transaction.paymentStatus = 'successful';
+    await transaction.save();
+
+    const {
+      transactionType: type,
+      orderAmount,
+      merchantId,
+      userId,
+      id,
+    } = transaction;
+
+    if (type === 'order') {
+      if (orderAmount === transactionAmount) {
+        await this._handleOrder(transaction, transactionAmount);
+      } else {
+        await this.updateWallet(transactionAmount, userId);
+      }
+    } else if (type === 'fundwallet') {
+      await this.updateWallet(transactionAmount, userId);
+    }
+  }
+
+  async _handleOrder(transaction, transactionAmount) {
+    const merchant = await this.MerchantAdsModel.findOne({
+      where: { UserId: transaction.merchantId },
+    });
+
+    const settings = await this.SettingModel.findByPk(1);
+
+    const amountSummary = this.getdeliveryAmountSummary(
+      merchant.pricePerThousand,
+      transaction.orderAmount,
+      settings.serviceCharge,
+      settings.gatewayService
+    );
+
+    await this.createOrder({
+      transactionId: transaction.id,
+      userId: transaction.userId,
+      merchantId: transaction.merchantId,
+      amountOrder: amountSummary.amountOrder,
+      totalAmount: amountSummary.totalAmount,
+      qrCodeHash: this.generateQrCodeHash(),
+    });
+  }
+
+  generateQrCodeHash() {
+    return crypto.randomBytes(16).toString('hex'); // 32-character hex string
+  }
+
+  async updateWallet(amount, userId) {
+    if (!userId || amount <= 0) return;
+
+    // Get access to the Sequelize instance
+    const sequelize = this.UserModel.sequelize;
+
+    // Use a transaction
+    const result = await sequelize.transaction(async (t) => {
+      // Get the latest user data within the transaction with row lock
+      const user = await this.UserModel.findByPk(userId, {
+        lock: true,
+        transaction: t,
+      });
+
+      if (!user) return null;
+
+      let balance = { previous: 0, current: 0 };
+
+      try {
+        if (typeof user.walletBalance === 'string') {
+          balance = JSON.parse(user.walletBalance);
+        } else if (typeof user.walletBalance === 'object') {
+          balance = user.walletBalance;
+        }
+      } catch {
+        balance = { previous: 0, current: 0 };
+      }
+
+      const currentBalance = balance.current || 0;
+      user.walletBalance = {
+        previous: currentBalance,
+        current: currentBalance + amount,
+      };
+
+      // Save within the transaction
+      await user.save({ transaction: t });
+      return user;
+    });
+
+    return result;
+  }
+
+  async createOrder(transactionId, userId, merchantId) {
+    try {
+      const merchantProfile = await this.UserModel.findOne({
+        where: {
+          id: merchantId,
+        },
+      });
+      const user = await this.UserModel.findOne({
+        where: {
+          id: userId,
+        },
+      });
+
+      if (!merchantProfile || !user) throw new NotFoundError('No user found');
+
+      const order = await this.OrdersModel.create({
+        clientId: userId,
+        merchantId: merchantId,
+        orderStatus: 'pending',
+        moneyStatus: 'received',
+      });
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
     }
   }
 
@@ -601,6 +757,67 @@ class AuthenticationService {
       }
     } catch (error) {
       console.log(error);
+    }
+  }
+  async getdeliveryAmountSummary(
+    merchantads,
+    amount,
+    serviceCharge,
+    gatewayService
+  ) {
+    // Sort all arrays by the amount in ascending order
+    merchantads.sort((a, b) => a.amount - b.amount);
+    serviceCharge.sort((a, b) => a.amount - b.amount);
+    gatewayService.sort((a, b) => a.amount - b.amount);
+
+    let closestMerchantAmount = null;
+    let closestServiceCharge = null;
+    let closestGatewayCharge = null;
+
+    // Find the closest merchant amount that is less than or equal to the provided amount
+    for (let i = 0; i < merchantads.length; i++) {
+      if (merchantads[i].amount <= amount) {
+        closestMerchantAmount = merchantads[i];
+      } else {
+        break;
+      }
+    }
+
+    // Find the closest service charge that is less than or equal to the provided amount
+    for (let i = 0; i < serviceCharge.length; i++) {
+      if (serviceCharge[i].amount <= amount) {
+        closestServiceCharge = serviceCharge[i];
+      } else {
+        break;
+      }
+    }
+
+    // Find the closest gateway charge that is less than or equal to the provided amount
+    for (let i = 0; i < gatewayService.length; i++) {
+      if (gatewayService[i].amount <= amount) {
+        closestGatewayCharge = gatewayService[i];
+      } else {
+        break;
+      }
+    }
+
+    // If valid closest amounts are found, calculate and return the summary
+    if (closestMerchantAmount && closestServiceCharge && closestGatewayCharge) {
+      const totalAmountToPay =
+        amount +
+        closestMerchantAmount.charge +
+        closestServiceCharge.charge +
+        closestGatewayCharge.charge;
+
+      return {
+        totalAmount: totalAmountToPay, // Total amount to be paid
+        merchantCharge: closestMerchantAmount.charge, // Merchant charge
+        serviceCharge: closestServiceCharge.charge, // Service charge
+        gatewayCharge: closestGatewayCharge.charge, // Gateway charge
+        amountOrder: amount, // Amount to be ordered
+      };
+    } else {
+      throw new Error('No valid charge found for the given amount');
     }
   }
 }

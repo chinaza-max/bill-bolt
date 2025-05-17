@@ -29,6 +29,12 @@ export function init(connection) {
         allowNull: false,
         comment: 'The type of complaint',
       },
+      title: {
+        // Title or subject of the complaint
+        type: DataTypes.STRING,
+        allowNull: false,
+        comment: 'Title of the complaint',
+      },
       complaintReason: {
         // Reason or description of the complaint
         type: DataTypes.TEXT,
@@ -40,6 +46,13 @@ export function init(connection) {
         type: DataTypes.ENUM('open', 'inProgress', 'resolved', 'dismissed'),
         allowNull: false,
         defaultValue: 'open',
+        comment: 'The current status of the complaint',
+      },
+      view: {
+        // Status of the complaint (open, under investigation, resolved, etc.)
+        type: DataTypes.ENUM('seen', 'unseen'),
+        allowNull: false,
+        defaultValue: 'unseen',
         comment: 'The current status of the complaint',
       },
       isDeleted: {

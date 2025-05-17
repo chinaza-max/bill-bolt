@@ -14,39 +14,51 @@ export function init(connection) {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
-      orderId: {
+      merchantId: {
         type: DataTypes.INTEGER,
         allowNull: true,
       },
       virtualAccount: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       sessionIdVirtualAcct: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       amount: {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
+      orderAmount: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
       paymentReference: {
         type: DataTypes.STRING,
-        allowNull: false,
-      },
-      virtualAccount: {
-        type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       transactionType: {
-        type: DataTypes.ENUM('order', 'widthdrawal', 'refund'),
+        type: DataTypes.ENUM('order', 'widthdrawal', 'fundwallet'),
         allowNull: false,
-        defaultValue: 'order',
       },
       paymentStatus: {
-        type: DataTypes.STRING,
+        type: DataTypes.ENUM(
+          'successful',
+          'pending',
+          'failed',
+          'overpaid',
+          'underpaid'
+        ),
         allowNull: false,
-        defaultValue: 'unverified',
+      },
+      paymentGateStatus: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      transactionFrom: {
+        type: DataTypes.ENUM('wallet', 'external'),
+        allowNull: false,
       },
       isDeleted: {
         type: DataTypes.BOOLEAN,
