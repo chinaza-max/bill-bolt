@@ -17,7 +17,7 @@ const credentials = JSON.parse(
 const tokens = JSON.parse(
   Buffer.from(process.env.GOOGLE_TOKENS_BASE64, 'base64').toString('utf8')
 );
-
+console.log(credentials);
 const { client_id, client_secret, redirect_uris } = credentials.installed;
 console.log(client_id, client_secret, redirect_uris);
 const oAuth2Client = new google.auth.OAuth2(
