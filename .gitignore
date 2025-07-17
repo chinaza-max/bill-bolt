@@ -1,3 +1,5 @@
 
 /node_modules
 .env
+/client_secret_863654793563-0onc4ke09hed1p8j62jtbfbtduamm85c.apps.googleusercontent.com.json
+/token.json
