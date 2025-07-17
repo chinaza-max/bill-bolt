@@ -29,6 +29,30 @@ export default class UserController {
     }
   }
 
+  async uploadImageGoogleDrive(req, res, next) {
+    try {
+      const { file } = req;
+
+      if (!file) {
+        return res.status(400).json({
+          status: 400,
+          message: 'No file uploaded',
+        });
+      }
+
+      const imageUrl = await userService.handleUploadImageGoogleDrive(file);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'Image uploaded successfully',
+        data: { imageUrl },
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
   async updateMerchantProfile(req, res, next) {
     try {
       const { image, ...data } = req.body;
@@ -320,7 +344,7 @@ export default class UserController {
 
       return res.status(200).json({
         status: 200,
-        message: 'success fully.',
+        message: 'success',
         data: result,
       });
     } catch (error) {
@@ -330,18 +354,19 @@ export default class UserController {
   }
   async getTransactionHistoryOrder(req, res, next) {
     try {
-      const data = req.body;
+      const data = req.query;
 
       let my_bj = {
         ...data,
         userId: req.user.id,
       };
 
-      await userService.handleGetTransactionHistoryOrder(my_bj);
+      const result = await userService.handleGetTransactionHistoryOrder(my_bj);
 
       return res.status(200).json({
         status: 200,
         message: 'successfully.',
+        data: result,
       });
     } catch (error) {
       console.log(error);
@@ -809,6 +834,28 @@ export default class UserController {
     }
   }
 
+  async updateToken(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      await userService.handleUpdateToken(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: 'Token updated successfully',
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
   async getProfileInformation(req, res, next) {
     try {
       const data = req.body;
@@ -1044,6 +1091,7 @@ export default class UserController {
       return res.status(200).json({
         status: 200,
         message: 'successfully.',
+        data: 'success',
       });
     } catch (error) {
       console.log(error);
@@ -1053,7 +1101,6 @@ export default class UserController {
   async orderAcceptOrCancel(req, res, next) {
     try {
       const data = req.body;
-
       let my_bj = {
         ...data,
         userId: req.user.id,
@@ -1063,7 +1110,7 @@ export default class UserController {
 
       return res.status(200).json({
         status: 200,
-        message: 'successfully.',
+        message: 'success.',
       });
     } catch (error) {
       console.log(error);
@@ -1094,7 +1141,7 @@ export default class UserController {
   }
   async getChatHistory(req, res, next) {
     try {
-      const data = req.params;
+      const data = req.query;
       /* 
         use this logic on the front end when
         sending the request for roomId

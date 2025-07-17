@@ -10,6 +10,11 @@ export function init(connection) {
         primaryKey: true,
         autoIncrement: true,
       },
+      transactionId: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        unique: true,
+      },
       userId: {
         type: DataTypes.INTEGER,
         allowNull: false,

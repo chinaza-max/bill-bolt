@@ -19,7 +19,9 @@ import mailService from '../service/mail.service.js';
 import axios from 'axios';
 import { loadActiveGateway } from '../utils/gatewayLoader.js';
 import crypto from 'crypto';
-
+import { google } from 'googleapis';
+import { oAuth2Client } from '../auth/oauthClient.js';
+import fs from 'fs';
 import {
   ConflictError,
   SystemError,
@@ -27,6 +29,7 @@ import {
   NotFoundError,
 } from '../errors/index.js';
 import { Op } from 'sequelize';
+const drive = google.drive({ version: 'v3', auth: oAuth2Client });
 
 class AuthenticationService {
   UserModel = User;
@@ -483,6 +486,87 @@ class AuthenticationService {
     } catch (err) {
       console.error(`[updateWallet] Error during transaction:`, err);
       throw err; // Let the caller handle or log further
+    }
+  }
+
+  async handleUploadImageGoogleDrive(file) {
+    try {
+      const { path: filePath, originalname, mimetype } = file;
+      const data = await this.uploadToDrive(filePath, originalname, mimetype);
+
+      return {
+        publicLink: data.webContentLink,
+        drivePreview: `https://drive.google.com/thumbnail?id=${data.fileId}&sz=w1000`,
+      };
+    } catch (err) {
+      console.error('Upload error:', err);
+      new SystemError('Upload failed');
+    }
+  }
+
+  async uploadToDrive(filePath, fileName, mimeType) {
+    const drive = google.drive({ version: 'v3', auth: oAuth2Client });
+
+    const fileMetadata = {
+      name: fileName,
+      parents: ['1i13u4Britpr2rvvNGDkVuqKbr6B-LH7e'],
+    };
+
+    const media = {
+      mimeType,
+      body: fs.createReadStream(filePath),
+    };
+
+    const file = await drive.files.create({
+      requestBody: fileMetadata,
+      media: media,
+      fields: 'id',
+    });
+
+    const fileId = file.data.id;
+
+    // Make file public
+    await drive.permissions.create({
+      fileId,
+      requestBody: {
+        role: 'reader',
+        type: 'anyone',
+      },
+    });
+
+    const result = await drive.files.get({
+      fileId,
+      fields: 'webViewLink, webContentLink',
+    });
+
+    const obj = {
+      ...result.data,
+      fileId,
+    };
+
+    return obj;
+  }
+
+  extractFileId(publicUrl) {
+    const match =
+      publicUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) ||
+      publicUrl.match(/id=([a-zA-Z0-9_-]+)/);
+    return match ? match[1] : null;
+  }
+
+  async handleDeleteFromAppfileGoogleDrive(data) {
+    const { publicUrl } = data;
+    const fileId = this.extractFileId(publicUrl);
+
+    if (!fileId) throw new Error('Invalid or missing fileId from URL');
+
+    try {
+      await drive.files.delete({ fileId });
+      return 'File deleted successfully from appfile';
+    } catch (err) {
+      console.error('Unexpected error during delete:', err);
+
+      throw new Error('Failed to delete file from Google Drive');
     }
   }
 

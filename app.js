@@ -23,29 +23,6 @@ import http from 'http';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-/*
-const swaggerOptions = {
-  swaggerDefinition: {
-    openapi: '3.0.0',
-    info: {
-      title: 'Fintread API',
-      version: '1.0.0',
-      description: 'API documentation for your system',
-    },
-    servers: [
-      {
-        url: `${serverConfig.DOMAIN}/api/v1/`,
-        description: 'live server',
-      },
-    ],
-  },
-  apis: ['./src/routes/*.js', './src/controllers/**/ //*.js'], // Define where your route/controller files are located
-/*};
- */
-//        url: `http://localhost:${serverConfig.PORT}/api/v1/`, // Your base URL
-//      url: `${serverConfig.DOMAIN}/api/v1/`, // Your base URL
-
-//const swaggerDocs = swaggerJsDoc(swaggerOptions);
 
 class Server {
   constructor(port, mode) {
@@ -55,6 +32,8 @@ class Server {
     this.initializeDbAndFirebase();
     this.initializeMiddlewaresAndRoutes();
     this.loadCronJobs();
+    this.httpServer = http.createServer(this.app);
+    this.setupSocket();
   }
 
   async initializeDbAndFirebase() {
@@ -168,19 +147,37 @@ class Server {
     this.app.use(cors(corsOptions));
     //this.app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
     this.app.use(cookieParser());
-
+    // const httpServer = http.createServer(this.app);
+    //
     this.app.use(routes);
     this.app.use(systemMiddleware.errorHandler);
-    const httpServer = http.createServer(this.app);
-    const io = new SocketIOServer(httpServer, {
+  }
+  setupSocket() {
+    const io = new SocketIOServer(this.httpServer, {
       cors: {
         origin: '*',
         methods: ['GET', 'POST'],
       },
     });
     configureSocket(io);
-  }
+    /* io.on('connection', (socket) => {
+      console.log(`User connected: ${socket.id}`);
 
+      socket.on('joinRoom', async ({ roomId }) => {
+        socket.join(roomId);
+        console.log(`User joined room: room-${roomId}`);
+      });
+
+      socket.on('message', async ({ roomId, senderType, content }) => {
+        const message = await Service.saveMessage(roomId, senderType, content);
+        io.to(`${roomId}`).emit('message', message);
+      });
+
+      socket.on('disconnect', () => {
+        console.log(`User disconnected: ${socket.id}`);
+      });
+    });*/
+  }
   loadCronJobs() {
     cron.schedule('*/10  * * * * *', async () => {
       userService.makeMatch();
@@ -233,7 +230,7 @@ class Server {
     }
   }
   start() {
-    this.app.listen(this.port, () => {
+    this.httpServer.listen(this.port, () => {
       console.log(`Server is running on http://localhost:${this.port}`);
     });
   }

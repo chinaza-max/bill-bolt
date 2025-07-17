@@ -45,11 +45,11 @@ function associate() {
     as: 'UserComplaint',
   });
 
-  Orders.hasOne(Transaction, {
+  Transaction.hasOne(Orders, {
     foreignKey: 'transactionId',
     as: 'OrderTransaction',
   });
-  Transaction.belongsTo(Orders, {
+  Orders.belongsTo(Transaction, {
     foreignKey: 'transactionId',
     as: 'TransactionOrder',
   });

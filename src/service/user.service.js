@@ -12,6 +12,7 @@ import {
   NinOtp,
   Admin,
 } from '../db/models/index.js';
+import db from '../db/index.js';
 import userUtil from '../utils/user.util.js';
 import authService from '../service/auth.service.js';
 import bcrypt from 'bcrypt';
@@ -25,9 +26,15 @@ import { fn, col, literal } from 'sequelize';
 import axios from 'axios';
 import { loadActiveGateway } from '../utils/gatewayLoader.js';
 import { getSocketInstance } from '../utils/socketUtils.js';
-import { sendPushNotification } from '../service/push.service.js';
+import NotificationService from '../service/push.service.js';
 import fs from 'fs';
 import path from 'path';
+import { customAlphabet } from 'nanoid';
+import { google } from 'googleapis';
+import { oAuth2Client } from '../auth/oauthClient.js';
+
+const ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const getNanoid = (length) => customAlphabet(ALPHABET, length);
 
 import {
   NotFoundError,
@@ -35,8 +42,9 @@ import {
   BadRequestError,
   SystemError,
 } from '../errors/index.js';
+//import { setTimeout } from 'timers/promises';
 
-class UserService {
+class UserService extends NotificationService {
   EmailandTelValidationModel = EmailandTelValidation;
   UserModel = User;
   SettingModel = Setting;
@@ -49,10 +57,13 @@ class UserService {
   ComplaintModel = Complaint;
   NinOtpModel = NinOtp;
   AdminModel = Admin;
+
   constructor() {
+    super();
     this.gateway;
     this.validFor;
     this.callbackUrl;
+
     // this.getRouteSummary(-74.044502, 40.689247, -73.98513, 40.758896);
   }
   async loadGateWay(alternativeGateway) {
@@ -162,6 +173,59 @@ class UserService {
       console.log(error);
       throw new SystemError(error.name, error.parent);
     }
+  }
+
+  async handleUploadImageGoogleDrive(data, file) {
+    try {
+      const { path: filePath, originalname, mimetype } = file;
+      const data = await this.uploadToDrive(filePath, originalname, mimetype);
+
+      res.send({
+        message: 'File uploaded successfully!',
+        publicLink: data.webContentLink,
+        drivePreview: data.webViewLink,
+      });
+    } catch (err) {
+      console.error('Upload error:', err);
+      res.status(500).send('Upload failed');
+    }
+  }
+
+  async uploadToDrive(filePath, fileName, mimeType) {
+    const drive = google.drive({ version: 'v3', auth: oAuth2Client });
+
+    const fileMetadata = {
+      name: fileName,
+    };
+
+    const media = {
+      mimeType,
+      body: fs.createReadStream(filePath),
+    };
+
+    const file = await drive.files.create({
+      requestBody: fileMetadata,
+      media: media,
+      fields: 'id',
+    });
+
+    const fileId = file.data.id;
+
+    // Make file public
+    await drive.permissions.create({
+      fileId,
+      requestBody: {
+        role: 'reader',
+        type: 'anyone',
+      },
+    });
+
+    const result = await drive.files.get({
+      fileId,
+      fields: 'webViewLink, webContentLink',
+    });
+
+    return result.data;
   }
 
   async handleInitiateNINVerify(data) {
@@ -327,6 +391,21 @@ class UserService {
       throw new SystemError(error.name, error.parent);
     }
   }
+
+  async handleUpdateToken(data) {
+    const { fcmToken, userId } =
+      await userUtil.verifyHandleUpdateToken.validateAsync(data);
+
+    let userResult = await this.UserModel.findByPk(userId);
+    if (!userResult) throw new NotFoundError('User not found.');
+
+    try {
+      userResult.update({ fcmToken });
+    } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
   async handleSetPin(data) {
     const { passCode, userId } =
       await userUtil.verifyHandleSetPin.validateAsync(data);
@@ -510,23 +589,229 @@ class UserService {
       throw new SystemError(error.name, error.parent);
     }
   }
+  /*
   async handleOrderAcceptOrCancel(data) {
-    const { orderId, userId, type } =
+    const { orderId, userId, type, reason } =
       await userUtil.verifyHandleOrderAcceptOrCancel.validateAsync(data);
-    try {
-      const OrdersModelResult = await this.OrdersModel.findByPk(orderId);
-      if (!OrdersModelResult) throw new NotFoundError('Order not found');
-      if (type === 'cancel') {
-        if (OrdersModelResult.orderStatus === 'notAccepted') {
-          OrdersModelResult.update({ orderStatus: 'cancelled' });
+    //try {
+
+    const OrdersModelResult = await this.OrdersModel.findByPk(orderId);
+    if (!OrdersModelResult) throw new NotFoundError('Order not found');
+    if (type === 'cancel') {
+      if (OrdersModelResult.orderStatus !== 'completed') {
+        try {
+          await this.refundOrderTransaction(
+            OrdersModelResult,
+            'cancelled',
+            reason
+          );
+        } catch (error) {
+          new SystemError(error);
         }
-      } else if (type === 'accept') {
-        if (OrdersModelResult.orderStatus === 'notAccepted') {
-          OrdersModelResult.update({ orderStatus: 'inProgress' });
-        }
+      } else {
+        throw new ConflictError(
+          `Order already ${OrdersModelResult.orderStatus}`
+        );
       }
+    } else if (type === 'reject') {
+      if (
+        OrdersModelResult.orderStatus !== 'completed' &&
+        OrdersModelResult.orderStatus !== 'rejected'
+      ) {
+        /*
+        OrdersModelResult.update({ orderStatus: 'rejected', reason })
+          .then(async () => {
+            OrdersModelResult.update({ moneyStatus: 'refund' });
+            const settingResult = await this.SettingModel.findByPk(1);
+            const merchantAdsModelResult = await this.MerchantAdsModel.findOne({
+              where: { userId: OrdersModelResult.merchantId },
+            });
+            const priceData = this.convertToJson(
+              merchantAdsModelResult.pricePerThousand
+            );
+            const serviceCharge = this.convertToJson(
+              settingResult.serviceCharge
+            );
+            const gatewayService = this.convertToJson(
+              settingResult.gatewayService
+            );
+
+            const amountSummary = await this.getdeliveryAmountSummary(
+              priceData,
+              OrdersModelResult.amountOrder,
+              serviceCharge,
+              gatewayService
+            );
+
+            const amount =
+              amountSummary.amountOrder +
+              amountSummary.merchantCharge +
+              amountSummary.serviceCharge;
+            await this.updateClientWallet(OrdersModelResult.clientId, amount);
+            try {
+              await this.sendToDevice(
+                userResult.fcmToken, // Assuming `userResult` is the customer
+                {
+                  title: 'Order Rejected ❌',
+                  body: `Your order was rejected. Please try another merchant. The amount has been refunded to your wallet.`,
+                },
+                {
+                  type: 'ORDER_REJECTED',
+                  orderId: rejectedOrder.orderId, // Replace with your actual order object
+                }
+              );
+            } catch (error) {
+              console.error('Error updating client wallet:', error);
+            }
+          })
+          .catch((error) => {
+            console.error('Update failed:', error);
+          });
+          
+        try {
+          await this.refundOrderTransaction(
+            OrdersModelResult,
+            'rejected',
+            reason
+          );
+        } catch (error) {
+          new SystemError(error);
+        }
+      } else {
+        throw new ConflictError(
+          `Order already ${OrdersModelResult.orderStatus}`
+        );
+      }
+    } else if (type === 'accept') {
+      if (OrdersModelResult.orderStatus === 'pending') {
+        OrdersModelResult.update({
+          orderStatus: 'inProgress',
+          startTime: new Date(),
+        });
+        OrdersModelResult.update({ moneyStatus: 'received' });
+      } else {
+        throw new ConflictError(
+          `Order already ${OrdersModelResult.orderStatus}`
+        );
+      }
+    }
     } catch (error) {
       throw new SystemError(error.name, error.parent);
+    }
+  }
+  */
+
+  async handleOrderAcceptOrCancel(data) {
+    const { orderId, userId, type, reason } =
+      await userUtil.verifyHandleOrderAcceptOrCancel.validateAsync(data);
+
+    const OrdersModelResult = await this.OrdersModel.findByPk(orderId);
+    if (!OrdersModelResult) throw new NotFoundError('Order not found');
+
+    let userResult;
+    if (OrdersModelResult.clientId === userId) {
+      userResult = await this.UserModel.findByPk(OrdersModelResult.merchantId); // Needed for FCM token
+    } else {
+      userResult = await this.UserModel.findByPk(OrdersModelResult.clientId);
+    }
+    if (type === 'cancel') {
+      if (OrdersModelResult.orderStatus !== 'completed') {
+        try {
+          await this.refundOrderTransaction(
+            OrdersModelResult,
+            'cancelled',
+            reason
+          );
+
+          // 🔔 Send cancel notification
+          try {
+            await this.sendToDevice(
+              userResult.fcmToken,
+              {
+                title: 'Order Cancelled ❌',
+                body: 'Your order was cancelled and refunded to your wallet.',
+              },
+              {
+                type: 'ORDER_CANCELLED',
+                orderId: OrdersModelResult.id,
+              }
+            );
+          } catch (error) {
+            console.error('Notification failed (cancel):', error);
+          }
+        } catch (error) {
+          throw new SystemError(error);
+        }
+      } else {
+        throw new ConflictError(
+          `Order already ${OrdersModelResult.orderStatus}`
+        );
+      }
+    } else if (type === 'reject') {
+      if (
+        OrdersModelResult.orderStatus !== 'completed' &&
+        OrdersModelResult.orderStatus !== 'rejected'
+      ) {
+        try {
+          await this.refundOrderTransaction(
+            OrdersModelResult,
+            'rejected',
+            reason
+          );
+
+          // 🔔 Send rejection notification
+          try {
+            await this.sendToDevice(
+              userResult.fcmToken,
+              {
+                title: 'Order Rejected ❌',
+                body: `Your order was rejected. Please try another merchant. The amount has been refunded to your wallet.`,
+              },
+              {
+                type: 'ORDER_REJECTED',
+                orderId: OrdersModelResult.id,
+              }
+            );
+          } catch (error) {
+            console.error('Notification failed (reject):', error);
+          }
+        } catch (error) {
+          throw new SystemError(error);
+        }
+      } else {
+        throw new ConflictError(
+          `Order already ${OrdersModelResult.orderStatus}`
+        );
+      }
+    } else if (type === 'accept') {
+      if (OrdersModelResult.orderStatus === 'pending') {
+        await OrdersModelResult.update({
+          orderStatus: 'inProgress',
+          startTime: new Date(),
+        });
+        await OrdersModelResult.update({ moneyStatus: 'received' });
+
+        // 🔔 Send accept notification
+        try {
+          await this.sendToDevice(
+            userResult.fcmToken,
+            {
+              title: 'Order Accepted ✅',
+              body: 'Your order has been accepted and is now in progress.',
+            },
+            {
+              type: 'ORDER_ACCEPTED',
+              orderId: OrdersModelResult.id,
+            }
+          );
+        } catch (error) {
+          console.error('Notification failed (accept):', error);
+        }
+      } else {
+        throw new ConflictError(
+          `Order already ${OrdersModelResult.orderStatus}`
+        );
+      }
     }
   }
 
@@ -541,7 +826,7 @@ class UserService {
   }
 
   async handleGetMyOrderDetails(data) {
-    const { orderId, type, userId } =
+    const { orderId, userType, userId } =
       await userUtil.verifyHandleGetMyOrderDetails.validateAsync(data);
 
     const orderResult = await this.OrdersModel.findByPk(orderId);
@@ -553,46 +838,123 @@ class UserService {
         where: { UserId: orderResult.merchantId },
       });
       const userResult = await this.UserModel.findByPk(orderResult.clientId);
-      const merchantResult = await this.UserModel.findByPk(
-        orderResult.merchantId
-      );
+      const merchantResult = await this.UserModel.findOne({
+        where: { id: orderResult.merchantId },
+        include: [
+          {
+            model: MerchantProfile,
+            as: 'MerchantProfile',
+            attributes: ['displayname', 'tel', 'imageUrl'],
+          },
+        ],
+      });
       const settingResult = await this.SettingModel.findByPk(1);
-      const AmountSummary = this.getdeliveryAmountSummary(
-        merchantAdsModelResult.pricePerThousand,
-        orderResult.amountOrder,
-        settingResult.serviceCharge,
-        settingResult.gatewayService
+
+      const priceData = this.convertToJson(
+        merchantAdsModelResult.pricePerThousand
       );
-      if (type === 'client') {
+
+      const serviceCharge = this.convertToJson(settingResult.serviceCharge);
+
+      const gatewayService = this.convertToJson(settingResult.gatewayService);
+
+      const AmountSummary = this.getdeliveryAmountSummary(
+        priceData,
+        orderResult.amountOrder,
+        serviceCharge,
+        gatewayService
+      );
+      if (userType === 'client') {
+        let estimatedDeliveryTime;
+        let distance;
+        if (orderResult.orderStatus === 'inProgress') {
+          distance = this.calculateDistance(
+            userResult.lat,
+            userResult.lng,
+            merchantResult.lat,
+            merchantResult.lng
+          );
+
+          estimatedDeliveryTime = this.getEstimatedDeliveryTimeByFoot(distance);
+        }
+
         return {
           orderDetails: {
-            orderId: orderResult.id,
-            distance: orderResult.distance,
-            charges: AmountSummary,
             qrCodeHash: orderResult.qrCodeHash,
-            merchantDetails: {
-              displayname: merchantResult.displayname,
+            id: orderResult.id,
+            orderId: orderResult.orderId,
+            distance: distance || orderResult.distance,
+            amount: orderResult.amount,
+            amountOrder: orderResult.amountOrder,
+            orderStatus: orderResult.orderStatus,
+            estimatedDeliveryTime,
+            isOnline: userResult.isOnline,
+            startTime: orderResult.startTime,
+            endTime: orderResult.endTime,
+            clientId: orderResult.clientId,
+            merchantId: orderResult.merchantId,
+            userDetails: {
+              displayname:
+                merchantResult.MerchantProfile.dataValues.displayname,
               tel: merchantResult.tel,
-              image: merchantResult.image,
+              image: merchantResult.MerchantProfile.imageUrl,
               merchantAds: merchantAdsModelResult,
+              sourceCoordinate: {
+                lat: userResult.lat,
+                lng: userResult.lng,
+              },
+              destinationCoordinate: {
+                lat: merchantResult.lat,
+                lng: merchantResult.lng,
+              },
             },
           },
         };
-      } else if (type === 'merchant') {
+      } else if (userType === 'merchant') {
+        let estimatedDeliveryTime;
+        let distance;
+        if (orderResult.orderStatus === 'inProgress') {
+          distance = this.calculateDistance(
+            userResult.lat,
+            userResult.lng,
+            merchantResult.lat,
+            merchantResult.lng
+          );
+
+          estimatedDeliveryTime = this.getEstimatedDeliveryTimeByFoot(distance);
+        }
         return {
           orderDetails: {
-            orderId: orderResult.id,
-            distance: orderResult.distance,
+            id: orderResult.id,
+            orderId: orderResult.orderId,
+            distance: distance || orderResult.distance,
             amount: orderResult.amount,
-            clientDetails: {
-              displayname: userResult.displayname,
+            amountOrder: orderResult.amountOrder,
+            orderStatus: orderResult.orderStatus,
+            estimatedDeliveryTime,
+            isOnline: userResult.isOnline,
+            startTime: orderResult.startTime,
+            endTime: orderResult.endTime,
+            clientId: orderResult.clientId,
+            merchantId: orderResult.merchantId,
+            userDetails: {
+              displayname: userResult.firstName + ' ' + userResult.lastName,
               tel: userResult.tel,
-              image: userResult.image,
+              image: userResult.imageUrl,
+              destinationCoordinate: {
+                lat: userResult.lat,
+                lng: userResult.lng,
+              },
+              sourceCoordinate: {
+                lat: merchantResult.lat,
+                lng: merchantResult.lng,
+              },
             },
           },
         };
       }
     } catch (error) {
+      console.log(error);
       throw new SystemError(error.name, error.parent);
     }
   }
@@ -601,7 +963,7 @@ class UserService {
       await userUtil.verifyHandleGetOrderStatistic.validateAsync(data);
     try {
       const UserModelResult = await this.UserModel.findByPk(userId);
-      const SuccessFullCount = await this.OrdersModel.count({
+      const CompletedCount = await this.OrdersModel.count({
         where: {
           merchantId: userId,
           orderStatus: 'completed',
@@ -611,10 +973,13 @@ class UserService {
       const CancellCount = await this.OrdersModel.count({
         where: { merchantId: userId, orderStatus: 'cancelled' },
       });
+
       const PendingCount = await this.OrdersModel.count({
+        where: { merchantId: userId, orderStatus: 'pending' },
+      });
+      const InProgressCount = await this.OrdersModel.count({
         where: { merchantId: userId, orderStatus: 'inProgress' },
       });
-
       const OrdersModelResult = await this.OrdersModel.findAll({
         where: { orderStatus: 'inProgress', merchantId: userId },
       });
@@ -623,25 +988,41 @@ class UserService {
       });
       const settingResult = await this.SettingModel.findByPk(1);
       let totalMerchantCharge = 0;
-      for (let order of OrdersModelResult) {
-        const amountSummary = this.getdeliveryAmountSummary(
-          merchantAdsModelResult.pricePerThousand,
-          order.amountOrder,
-          settingResult.serviceCharge,
-          settingResult.gatewayService
-        );
-        totalMerchantCharge += amountSummary.merchantCharge;
-      }
 
-      const balance = JSON.parse(UserModelResult.walletBalance).current;
+      const priceData = this.convertToJson(
+        merchantAdsModelResult.pricePerThousand
+      );
+      const serviceCharge = this.convertToJson(settingResult.serviceCharge);
+      const gatewayService = this.convertToJson(settingResult.gatewayService);
+
+      for (let order of OrdersModelResult) {
+        console.log('order.amountOrder');
+        console.log(order.amountOrder);
+        console.log('order.amountOrder');
+        const amountSummary = await this.getdeliveryAmountSummary(
+          priceData,
+          order.amountOrder,
+          serviceCharge,
+          gatewayService
+        );
+
+        totalMerchantCharge +=
+          amountSummary.amountOrder + amountSummary.merchantCharge;
+      }
+      console.log(UserModelResult.walletBalance);
+      const balance =
+        this.convertToJson(UserModelResult.walletBalance)?.current || 0;
+      // const balance = JSON.parse(UserModelResult.walletBalance).current;
       return {
         Balance: balance,
         EscrowBalance: totalMerchantCharge,
-        SuccessFullCount,
+        CompletedCount,
         PendingCount,
         CancellCount,
+        InProgressCount,
       };
     } catch (error) {
+      console.log(error);
       throw new SystemError(error.name, error.parent);
     }
   }
@@ -1188,6 +1569,17 @@ class UserService {
     }
   }
 
+  async safeParse(input) {
+    if (typeof input === 'string') {
+      try {
+        return JSON.parse(input);
+      } catch (e) {
+        console.error('Failed to parse:', e);
+        return {};
+      }
+    }
+    return input || {};
+  }
   async handleSubmitComplain(data) {
     const { userId } = await userUtil.verifyHandleSubmitComplain.validateAsync(
       data
@@ -1418,7 +1810,7 @@ class UserService {
         }
 
         return {
-          id: txn.id,
+          id: txn.transactionId,
           title,
           initials,
           date: `${this.formatDate(txn.createdAt)}`,
@@ -1442,9 +1834,11 @@ class UserService {
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   }
+
   async handleGetTransactionHistoryOrder(data) {
     const { userId, startDate, endDate } =
-      await userUtil.verifyHandleOrderAcceptOrCancel.validateAsync(data);
+      await userUtil.verifyHandleGetTransactionHistoryOrder.validateAsync(data);
+
     try {
       const dateFilter =
         startDate && endDate
@@ -1460,8 +1854,8 @@ class UserService {
         where: {
           isDeleted: false,
           userId,
-          dateFilter,
           transactionType: 'order',
+          ...dateFilter, // ✅ Correct usage of dateFilter
         },
         limit: startDate && endDate ? undefined : 15, // Limit to 15 if no date range provided
         include: [
@@ -1469,11 +1863,20 @@ class UserService {
             model: this.OrdersModel,
             as: 'OrderTransaction',
             where: { isDeleted: false },
+            required: false,
             include: [
               {
                 model: this.UserModel,
-                as: 'merchantOrder',
-                attributes: ['firstName', 'lastName', 'emailAddress', 'tel'],
+                as: 'OrderMerchant',
+                required: true,
+                attributes: ['id'],
+                include: [
+                  {
+                    model: MerchantProfile,
+                    as: 'MerchantProfile',
+                    attributes: ['id', 'displayName', 'imageUrl'],
+                  },
+                ],
               },
             ],
           },
@@ -1481,78 +1884,265 @@ class UserService {
         order: [['createdAt', 'DESC']],
       });
 
+      // console.log('transactions', transactions[0].OrderTransaction);
       // Transform and return data
       return transactions.map((transaction) => ({
         id: transaction.id,
         amount: transaction.amount,
         paymentStatus: transaction.paymentStatus,
         transactionType: transaction.transactionType,
-        orderDetails: transaction.Order
+        orderDetails: transaction.OrderTransaction
           ? {
-              id: transaction.Order.id,
-              amountOrder: transaction.Order.amountOrder,
-              totalAmount: transaction.Order.totalAmount,
-              orderStatus: transaction.Order.orderStatus,
+              id: transaction.OrderTransaction.orderId,
+              amountOrder: transaction.OrderTransaction.amountOrder,
+              totalAmount: transaction.OrderTransaction.totalAmount,
+              orderStatus: transaction.OrderTransaction.orderStatus,
             }
           : null,
-        merchantDetails: transaction.Order?.Merchant
+        merchantDetails: transaction.OrderTransaction?.OrderMerchant
+          .MerchantProfile
           ? {
-              firstName: transaction.Order.merchantOrder.firstName,
-              lastName: transaction.Order.merchantOrder.lastName,
-              emailAddress: transaction.Order.merchantOrder.emailAddress,
-              tel: transaction.Order.merchantOrder.tel,
-              profile: transaction.Order.merchantOrder.MerchantProfile || null,
+              name: transaction.OrderTransaction.OrderMerchant.MerchantProfile
+                .displayName,
+              imageUrl:
+                transaction.OrderTransaction.OrderMerchant.MerchantProfile
+                  .imageUrl,
             }
           : null,
       }));
     } catch (error) {
       console.error('Error fetching transactions with details:', error);
-      throw new SystemError(error.name, error.parent);
+      throw new SystemError(error.name, error.parent || error.message);
     }
   }
+  /*
   async handleverifyCompleteOrder(data) {
-    const { userId, orderId, hash } =
-      await userUtil.verifyHandleOrderAcceptOrCancel.validateAsync(data);
-
     try {
-      /*-------------------------------
-      the first part is use to validate 
-      that the person accessing this route
-      is the right person
-      ---------------------------------*/
-      const orderResult = await this.OrdersModel.findByPk(orderId);
-      const userResult = await this.UserModel.findByPk(orderResult.clientId);
+      // Validate the input data
+      const { userId, orderId, hash } =
+        await userUtil.verifyHandleverifyCompleteOrder.validateAsync(data);
 
+      // Fetch the order by ID
+      const orderResult = await this.OrdersModel.findByPk(orderId);
+      if (!orderResult) {
+        throw new NotFoundError(`Order with ID ${orderId} not found.`);
+      }
+
+      if (orderResult.orderStatus === 'completed') {
+        throw new ConflictError(`Order marked as completed already.`);
+      } else if (
+        orderResult.orderStatus === 'cancelled' ||
+        orderResult.orderStatus === 'rejected'
+      ) {
+        throw new ConflictError(
+          `Order marked as ${orderResult.orderStatus} already.`
+        );
+      }
+
+      // Validate that the correct user is accessing
+      const userResult = await this.UserModel.findByPk(orderResult.clientId);
+      if (!userResult) {
+        throw new NotFoundError(
+          `Client with ID ${orderResult.clientId} not found.`
+        );
+      }
+
+      // Construct hash and compare
       const unConvertedHash =
-        orderId +
         orderResult.clientId +
-        userId +
+        orderResult.merchantId +
         userResult.password +
         serverConfig.GET_QR_CODE_HASH;
-      //const orderResult = await this.OrdersModel.findByPk(orderId);
-      if (!(await bcrypt.compare(unConvertedHash, hash))) return null;
 
-      orderResult.update({ orderStatus: 'completed', moneyStatus: 'paid' });
+      const isValidHash = await bcrypt.compare(unConvertedHash, hash);
+
+      if (!isValidHash) {
+        throw new BadRequestError('The provided hash is invalid or tampered.');
+      }
+
+      // Fetch merchant ad
+      const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
+        where: { userId: orderResult.merchantId },
+      });
+      if (!MerchantAdsModelResult) {
+        throw new NotFoundError('No ad found for this merchant.');
+      }
+
+      // Parse required settings and calculate delivery summary
+      const priceData = this.convertToJson(
+        MerchantAdsModelResult.pricePerThousand
+      );
+      const settingResult = await this.SettingModel.findByPk(1);
+      if (!settingResult) {
+        throw new SystemError('SettingsNotFound', 'System settings not found.');
+      }
+
+      const serviceCharge = this.convertToJson(settingResult.serviceCharge);
+      const gatewayService = this.convertToJson(settingResult.gatewayService);
+      const getdeliveryAmountSummary = await this.getdeliveryAmountSummary(
+        priceData,
+        orderResult.amountOrder,
+        serviceCharge,
+        gatewayService
+      );
+
+      const merchantPayOut =
+        getdeliveryAmountSummary.merchantCharge +
+        getdeliveryAmountSummary.amountOrder;
+      const commission = getdeliveryAmountSummary.serviceCharge;
+
+      // Update wallets
+      await this.updateWallet(userId, orderResult.totalAmount);
+      await this.updateAdminWallet(1, commission);
+      // Update order status
+      await orderResult.update({
+        orderStatus: 'completed',
+        moneyStatus: 'received',
+      });
+    } catch (error) {
+      console.error('handleverifyCompleteOrder Error:', error); // Optional logging
+      // Return or throw a clean error
+      if (error instanceof SystemError) {
+        throw error; // Already structured
+      }
+      throw new SystemError(
+        'UnexpectedError',
+        error.message || 'An unexpected error occurred.'
+      );
+    }
+  }*/
+
+  async handleverifyCompleteOrder(data) {
+    try {
+      const { userId, orderId, hash } =
+        await userUtil.verifyHandleverifyCompleteOrder.validateAsync(data);
+
+      const orderResult = await this.OrdersModel.findByPk(orderId);
+      if (!orderResult) {
+        throw new NotFoundError(`Order with ID ${orderId} not found.`);
+      }
+
+      if (orderResult.orderStatus === 'completed') {
+        throw new ConflictError(`Order marked as completed already.`);
+      } else if (
+        orderResult.orderStatus === 'cancelled' ||
+        orderResult.orderStatus === 'rejected'
+      ) {
+        throw new ConflictError(
+          `Order marked as ${orderResult.orderStatus} already.`
+        );
+      }
+
+      const userResult = await this.UserModel.findByPk(orderResult.clientId);
+      const userResult2 = await this.UserModel.findByPk(orderResult.merchantId);
+
+      if (!userResult) {
+        throw new NotFoundError(
+          `Client with ID ${orderResult.clientId} not found.`
+        );
+      }
+
+      const unConvertedHash = this.rawOrderHash(
+        orderResult.clientId,
+        orderResult.merchantId,
+        userResult.password,
+        orderResult.orderId
+      );
+
+      const isValidHash = await bcrypt.compare(unConvertedHash, hash);
+      if (!isValidHash) {
+        throw new BadRequestError('The provided hash is invalid or tampered.');
+      }
 
       const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
-        where: {
-          userId: orderResult.merchantId,
-        },
+        where: { userId: orderResult.merchantId },
       });
+      if (!MerchantAdsModelResult) {
+        throw new NotFoundError('No ad found for this merchant.');
+      }
+
+      const priceData = this.convertToJson(
+        MerchantAdsModelResult.pricePerThousand
+      );
       const settingResult = await this.SettingModel.findByPk(1);
+      if (!settingResult) {
+        throw new SystemError('SettingsNotFound', 'System settings not found.');
+      }
+
+      const serviceCharge = this.convertToJson(settingResult.serviceCharge);
+      const gatewayService = this.convertToJson(settingResult.gatewayService);
 
       const getdeliveryAmountSummary = await this.getdeliveryAmountSummary(
-        MerchantAdsModelResult.pricePerThousand,
+        priceData,
         orderResult.amountOrder,
-        settingResult.serviceCharge,
-        settingResult.gatewayService
+        serviceCharge,
+        gatewayService
       );
-      this.updateWallet(userId, getdeliveryAmountSummary.merchantCharge);
-      this.updateAdminWallet(1);
+
+      const merchantPayOut =
+        getdeliveryAmountSummary.merchantCharge +
+        getdeliveryAmountSummary.amountOrder;
+      const commission = getdeliveryAmountSummary.serviceCharge;
+
+      // 💸 Update wallets
+      await this.updateWallet(userId, orderResult.totalAmount);
+      await this.updateAdminWallet(1, commission);
+
+      // ✅ Mark order completed
+      await orderResult.update({
+        orderStatus: 'completed',
+        moneyStatus: 'received',
+      });
+
+      // 🔔 Push notification (non-blocking)
+      if (userResult?.fcmToken) {
+        try {
+          await this.sendToDevice(
+            userResult.fcmToken,
+            {
+              title: 'Order Completed ✅',
+              body: 'Your order has been successfully completed.',
+            },
+            {
+              type: 'ORDER_COMPLETED',
+              orderId: orderResult.id,
+            }
+          );
+        } catch (notifyErr) {
+          console.error('Notification failed (complete order):', notifyErr);
+        }
+      }
+      if (userResult2?.fcmToken) {
+        try {
+          await this.sendToDevice(
+            userResult.fcmToken,
+            {
+              title: 'Order Completed ✅',
+              body: 'Your order has been successfully completed.',
+            },
+            {
+              type: 'ORDER_COMPLETED',
+              orderId: orderResult.id,
+            }
+          );
+        } catch (notifyErr) {
+          console.error('Notification failed (complete order):', notifyErr);
+        }
+      }
     } catch (error) {
-      throw new SystemError(error.name, error.parent);
+      console.error('handleverifyCompleteOrder Error:', error);
+
+      if (error instanceof SystemError) {
+        throw error;
+      }
+
+      throw new SystemError(
+        'UnexpectedError',
+        error.message || 'An unexpected error occurred.'
+      );
     }
   }
+
   async handleGetChargeSummary(data) {
     const { amount, userId, userId2 } =
       await userUtil.verifyHandleGetChargeSummary.validateAsync(data);
@@ -1610,87 +2200,350 @@ class UserService {
       throw new SystemError(error.name, error.parent);
     }
   }
-
+  /*
   async handleMakeOrderPayment(data) {
-    const { userId, userId2, amount } =
-      await userUtil.verifyHandleMakeOrderPayment.validateAsync(data);
+    const sequelize = this.UserModel.sequelize;
+    let validatedData;
 
-    const userResult = await this.UserModel.findByPk(userId);
-    console.log(userResult.walletBalance.current);
-    if (userResult.walletBalance.current >= amount) {
-      throw new BadRequestError('Insufficient balance');
-    }
     try {
-      const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
-        where: { userId: userId2 },
+      validatedData = await userUtil.verifyHandleMakeOrderPayment.validateAsync(
+        data
+      );
+    } catch (err) {
+      throw new BadRequestError('Invalid input: ' + err.message);
+    }
+
+    const { userId, userId2, amount, amountOrder } = validatedData;
+
+    return await sequelize.transaction(async (t) => {
+      // 1. Fetch and validate User
+      const userResult = await this.UserModel.findByPk(userId, {
+        transaction: t,
       });
+      if (!userResult) throw new NotFoundError('User not found');
 
-      if (!MerchantAdsModelResult)
-        throw new NotFoundError(
-          'Merchant ads not found, check if it has been created'
-        );
+      // Parse wallet safely
+      let userWallet = { current: 0, previous: 0 };
+      try {
+        userWallet =
+          typeof userResult.walletBalance === 'string'
+            ? JSON.parse(userResult.walletBalance)
+            : userResult.walletBalance || { current: 0, previous: 0 };
+      } catch (e) {
+        console.error('Error parsing user walletBalance:', e);
+        throw new SystemError('Corrupt user wallet data');
+      }
 
-      const settingModelResult = await this.SettingModel.findByPk(1);
-      if (!settingModelResult)
-        throw new NotFoundError(
-          'admin Setting not found check if admin setting has been created'
-        );
+      const currentUserBalance = Number(userWallet.current) || 0;
+      if (currentUserBalance < amount) {
+        throw new BadRequestError('Insufficient balance');
+      }
 
-      let pricePerThousand = MerchantAdsModelResult.pricePerThousand;
+      // 2. Fetch and validate Merchant Ad
+      const merchantAd = await this.MerchantAdsModel.findOne({
+        where: { userId: userId2 },
+        transaction: t,
+      });
+      if (!merchantAd) {
+        throw new NotFoundError('Merchant ads not found');
+      }
+
+      // 3. Fetch Setting
+      const settingModelResult = await this.SettingModel.findByPk(1, {
+        transaction: t,
+      });
+      if (!settingModelResult) {
+        throw new InternalServerError('System settings not found');
+      }
+
+      // 4. Update User wallet
+      const updatedUserWallet = {
+        previous: currentUserBalance,
+        current: currentUserBalance - amount,
+      };
+      await userResult.update(
+        { walletBalance: updatedUserWallet },
+        { transaction: t }
+      );
+
+      // 5. Update Setting wallet (service charge)
+      let settingWallet = { previous: 0, current: 0 };
+      try {
+        settingWallet =
+          typeof settingModelResult.walletBalance === 'string'
+            ? JSON.parse(settingModelResult.walletBalance)
+            : settingModelResult.walletBalance || { previous: 0, current: 0 };
+      } catch (e) {
+        console.error('Error parsing setting walletBalance:', e);
+        throw new SystemError('Corrupt setting wallet data');
+      }
+
+      const previousSettingBalance = Number(settingWallet.current) || 0;
+
+      let pricePerThousand = merchantAd.pricePerThousand;
       let serviceCharge = settingModelResult.serviceCharge;
       let gatewayService = settingModelResult.gatewayService;
 
-      if (typeof gatewayService === 'string') {
-        try {
-          gatewayService = JSON.parse(gatewayService);
-        } catch (e) {
-          console.error('Failed to parse gatewayService:', e);
-        }
-      }
+      pricePerThousand = await this.safeParse(pricePerThousand);
+      serviceCharge = await this.safeParse(serviceCharge);
+      gatewayService = await this.safeParse(gatewayService);
 
-      if (typeof serviceCharge === 'string') {
-        try {
-          serviceCharge = JSON.parse(serviceCharge);
-        } catch (e) {
-          console.error('Failed to parse serviceCharge:', e);
-        }
-      }
-      if (typeof pricePerThousand === 'string') {
-        try {
-          pricePerThousand = JSON.parse(pricePerThousand);
-        } catch (e) {
-          console.error('Failed to parse pricePerThousand:', e);
-        }
-      }
-
-      const getdeliveryAmountSummary = await this.getdeliveryAmountSummary(
+      const amountSummary = await this.getdeliveryAmountSummary(
         pricePerThousand,
-        amount,
+        amountOrder,
         serviceCharge,
         gatewayService
       );
 
-      const TransactionModelResult = await this.TransactionModel.create({
-        userId,
-        amount,
-        transactionType: 'order',
-        paymentStatus: 'successful',
-        transactionFrom: 'wallet',
-      });
+      // const serviceCharge = amountSummary.serviceCharge;
+      const updatedSettingWallet = {
+        previous: previousSettingBalance,
+        current: previousSettingBalance + amountSummary.serviceCharge,
+      };
+      await settingModelResult.update(
+        { walletBalance: updatedSettingWallet },
+        { transaction: t }
+      );
 
-      const OrderModelResult = await this.OrdersModel.create({
-        orderStatus: 'notAccepted',
-        moneyStatus: 'received',
-        clientId: userId,
-        merchantId: userId2,
-        amountOrder: amount,
-        transactionId: TransactionModelResult.id,
-        totalAmount: getdeliveryAmountSummary.totalAmount,
-        amountOrder: amount,
+      // 6. Log Transaction
+      const transactionResult = await this.TransactionModel.create(
+        {
+          userId,
+          merchantId: userId2,
+          orderAmount: amountOrder,
+          amount,
+          transactionType: 'order',
+          paymentStatus: 'successful',
+          transactionFrom: 'wallet',
+        },
+        { transaction: t }
+      );
+
+      // 7. Create Order
+      const newOrder = await this.OrdersModel.create(
+        {
+          orderStatus: 'notAccepted',
+          moneyStatus: 'received',
+          orderId: this.generateOrderId('NG', 10),
+          clientId: userId,
+          merchantId: userId2,
+          amountOrder,
+          amount,
+          qrCodeHash: await this.getQRCodeHash(
+            userId,
+            userId2,
+            userResult.password
+          ),
+          transactionId: transactionResult.id,
+        },
+        { transaction: t }
+      );
+
+      const merchantUser = await this.UserModel.findByPk(userId2, {
+        transaction: t,
       });
-    } catch (error) {
-      throw new SystemError(error.name, error.parent);
+      if (merchantUser && merchantUser.fcmToken) {
+        await this.sendToDevice(
+          merchantUser.fcmToken,
+          {
+            title: 'New Order Alert 🚀',
+            body: `You’ve received a new order from ${userResult.firstName}. Open the app to accept it.`,
+          },
+          {
+            type: 'NEW_ORDER',
+            orderId: newOrder.orderId,
+          }
+        );
+      }
+
+      return {
+        success: true,
+        message: 'Order payment processed successfully',
+      };
+    });
+  }*/
+
+  async handleMakeOrderPayment(data) {
+    const sequelize = this.UserModel.sequelize;
+    let validatedData;
+
+    try {
+      validatedData = await userUtil.verifyHandleMakeOrderPayment.validateAsync(
+        data
+      );
+    } catch (err) {
+      throw new BadRequestError('Invalid input: ' + err.message);
     }
+
+    const { userId, userId2, amount, amountOrder } = validatedData;
+
+    let newOrder, userResult, merchantUser;
+
+    await sequelize.transaction(async (t) => {
+      // 1. Fetch and validate User
+      userResult = await this.UserModel.findByPk(userId, { transaction: t });
+      if (!userResult) throw new NotFoundError('User not found');
+
+      // Parse wallet safely
+      let userWallet = { current: 0, previous: 0 };
+      try {
+        userWallet =
+          typeof userResult.walletBalance === 'string'
+            ? JSON.parse(userResult.walletBalance)
+            : userResult.walletBalance || { current: 0, previous: 0 };
+      } catch (e) {
+        console.error('Error parsing user walletBalance:', e);
+        throw new SystemError('Corrupt user wallet data');
+      }
+
+      const currentUserBalance = Number(userWallet.current) || 0;
+      if (currentUserBalance < amount) {
+        throw new BadRequestError('Insufficient balance');
+      }
+
+      // 2. Fetch and validate Merchant Ad
+      const merchantAd = await this.MerchantAdsModel.findOne({
+        where: { userId: userId2 },
+        transaction: t,
+      });
+      if (!merchantAd) throw new NotFoundError('Merchant ads not found');
+
+      // 3. Fetch Setting
+      const settingModelResult = await this.SettingModel.findByPk(1, {
+        transaction: t,
+      });
+      if (!settingModelResult)
+        throw new SystemError('System settings not found');
+
+      // 4. Update User wallet
+      const updatedUserWallet = {
+        previous: currentUserBalance,
+        current: currentUserBalance - amount,
+      };
+      await userResult.update(
+        { walletBalance: updatedUserWallet },
+        { transaction: t }
+      );
+
+      // 5. Update Setting wallet (service charge)
+      let settingWallet = { previous: 0, current: 0 };
+      try {
+        settingWallet =
+          typeof settingModelResult.walletBalance === 'string'
+            ? JSON.parse(settingModelResult.walletBalance)
+            : settingModelResult.walletBalance || { previous: 0, current: 0 };
+      } catch (e) {
+        console.log('Error parsing setting walletBalance:', e);
+        throw new SystemError('Corrupt setting wallet data');
+      }
+
+      const previousSettingBalance = Number(settingWallet.current) || 0;
+
+      let pricePerThousand = await this.safeParse(merchantAd.pricePerThousand);
+      let serviceCharge = await this.safeParse(
+        settingModelResult.serviceCharge
+      );
+      let gatewayService = await this.safeParse(
+        settingModelResult.gatewayService
+      );
+
+      const amountSummary = await this.getdeliveryAmountSummary(
+        pricePerThousand,
+        amountOrder,
+        serviceCharge,
+        gatewayService
+      );
+
+      const updatedSettingWallet = {
+        previous: previousSettingBalance,
+        current: previousSettingBalance + amountSummary.serviceCharge,
+      };
+      await settingModelResult.update(
+        { walletBalance: updatedSettingWallet },
+        { transaction: t }
+      );
+
+      // 6. Log Transaction
+      const transactionResult = await this.TransactionModel.create(
+        {
+          userId,
+          transactionId: this.generateOrderId('NG_TX', 10),
+          merchantId: userId2,
+          orderAmount: amountOrder,
+          amount,
+          transactionType: 'order',
+          paymentStatus: 'successful',
+          transactionFrom: 'wallet',
+        },
+        { transaction: t }
+      );
+
+      // 7. Create Order
+      const orderID = this.generateOrderId('NG', 10);
+      newOrder = await this.OrdersModel.create(
+        {
+          orderStatus: 'pending',
+          moneyStatus: 'received',
+          orderId: orderID,
+          clientId: userId,
+          merchantId: userId2,
+          amountOrder,
+          totalAmount:
+            amountSummary.merchantCharge +
+            amountSummary.serviceCharge +
+            amountSummary.amountOrder,
+          qrCodeHash: await this.getQRCodeHash(
+            userId,
+            userId2,
+            userResult.password,
+            orderID
+          ),
+          transactionId: transactionResult.id,
+        },
+        { transaction: t }
+      );
+
+      // Prepare merchant user for later notification
+      merchantUser = await this.UserModel.findByPk(userId2, { transaction: t });
+    });
+
+    // 🔔 Send push notification outside the transaction
+    if (merchantUser && merchantUser.fcmToken) {
+      try {
+        await this.sendToDevice(
+          merchantUser.fcmToken,
+          {
+            title: 'New Order Alert 🚀',
+            body: `You’ve received a new order from ${userResult.firstName}. Open the app to accept it.`,
+          },
+          {
+            type: 'NEW_ORDER',
+            orderId: newOrder.orderId,
+          }
+        );
+      } catch (notificationError) {
+        console.warn('Push notification failed:', notificationError);
+        // Do not throw — just log and continue
+      }
+    }
+
+    return {
+      success: true,
+      message: 'Order payment processed successfully',
+    };
+  }
+
+  generateOrderId(prefix, totalLength) {
+    const sanitizedPrefix = prefix.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const randomLength = totalLength - sanitizedPrefix.length;
+
+    if (randomLength <= 0) {
+      throw new Error('Total length must be greater than prefix length.');
+    }
+
+    const nanoid = getNanoid(randomLength);
+    const id = `${sanitizedPrefix}${nanoid()}`;
+    return id;
   }
 
   async handleConfirmTransfer(data) {
@@ -1720,9 +2573,6 @@ class UserService {
     if (!settingModelResult) throw new NotFoundError('Setting not found');
 
     try {
-      console.log('settingModelResult.activeGateway');
-      console.log(settingModelResult?.activeGateway);
-      console.log('settingModelResult.activeGateway');
       if (settingModelResult.activeGateway === 'safeHaven.gateway') {
         if (type == 'fundWallet') {
           const sessionIdVirtualAcct = `session${Date.now()}-${Math.floor(
@@ -1732,6 +2582,7 @@ class UserService {
           const transactionModelResult = await this.TransactionModel.create({
             userId,
             amount,
+            transactionId: this.generateOrderId('NG_TX', 10),
             transactionType: 'fundWallet',
             paymentStatus: 'pending',
             transactionFrom: 'external',
@@ -1769,9 +2620,10 @@ class UserService {
             sessionId: sessionIdVirtualAcct,
           };
 
-          const transactionModelResult = await this.TransactionModel.create({
+          await this.TransactionModel.create({
             userId,
             amount,
+            transactionId: this.generateOrderId('NG_TX', 10),
             transactionType: 'order',
             paymentStatus: 'pending',
             transactionFrom: 'external',
@@ -1990,7 +2842,12 @@ class UserService {
   async handleGetMyOrders(data) {
     const { userId, userType, type } =
       await userUtil.verifyHandleGetMyOrders.validateAsync(data);
-    let orderResult = [];
+    console.log(userId);
+    console.log(userId);
+    console.log(userId);
+    console.log(userId);
+    console.log(userId);
+    let orderResult;
     try {
       // Fetch orders based on user type and order type
       if (userType === 'client') {
@@ -1999,7 +2856,7 @@ class UserService {
             where: {
               clientId: userId,
               orderStatus: {
-                [Op.or]: ['inProgress', 'notAccepted'],
+                [Op.or]: ['inProgress', 'pending'],
               },
             },
           });
@@ -2017,7 +2874,7 @@ class UserService {
             where: {
               merchantId: userId,
               orderStatus: {
-                [Op.or]: ['inProgress', 'notAccepted'], // Sequelize OR condition
+                [Op.or]: ['inProgress', 'pending'],
               },
             },
           });
@@ -2028,10 +2885,16 @@ class UserService {
               orderStatus: 'completed',
             },
           });
+        } else if (type === 'all') {
+          orderResult = await this.OrdersModel.findAll({
+            where: {
+              merchantId: userId,
+            },
+          });
         }
       }
 
-      // Add distance and transaction time details
+      // Process and enrich each order
       for (const order of orderResult) {
         const clientDetails = await this.getUserDetails(order.clientId);
         const merchantDetails = await this.getUserDetails(order.merchantId);
@@ -2043,28 +2906,85 @@ class UserService {
         const distance = this.calculateDistance(
           clientDetails.lat,
           clientDetails.lng,
-          clientDetails.lat,
+          merchantDetails.lat,
           merchantDetails.lng
         );
         order.distance = distance;
 
-        // Fetch transaction time
-        const transactionTime = await Utility.getTransactionTime();
-        order.transactionTime = transactionTime;
+        // Estimate delivery time (in minutes)
+        const estimatedDeliveryTime =
+          this.getEstimatedDeliveryTimeByFoot(distance);
+        // order.estimatedDeliveryTimeByFoot = estimatedDeliveryTime;
+        order.transactionTime = estimatedDeliveryTime;
       }
 
+      console.log(orderResult);
       return orderResult;
     } catch (error) {
+      console.log(error);
       throw new SystemError(error.name, error.parent);
     }
   }
+
+  // Estimate delivery time by foot (distance in kilometers)
+  getEstimatedDeliveryTimeByFoot(distanceInKm) {
+    const walkingSpeedKmPerHour = 5; // average walking speed
+    const timeInHours = distanceInKm / walkingSpeedKmPerHour;
+    const timeInMinutes = Math.round(timeInHours * 60); // convert to minutes
+    return `${timeInMinutes} min`;
+  }
+
   async handleGetChatHistory(data) {
-    const { userId, roomId } =
+    const { userId, userType, orderId } =
       await userUtil.verifyHandleGetChatHistory.validateAsync(data);
 
+    const order = await this.OrdersModel.findByPk(orderId);
+    //const roomId = `${Math.min(userId1, userId2)}-${Math.max(userId1, userId2)}room`;
+    const roomId = `${Math.min(order.clientId, order.merchantId)}-${Math.max(
+      order.clientId,
+      order.merchantId
+    )}room`;
+
+    let user = {};
+
+    if (!order) throw new NotFoundError('Order not found');
+    if (userType == 'client') {
+      const merchant = await this.UserModel.findByPk(order.merchantId, {
+        include: [
+          {
+            model: this.MerchantProfileModel,
+            as: 'MerchantProfile',
+            attributes: ['displayName', 'imageUrl'],
+          },
+        ],
+      });
+
+      user = {
+        name: merchant.MerchantProfile.displayName,
+        imageUrl: merchant.MerchantProfile.imageUrl,
+        isOnline: merchant.isOnline,
+        id: merchant.id,
+      };
+    } else {
+      const client = await this.UserModel.findByPk(order.clientId);
+
+      user = {
+        name: client.firstName + ' ' + client.lastName,
+        imageUrl: client.imageUrl,
+        isOnline: client.isOnline,
+        id: client.id,
+      };
+    }
     try {
-      const getMessagesByRoomResult = this.getMessagesByRoom(roomId);
-      return getMessagesByRoomResult;
+      const getMessagesByRoomResult = await this.getMessagesByRoom(roomId);
+      return {
+        chat: getMessagesByRoomResult,
+        user,
+        order: {
+          clientId: order.clientId,
+          merchantId: order.merchantId,
+        },
+      };
     } catch (error) {
       throw new SystemError(error.name, error.parent);
     }
@@ -2321,6 +3241,7 @@ class UserService {
 
       setting.isMatchRunning = false;
       setting.save();
+      console.log();
       throw new SystemError(error.name, error?.response?.data?.error);
     } finally {
       setting.isMatchRunning = false;
@@ -2365,9 +3286,70 @@ class UserService {
       userId2,
       roomId,
       messageType,
-      content,
+      message: content,
     });
   }
+  async markMessageAsDelivered(messageId) {
+    try {
+      const message = await this.ChatModel.findByPk(messageId);
+      if (message && message.messageStatus === 'sent') {
+        message.messageStatus = 'delivered';
+        message.deliveredAt = new Date();
+        await message.save();
+        return message;
+      }
+      return message;
+    } catch (error) {
+      console.error('Error marking message as delivered:', error);
+      throw error;
+    }
+  }
+
+  async markMessagesAsDelivered(roomId, userId) {
+    try {
+      await this.ChatModel.update(
+        {
+          messageStatus: 'delivered',
+          deliveredAt: new Date(),
+        },
+        {
+          where: {
+            roomId: roomId,
+            userId1: { [Op.ne]: userId }, // Messages not sent by this user
+            messageStatus: 'sent',
+          },
+        }
+      );
+    } catch (error) {
+      console.error('Error marking messages as delivered:', error);
+      throw error;
+    }
+  }
+
+  // Mark all delivered messages from other users as read for a specific user
+  async markMessagesAsRead(roomId, userId) {
+    try {
+      const updatedMessages = await Chat.update(
+        {
+          messageStatus: 'read',
+          readAt: new Date(),
+        },
+        {
+          where: {
+            roomId: roomId,
+            userId1: { [Op.ne]: userId }, // Messages not sent by this user
+            messageStatus: ['delivered', 'sent'],
+          },
+          returning: true, // Return updated records
+        }
+      );
+      return updatedMessages;
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
+      throw error;
+    }
+  }
+
   async updateTransactionSaveHaven(sessionIdVirtualAcct) {
     const TransactionModelResult = await this.TransactionModel.findOne({
       sessionIdVirtualAcct,
@@ -2400,7 +3382,7 @@ class UserService {
     });
   }
   clientTransactionUpdatePushNofication(fcmToken, data) {
-    sendPushNotification(fcmToken, data);
+    this.sendToDevice(fcmToken, data);
   }
   async getOrCreateRoom(userId, merchantId) {
     let room = await this.ChatModel.findOne({ where: { userId, merchantId } });
@@ -2410,14 +3392,18 @@ class UserService {
     return room;
   }
 
-  async getQRCodeHash(orderId, clientId, merchantId, passwordHash) {
+  async getQRCodeHash(clientId, merchantId, passwordHash, orderId) {
     //passwordHash for the user;
-    const convertToHash =
-      orderId +
-      clientId +
-      merchantId +
-      passwordHash +
-      serverConfig.GET_QR_CODE_HASH;
+    /*  const convertToHash =
+      clientId + merchantId + passwordHash + serverConfig.GET_QR_CODE_HASH;
+*/
+    const convertToHash = this.rawOrderHash(
+      clientId,
+      merchantId,
+      passwordHash,
+      orderId
+    );
+
     let myHash;
 
     try {
@@ -2499,17 +3485,92 @@ class UserService {
     }
   }
   async updateWallet(userId, amount) {
-    const UserModelResult = await this.UserModel.findByPk(userId);
-    let walletBalance =
-      parseFloat(UserModelResult.walletBalance) + parseFloat(amount);
-    UserModelResult.update({ walletBalance });
+    const t = await db.sequelize.transaction();
+
+    try {
+      // Lock the row to avoid race conditions
+      const user = await this.UserModel.findByPk(userId, {
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Initialize or sanitize walletBalance
+      let wallet = user.walletBalance;
+
+      if (typeof wallet === 'string') {
+        try {
+          wallet = JSON.parse(wallet);
+        } catch (e) {
+          console.warn('Invalid JSON wallet:', wallet);
+          wallet = null;
+        }
+      }
+
+      // If wallet is still null or not an object, default it
+      if (!wallet || typeof wallet !== 'object') {
+        console.log('Setting default wallet');
+        wallet = { previous: 0, current: 0 };
+      }
+
+      // Defensive fallback in case of invalid structure
+      const previous = parseFloat(wallet.current ?? wallet.previous ?? 0);
+      const newCurrent = previous + parseFloat(amount);
+
+      const updatedWallet = {
+        previous,
+        current: newCurrent,
+      };
+
+      await user.update({ walletBalance: updatedWallet }, { transaction: t });
+      await t.commit();
+
+      return updatedWallet;
+    } catch (err) {
+      await t.rollback();
+      console.error('Failed to update wallet:', err);
+      throw err;
+    }
   }
+
   async updateAdminWallet(userId, amount) {
-    const SettingModelResult = await this.SettingModel.findByPk(userId);
-    let walletBalance =
-      parseFloat(SettingModelResult.walletBalance) + parseFloat(amount);
-    SettingModelResult.update({ walletBalance });
+    const t = await db.sequelize.transaction();
+
+    try {
+      // Lock row FOR UPDATE to avoid race conditions
+      const setting = await this.SettingModel.findByPk(userId, {
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+
+      if (!setting) {
+        throw new Error('Admin not found');
+      }
+
+      // Handle possible stringified JSON
+      let wallet = setting.walletBalance;
+      if (typeof wallet === 'string') {
+        wallet = JSON.parse(wallet);
+      }
+
+      wallet.previous = wallet.current || 0;
+      wallet.current = parseFloat(wallet.previous) + parseFloat(amount);
+
+      // Save the updated JSON
+      await setting.update({ walletBalance: wallet }, { transaction: t });
+
+      await t.commit();
+      return wallet;
+    } catch (error) {
+      await t.rollback();
+      console.error('Error updating admin wallet:', error);
+      throw error;
+    }
   }
+
   async getdeliveryAmountSummary(
     merchantads,
     amount,
@@ -2555,21 +3616,85 @@ class UserService {
     // If valid closest amounts are found, calculate and return the summary
     if (closestMerchantAmount && closestServiceCharge && closestGatewayCharge) {
       const totalAmountToPay =
-        amount +
-        closestMerchantAmount.charge +
-        closestServiceCharge.charge +
-        closestGatewayCharge.charge;
+        Number(amount) +
+        Number(closestMerchantAmount.charge) +
+        Number(closestServiceCharge.charge) +
+        Number(closestGatewayCharge.charge);
 
       return {
         totalAmount: totalAmountToPay, // Total amount to be paid
         merchantCharge: closestMerchantAmount.charge, // Merchant charge
         serviceCharge: closestServiceCharge.charge, // Service charge
         gatewayCharge: closestGatewayCharge.charge, // Gateway charge
-        amountOrder: amount, // Amount to be ordered
+        amountOrder: Number(amount), // Amount to be ordered
       };
     } else {
       throw new Error('No valid charge found for the given amount');
     }
+  }
+
+  async getAmountOrderFromTotal(
+    totalAmount,
+    merchantads,
+    serviceCharge,
+    gatewayService
+  ) {
+    // Sort all arrays by amount
+    merchantads.sort((a, b) => a.amount - b.amount);
+    serviceCharge.sort((a, b) => a.amount - b.amount);
+    gatewayService.sort((a, b) => a.amount - b.amount);
+
+    // Try possible amountOrder values and find the one that results in the given totalAmount
+    for (let amount = 1; amount <= totalAmount; amount++) {
+      let closestMerchant = null;
+      let closestService = null;
+      let closestGateway = null;
+
+      for (let i = 0; i < merchantads.length; i++) {
+        if (merchantads[i].amount <= amount) {
+          closestMerchant = merchantads[i];
+        } else {
+          break;
+        }
+      }
+
+      for (let i = 0; i < serviceCharge.length; i++) {
+        if (serviceCharge[i].amount <= amount) {
+          closestService = serviceCharge[i];
+        } else {
+          break;
+        }
+      }
+
+      for (let i = 0; i < gatewayService.length; i++) {
+        if (gatewayService[i].amount <= amount) {
+          closestGateway = gatewayService[i];
+        } else {
+          break;
+        }
+      }
+
+      if (closestMerchant && closestService && closestGateway) {
+        const computedTotal =
+          amount +
+          closestMerchant.charge +
+          closestService.charge +
+          closestGateway.charge;
+
+        if (computedTotal === totalAmount) {
+          return {
+            amountOrder: amount,
+            merchantCharge: closestMerchant.charge,
+            serviceCharge: closestService.charge,
+            gatewayCharge: closestGateway.charge,
+            totalAmount: computedTotal,
+          };
+        }
+      }
+    }
+
+    // If no match found
+    throw new Error('No matching amountOrder found for the given totalAmount');
   }
 
   async writeToDirect() {
@@ -2608,7 +3733,169 @@ class UserService {
       console.log(error);
     }
   }
+  convertToJson = (data) => {
+    try {
+      if (typeof data === 'string') {
+        return JSON.parse(data);
+      } else if (typeof data === 'object') {
+        return data;
+      }
+    } catch (error) {
+      console.error('Error converting to JSON:', error);
+    }
+  };
+  async updateClientWallet(userId, amount) {
+    // Create transaction
+    await this.TransactionModel.create({
+      userId,
+      amount,
+      transactionId: this.generateOrderId('NG_TX', 10),
+      transactionType: 'fundWallet',
+      paymentStatus: 'successful',
+      transactionFrom: 'wallet',
+    });
+
+    // Fetch user with await
+    const user = await this.UserModel.findByPk(userId);
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+
+    try {
+      // Safely parse wallet balance
+      let walletBalance = this.convertToJson(user.walletBalance);
+      if (!walletBalance) {
+        walletBalance = { previous: 0, current: 0 };
+      }
+
+      // Update balance
+      walletBalance.previous = walletBalance.current;
+      walletBalance.current += parseFloat(amount);
+
+      // Persist updated balance
+      await user.update({ walletBalance });
+    } catch (error) {
+      console.log(error);
+      return error;
+    }
+  }
+  async refundOrderTransaction(OrdersModelResult, orderStatus, reason = '') {
+    await OrdersModelResult.update({ orderStatus, reason });
+
+    await OrdersModelResult.update({ moneyStatus: 'refund' });
+    const settingResult = await this.SettingModel.findByPk(1);
+    if (settingResult) {
+      new NotFoundError('Settings not found');
+    }
+
+    try {
+      /*
+      const merchantAdsModelResult = await this.MerchantAdsModel.findOne({
+        where: { userId: OrdersModelResult.merchantId },
+      });
+      const priceData = this.convertToJson(
+        merchantAdsModelResult.pricePerThousand
+      );
+      const serviceCharge = this.convertToJson(settingResult.serviceCharge);
+      const gatewayService = this.convertToJson(settingResult.gatewayService);
+
+      const amountSummary = await this.getdeliveryAmountSummary(
+        priceData,
+        OrdersModelResult.amountOrder,
+        serviceCharge,
+        gatewayService
+      );
+
+      const amount =
+        amountSummary.amountOrder +
+        amountSummary.merchantCharge +
+        amountSummary.serviceCharge;*/
+      await this.updateClientWallet(
+        OrdersModelResult.clientId,
+        OrdersModelResult.totalAmount
+      );
+    } catch (error) {
+      new SystemError(error);
+    }
+
+    try {
+      await this.sendToDevice(
+        userResult.fcmToken, // Assuming `userResult` is the customer
+        {
+          title: 'Order Rejected ❌',
+          body: `Your order was rejected. Please try another merchant. The amount has been refunded to your wallet.`,
+        },
+        {
+          type: 'ORDER_REJECTED',
+          orderId: rejectedOrder.orderId, // Replace with your actual order object
+        }
+      );
+    } catch (error) {
+      console.error('Error updating client wallet:', error);
+    }
+    /* })
+          .catch((error) => {
+            console.error('Update failed:', error);
+          });*/
+  }
+  rawOrderHash(clientId, merchantId, userPassword, orderId) {
+    const unConvertedHash =
+      clientId +
+      merchantId +
+      userPassword +
+      orderId +
+      serverConfig.GET_QR_CODE_HASH;
+
+    return unConvertedHash;
+  }
+  async startTestPush() {
+    /*
+    const sendTestNotification = async () => {
+      try {
+        console.log(`Starting test push notifications for user ID: ${userId}`);
+        console.log(`Starting test push notifications for user ID: ${userId}`);
+        console.log(`Starting test push notifications for user ID: ${userId}`);
+
+        console.log(`Starting test push notifications for user ID: ${userId}`);
+        // Get user info (adjust to your ORM or DB logic)
+        const user = await User.findByPk(userId);
+        if (!user || !user.fcmToken) {
+          console.log(`User with ID ${userId} not found or missing FCM token.`);
+          return;
+        }
+
+        console.log(`User found: ${userId}, FCM Token: ${user.fcmToken}`);
+        // Send notification
+        await this.sendToDevice(
+          user.fcmToken,
+          {
+            title: '🔁 Test Notification',
+            body: 'This is a recurring test push notification.',
+          },
+          {
+            type: 'TEST_NOTIFICATION',
+            timestamp: Date.now(),
+          }
+        );
+
+        console.log(`Test notification  to user ${userId}`);
+      } catch (err) {
+        console.error('Error sending test push:', err.message);
+        console.error('Error sending test push:', err.message);
+        console.error('Error sending test push:', err.message);
+        console.error('Error sending test push:', err.message);
+        console.error('Error sending test push:', err.message);
+        console.error('Error sending test push:', err.message);
+      }
+    };
+
+    // Call immediately and then every 19 seconds
+    sendTestNotification(); // First call
+    setInterval(sendTestNotification, 19000); // Every 19s
+    */
+  }
 }
+
 /**const merchantads = [
     { amount: 1000, charge: 100 },
     { amount: 5000, charge: 300 },
@@ -2617,4 +3904,5 @@ class UserService {
 /*
 const test = new UserService();
 test.writeToDirect();*/
+
 export default new UserService();

@@ -19,7 +19,7 @@ export function init(connection) {
         allowNull: true,
       },
       roomId: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.STRING,
         allowNull: true,
       },
       messageType: {
@@ -34,11 +34,6 @@ export function init(connection) {
         type: DataTypes.STRING,
         allowNull: true,
       },
-      walletBalance: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        defaultValue: '0',
-      },
       repliedMessageId: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -51,6 +46,20 @@ export function init(connection) {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
+      },
+      // New fields for message status
+      messageStatus: {
+        type: DataTypes.ENUM('sent', 'delivered', 'read'),
+        allowNull: false,
+        defaultValue: 'sent',
+      },
+      deliveredAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
+      readAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
       },
     },
     {

@@ -149,6 +149,50 @@ export default class AuthenticationController {
     }
   }
 
+  async deleteFromAppfileGoogleDrive(req, res, next) {
+    try {
+      const data = req.body;
+
+      const obj = {
+        ...data,
+      };
+
+      await authService.handleDeleteFromAppfileGoogleDrive(obj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'success',
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async uploadImageGoogleDrive(req, res, next) {
+    try {
+      const { file } = req;
+
+      if (!file) {
+        return res.status(400).json({
+          status: 400,
+          message: 'No file uploaded',
+        });
+      }
+
+      const imageUrl = await authService.handleUploadImageGoogleDrive(file);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'Image uploaded successfully',
+        data: { imageUrl },
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
   async signupUser(req, res, next) {
     try {
       const data = req.body;

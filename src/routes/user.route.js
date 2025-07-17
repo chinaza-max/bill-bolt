@@ -15,6 +15,13 @@ class UserRoutes extends UserController {
       uploadHandler.image.single('image'),
       this.updateProfile
     );
+
+    this.router.post(
+      '/uploadImageGoogleDrive',
+      uploadHandler.image.single('image'),
+      this.uploadImageGoogleDrive
+    );
+
     this.router.post(
       '/updateMerchantProfile',
       uploadHandler.image.single('image'),
@@ -32,35 +39,34 @@ class UserRoutes extends UserController {
     this.router.get('/getMyOrders', this.getMyOrders);
     this.router.post('/orderAcceptOrCancel', this.orderAcceptOrCancel);
     this.router.post('/verifyCompleteOrder', this.verifyCompleteOrder);
-    this.router.post('/getMyOrderDetails', this.getMyOrderDetails);
+    this.router.get('/getMyOrderDetails', this.getMyOrderDetails);
     this.router.post('/getChargeSummary', this.getChargeSummary);
     this.router.post('/getMerchantInformation', this.getMerchantInformation);
     this.router.post('/makeOrderPayment', this.makeOrderPayment);
-
-    //Transaction api
-
-    this.router.get('/getGeneralTransaction', this.getGeneralTransaction);
-    this.router.post(
-      '/getTransactionHistoryOrder',
-      this.getTransactionHistoryOrder
-    );
-
-    this.router.get('/getTransactionHistory', this.getTransactionHistory);
-    this.router.post('/setWithdrawalBank', this.setWithdrawalBank);
-    this.router.get('/getBank', this.getBank);
-    this.router.get('/nameEnquiry', this.nameEnquiry);
-    this.router.get('/transferMoney', this.transferMoney);
     this.router.post('/submitComplain', this.submitComplain);
+    this.router.get('/getProfileInformation', this.getProfileInformation);
     this.router.post(
       '/setMerchantAccountStatus',
       this.setMerchantAccountStatus
     );
-    this.router.get('/getProfileInformation', this.getProfileInformation);
     this.router.post(
       '/updateMerchantVerificationProcess',
       this.getProfileInformation
     );
     this.router.post('/submitUserMessage', this.submitUserMessage);
+    this.router.post('/updateToken', this.updateToken);
+
+    //Transaction api
+    this.router.get('/getGeneralTransaction', this.getGeneralTransaction);
+    this.router.get(
+      '/getTransactionHistoryOrder',
+      this.getTransactionHistoryOrder
+    );
+    this.router.get('/getTransactionHistory', this.getTransactionHistory);
+    this.router.post('/setWithdrawalBank', this.setWithdrawalBank);
+    this.router.get('/getBank', this.getBank);
+    this.router.get('/nameEnquiry', this.nameEnquiry);
+    this.router.get('/transferMoney', this.transferMoney);
 
     //MERCHANT API
     this.router.post('/signupMerchant', this.signupMerchant);
@@ -71,7 +77,7 @@ class UserRoutes extends UserController {
     this.router.get('/getOrderStatistic', this.getOrderStatistic);
     this.router.get('/getMerchantProfile', this.getMerchantProfile);
 
-    //ADMIN
+    //ADMIN API
     this.router.get('/dashBoardStatistic', this.dashBoardStatistic);
     this.router.get('/getUsers', this.getUsers);
     this.router.get('/getUsersData', this.getUsersData);
@@ -80,7 +86,6 @@ class UserRoutes extends UserController {
     this.router.get('/getSettings', this.getSettings);
     this.router.get('/getComplains', this.getComplain);
     this.router.post('/updateComplainStatus', this.updateComplainStatus);
-
     this.router.get('/getTransaction', this.getTransaction);
     this.router.post('/createAdmin', this.createAdmin);
     this.router.get('/getadmins', this.getAdmins);

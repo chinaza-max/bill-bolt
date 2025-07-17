@@ -13,6 +13,7 @@ export function init(connection) {
       orderId: {
         type: DataTypes.STRING,
         allowNull: false,
+        unique: true,
       },
       clientId: {
         type: DataTypes.INTEGER,
@@ -24,11 +25,13 @@ export function init(connection) {
       },
       orderStatus: {
         type: DataTypes.ENUM(
-          'cancelled', // order cancelled by client
+          'cancelled', // order cancelled by client or merchant
+          'rejected', // order rejected by merchant
           'inProgress', // order is being processed by merchant
           'completed', // order has been completed by merchant
           'pending' // order not accepted by merchant
         ),
+        defaultValue: 'pending',
         allowNull: false,
       },
       moneyStatus: {
@@ -43,6 +46,14 @@ export function init(connection) {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      startTime: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
+      endTime: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
       sessionId: {
         type: DataTypes.STRING,
         allowNull: true,
@@ -52,16 +63,16 @@ export function init(connection) {
         allowNull: true,
       },
       amountOrder: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.STRING,
         allowNull: false,
       },
       totalAmount: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.STRING,
         allowNull: false,
       },
       rating: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true,
       },
       qrCodeHash: {
         type: DataTypes.STRING,
@@ -77,9 +88,14 @@ export function init(connection) {
         allowNull: true,
         defaultValue: false,
       },
+      reason: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        defaultValue: false,
+      },
       transactionId: {
         type: DataTypes.INTEGER,
-        allowNull: true,
+        allowNull: false,
       },
       isDeleted: {
         type: DataTypes.BOOLEAN,

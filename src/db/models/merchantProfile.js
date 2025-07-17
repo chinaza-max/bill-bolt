@@ -29,6 +29,7 @@ export function init(connection) {
       userId: {
         type: DataTypes.INTEGER,
         allowNull: true,
+        unique: true,
       },
       passCode: {
         type: DataTypes.STRING,

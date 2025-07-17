@@ -69,6 +69,11 @@ class UserUtil {
     passCode: Joi.number().required(),
   });
 
+  verifyHandleUpdateToken = Joi.object({
+    userId: Joi.number().required(),
+    fcmToken: Joi.string().required(),
+  });
+
   verifyHandleEnterPassCode = Joi.object({
     userId: Joi.number().required(),
     passCode: Joi.number().required(),
@@ -127,7 +132,7 @@ class UserUtil {
   verifyHandleGetMyOrderDetails = Joi.object({
     userId: Joi.number().integer().required(),
     orderId: Joi.number().integer().required(),
-    type: Joi.string().required().valid('client', 'merchant'),
+    userType: Joi.string().required().valid('client', 'merchant'),
   });
   verifyHandleSetMerchantAccountStatus = Joi.object({
     userId: Joi.number().integer().required(),
@@ -235,6 +240,7 @@ class UserUtil {
     userId: Joi.number().integer().required(),
     userId2: Joi.number().integer().required(),
     amount: Joi.number().integer().required(),
+    amountOrder: Joi.number().required(),
   });
 
   verifyHandleUpdateAdmin = Joi.object({
@@ -291,14 +297,28 @@ class UserUtil {
     userId: Joi.number().integer().required(),
     orderId: Joi.number().integer().required(),
     type: Joi.string().required(),
+    reason: Joi.string().optional(),
+  });
+
+  verifyHandleverifyCompleteOrder = Joi.object({
+    userId: Joi.number().integer().required(),
+    orderId: Joi.number().integer().required(),
+    hash: Joi.string().required(),
+  });
+
+  verifyHandleGetTransactionHistoryOrder = Joi.object({
+    userId: Joi.number().integer().required(),
+    startDate: Joi.date().optional().label('Start Date').iso(),
+    endDate: Joi.date().optional().label('End Date').iso(),
   });
   verifyHandleGetChatHistory = Joi.object({
     userId: Joi.number().integer().required(),
-    roomId: Joi.number().integer().required(),
+    orderId: Joi.number().integer().required(),
+    userType: Joi.string().valid('client', 'merchant').required(),
   });
   verifyHandleGetMyOrders = Joi.object({
     userId: Joi.number().integer().required(),
-    type: Joi.string().required().valid('active', 'completed'),
+    type: Joi.string().required().valid('active', 'completed', 'all'),
     userType: Joi.string().valid('client', 'merchant').required(),
   });
   handleverifyCompleteOrder = Joi.object({

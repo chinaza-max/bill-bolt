@@ -140,6 +140,10 @@ export function init(connection) {
         type: DataTypes.TEXT,
         allowNull: true,
       },
+      fcmToken: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+      },
       walletBalance: {
         type: DataTypes.JSON,
         allowNull: false,
