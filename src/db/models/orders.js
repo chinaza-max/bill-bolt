@@ -95,7 +95,7 @@ export function init(connection) {
       },
       transactionId: {
         type: DataTypes.INTEGER,
-        allowNull: true,
+        allowNull: false,
       },
       isDeleted: {
         type: DataTypes.BOOLEAN,

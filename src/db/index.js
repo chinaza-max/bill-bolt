@@ -52,72 +52,27 @@ class DB {
         }
       }
     }
-
     const queryInterface = this.sequelize.getQueryInterface();
 
     try {
-      // Method 1: Direct query to information_schema (works for MySQL/MariaDB)
-      const [results] = await this.sequelize.query(`
-    SELECT CONSTRAINT_NAME 
-    FROM information_schema.KEY_COLUMN_USAGE 
-    WHERE TABLE_NAME = 'Order' 
-    AND COLUMN_NAME = 'transactionId' 
-    AND CONSTRAINT_NAME != 'PRIMARY'
-    AND REFERENCED_TABLE_NAME IS NOT NULL
-  `);
+      // Drop the specific constraint that's causing issues
+      await queryInterface.removeConstraint(
+        'Transaction',
+        'Transaction_ibfk_2'
+      );
+      console.log('✓ Removed problematic foreign key constraint');
 
-      if (results.length > 0) {
-        const fkName = results[0].CONSTRAINT_NAME;
-        console.log(`Found FK constraint: ${fkName}. Removing...`);
+      // Now make your column change
+      await queryInterface.changeColumn('Transaction', 'transactionId', {
+        type: Sequelize.STRING(255),
+        allowNull: false,
+        unique: true,
+      });
 
-        await queryInterface.removeConstraint('Order', fkName);
-        console.log(`Foreign key constraint removed: ${fkName}`);
-      } else {
-        console.warn(
-          'No foreign key found on transactionId column. Skipping...'
-        );
-      }
+      console.log('✓ Column modification successful');
     } catch (error) {
-      console.error('Error dropping foreign key:', error);
-
-      // Fallback: Try common constraint names
-      const possibleNames = [
-        'Order_transactionId_fkey',
-        'FK_Order_transactionId',
-        'fk_Order_transactionId',
-        'Order_transactionId_foreign',
-        'Orders_transactionId_fkey', // In case table name is pluralized
-      ];
-
-      for (const constraintName of possibleNames) {
-        try {
-          await queryInterface.removeConstraint('Order', constraintName);
-          console.log(`Foreign key constraint removed: ${constraintName}`);
-          break;
-        } catch (err) {
-          // Continue to next possible name
-          continue;
-        }
-      }
+      console.error('Error:', error);
     }
-    /*
-    try {
-      await this.sequelize.query(`
-          ALTER TABLE \`Order\` DROP FOREIGN KEY Transaction_ibfk_2;
-        `);
-      console.log('Foreign key constraint removed: Transaction_ibfk_2');
-    } catch (error) {
-      if (error.original?.code === 'ER_CANT_DROP_FIELD_OR_KEY') {
-        console.warn(
-          'Foreign key Transaction_ibfk_2 does not exist, skipping.'
-        );
-      } else if (error.original?.code === 'ER_ROW_IS_REFERENCED') {
-        console.error('Cannot drop FK: rows are referenced.');
-      } else {
-        console.error('Error dropping foreign key:', error);
-      }
-    }*/
-
     /*      
         (async () => {
           try {  
