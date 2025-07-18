@@ -56,39 +56,88 @@ class DB {
     const queryInterface = this.sequelize.getQueryInterface();
 
     try {
-      // 1. Get all constraints for the Order table
-      const [results] = await this.sequelize.query(
-        `SHOW CREATE TABLE \`Order\``
-      );
+      // Database-agnostic approach
+      const dialect = this.sequelize.getDialect();
 
-      const createTableSQL = results['Create Table'];
-
-      // 2. Extract FK name related to transactionId
-      const fkMatch = createTableSQL.match(
-        /CONSTRAINT `([^`]+)` FOREIGN KEY \(`transactionId`\)/
-      );
-
-      if (fkMatch && fkMatch[1]) {
-        const fkName = fkMatch[1];
-        console.log(`Found FK constraint: ${fkName}. Removing...`);
-
-        await queryInterface.removeConstraint('Order', fkName);
-        console.log(`Foreign key constraint removed: ${fkName}`);
-        console.log(`Foreign key constraint removed: ${fkName}`);
-        console.log(`Foreign key constraint removed: ${fkName}`);
-        console.log(`Foreign key constraint removed: ${fkName}`);
-        console.log(`Foreign key constraint removed: ${fkName}`);
-        console.log(`Foreign key constraint removed: ${fkName}`);
-        console.log(`Foreign key constraint removed: ${fkName}`);
-      } else {
-        console.warn(
-          'No foreign key found on transactionId column. Skipping...'
+      if (dialect === 'mysql' || dialect === 'mariadb') {
+        // MySQL/MariaDB approach
+        const [results] = await this.sequelize.query(
+          `SHOW CREATE TABLE \`Order\``
         );
+
+        const createTableSQL = results['Create Table'];
+
+        // Extract FK name related to transactionId
+        const fkMatch = createTableSQL.match(
+          /CONSTRAINT `([^`]+)` FOREIGN KEY \(`transactionId`\)/
+        );
+
+        if (fkMatch && fkMatch[1]) {
+          const fkName = fkMatch[1];
+          console.log(`Found FK constraint: ${fkName}. Removing...`);
+
+          await queryInterface.removeConstraint('Order', fkName);
+          console.log(`Foreign key constraint removed: ${fkName}`);
+        } else {
+          console.warn(
+            'No foreign key found on transactionId column. Skipping...'
+          );
+        }
+      } else if (dialect === 'postgres') {
+        // PostgreSQL approach
+        const [results] = await this.sequelize.query(`
+      SELECT constraint_name 
+      FROM information_schema.table_constraints 
+      WHERE table_name = 'Order' 
+      AND constraint_type = 'FOREIGN KEY'
+      AND constraint_name IN (
+        SELECT constraint_name 
+        FROM information_schema.key_column_usage 
+        WHERE table_name = 'Order' 
+        AND column_name = 'transactionId'
+      )
+    `);
+
+        if (results.length > 0) {
+          const fkName = results[0].constraint_name;
+          console.log(`Found FK constraint: ${fkName}. Removing...`);
+
+          await queryInterface.removeConstraint('Order', fkName);
+          console.log(`Foreign key constraint removed: ${fkName}`);
+        } else {
+          console.warn(
+            'No foreign key found on transactionId column. Skipping...'
+          );
+        }
+      } else {
+        // Generic approach - try common constraint naming patterns
+        const possibleNames = [
+          'Order_transactionId_fkey',
+          'FK_Order_transactionId',
+          'fk_Order_transactionId',
+          'Order_transactionId_foreign',
+        ];
+
+        let removed = false;
+        for (const constraintName of possibleNames) {
+          try {
+            await queryInterface.removeConstraint('Order', constraintName);
+            console.log(`Foreign key constraint removed: ${constraintName}`);
+            removed = true;
+            break;
+          } catch (err) {
+            // Constraint doesn't exist, continue
+            continue;
+          }
+        }
+
+        if (!removed) {
+          console.warn('Could not find foreign key constraint to remove');
+        }
       }
     } catch (error) {
       console.error('Error dropping foreign key:', error);
     }
-
     /*
     try {
       await this.sequelize.query(`
