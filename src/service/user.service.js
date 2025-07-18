@@ -1146,6 +1146,10 @@ class UserService extends NotificationService {
       if (type === 'merchant') {
         whereCondition.merchantActivated = true;
       }
+      else{
+          whereCondition.merchantActivated = false;
+
+      }
 
       const totalUsers = await this.UserModel.count({ where: whereCondition });
       const activeUsers = await this.UserModel.count({
@@ -1208,7 +1212,7 @@ class UserService extends NotificationService {
           type === 'merchant'
             ? `${user.firstName} ${user.lastName}(${user.MerchantProfile.displayName})`
             : `${user.firstName} ${user.lastName}`,
-        walletBalance: JSON.parse(user.walletBalance).current,
+        walletBalance:   this.safeParse(JSON.parse(user.walletBalance)).current,
         orders: user.ClientOrder.length + user.MerchantOrder.length,
         dateJoined: user.createdAt,
         accountStatus: user.disableAccount ? 'Disabled' : 'Active',
