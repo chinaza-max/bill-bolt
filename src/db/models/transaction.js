@@ -1,6 +1,14 @@
 import { Model, DataTypes } from 'sequelize';
+import crypto from 'crypto';
 
-class Transaction extends Model {}
+class Transaction extends Model {
+
+   static generateUniqueTransactionId() {
+    const timestamp = Date.now().toString();
+    const random = crypto.randomBytes(4).toString('hex').toUpperCase();
+    return `TXN_${timestamp}_${random}`;
+  }
+}
 
 export function init(connection) {
   Transaction.init(
@@ -76,6 +84,20 @@ export function init(connection) {
       sequelize: connection,
       timestamps: true,
       underscored: false,
+      hooks: {
+        beforeCreate: async (transaction, options) => {
+          // Generate transactionId if it's null or empty
+          if (!transaction.transactionId || transaction.transactionId.trim() === '') {
+            transaction.transactionId = Transaction.generateUniqueTransactionId();
+          }
+        },
+        beforeUpdate: async (transaction, options) => {
+          // Generate transactionId if it's being set to null or empty
+          if (!transaction.transactionId || transaction.transactionId.trim() === '') {
+            transaction.transactionId = Transaction.generateUniqueTransactionId();
+          }
+        },
+      },
     }
   );
 }
