@@ -34,16 +34,11 @@ class DB {
 
     initModels(this.sequelize);
 
+    
     if (serverConfig.NODE_ENV === 'development') {
       //await this.sequelize.sync({ alter: true });
       //await this.sequelize.sync({ force: true });
-
-      await Transaction.drop();
-      console.log('Transaction table dropped successfully.');
-
-      // ✅ Recreate the Transaction table
-      await Transaction.sync({ force: true });
-      console.log('Transaction table recreated successfully.');
+      await this.updateExistingTransactionIds();
 
       try {
         await this.sequelize.query(`
@@ -95,6 +90,38 @@ this.sequelize.query(disableForeignKeyChecks)
     console.error('Error dropping table:', error);
   });
 */
+  }
+  async updateExistingTransactionIds() {
+    try {
+      // Find all transactions with null or empty transactionId
+      const transactionsToUpdate = await Transaction.findAll({
+        where: {
+          [this.sequelize.Op.or]: [
+            { transactionId: null },
+            { transactionId: '' }
+          ]
+        }
+      });
+
+      console.log(`Found ${transactionsToUpdate.length} transactions with missing transactionId`);
+
+      // Update each transaction with a unique ID
+      for (const transaction of transactionsToUpdate) {
+        const newTransactionId = this.generateUniqueTransactionId();
+        await transaction.update({ transactionId: newTransactionId });
+        console.log(`Updated transaction ${transaction.id} with new transactionId: ${newTransactionId}`);
+      }
+
+      console.log('All existing transactions updated successfully.');
+    } catch (error) {
+      console.error('Error updating existing transaction IDs:', error);
+    }
+  }
+
+  generateUniqueTransactionId() {
+    const timestamp = Date.now().toString();
+    const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+    return `TXN_${timestamp}_${random}`;
   }
 }
 
