@@ -56,87 +56,49 @@ class DB {
     const queryInterface = this.sequelize.getQueryInterface();
 
     try {
-      // Database-agnostic approach
-      const dialect = this.sequelize.getDialect();
+      // Method 1: Direct query to information_schema (works for MySQL/MariaDB)
+      const [results] = await this.sequelize.query(`
+    SELECT CONSTRAINT_NAME 
+    FROM information_schema.KEY_COLUMN_USAGE 
+    WHERE TABLE_NAME = 'Order' 
+    AND COLUMN_NAME = 'transactionId' 
+    AND CONSTRAINT_NAME != 'PRIMARY'
+    AND REFERENCED_TABLE_NAME IS NOT NULL
+  `);
 
-      if (dialect === 'mysql' || dialect === 'mariadb') {
-        // MySQL/MariaDB approach
-        const [results] = await this.sequelize.query(
-          `SHOW CREATE TABLE \`Order\``
-        );
+      if (results.length > 0) {
+        const fkName = results[0].CONSTRAINT_NAME;
+        console.log(`Found FK constraint: ${fkName}. Removing...`);
 
-        const createTableSQL = results['Create Table'];
-
-        // Extract FK name related to transactionId
-        const fkMatch = createTableSQL.match(
-          /CONSTRAINT `([^`]+)` FOREIGN KEY \(`transactionId`\)/
-        );
-
-        if (fkMatch && fkMatch[1]) {
-          const fkName = fkMatch[1];
-          console.log(`Found FK constraint: ${fkName}. Removing...`);
-
-          await queryInterface.removeConstraint('Order', fkName);
-          console.log(`Foreign key constraint removed: ${fkName}`);
-        } else {
-          console.warn(
-            'No foreign key found on transactionId column. Skipping...'
-          );
-        }
-      } else if (dialect === 'postgres') {
-        // PostgreSQL approach
-        const [results] = await this.sequelize.query(`
-      SELECT constraint_name 
-      FROM information_schema.table_constraints 
-      WHERE table_name = 'Order' 
-      AND constraint_type = 'FOREIGN KEY'
-      AND constraint_name IN (
-        SELECT constraint_name 
-        FROM information_schema.key_column_usage 
-        WHERE table_name = 'Order' 
-        AND column_name = 'transactionId'
-      )
-    `);
-
-        if (results.length > 0) {
-          const fkName = results[0].constraint_name;
-          console.log(`Found FK constraint: ${fkName}. Removing...`);
-
-          await queryInterface.removeConstraint('Order', fkName);
-          console.log(`Foreign key constraint removed: ${fkName}`);
-        } else {
-          console.warn(
-            'No foreign key found on transactionId column. Skipping...'
-          );
-        }
+        await queryInterface.removeConstraint('Order', fkName);
+        console.log(`Foreign key constraint removed: ${fkName}`);
       } else {
-        // Generic approach - try common constraint naming patterns
-        const possibleNames = [
-          'Order_transactionId_fkey',
-          'FK_Order_transactionId',
-          'fk_Order_transactionId',
-          'Order_transactionId_foreign',
-        ];
-
-        let removed = false;
-        for (const constraintName of possibleNames) {
-          try {
-            await queryInterface.removeConstraint('Order', constraintName);
-            console.log(`Foreign key constraint removed: ${constraintName}`);
-            removed = true;
-            break;
-          } catch (err) {
-            // Constraint doesn't exist, continue
-            continue;
-          }
-        }
-
-        if (!removed) {
-          console.warn('Could not find foreign key constraint to remove');
-        }
+        console.warn(
+          'No foreign key found on transactionId column. Skipping...'
+        );
       }
     } catch (error) {
       console.error('Error dropping foreign key:', error);
+
+      // Fallback: Try common constraint names
+      const possibleNames = [
+        'Order_transactionId_fkey',
+        'FK_Order_transactionId',
+        'fk_Order_transactionId',
+        'Order_transactionId_foreign',
+        'Orders_transactionId_fkey', // In case table name is pluralized
+      ];
+
+      for (const constraintName of possibleNames) {
+        try {
+          await queryInterface.removeConstraint('Order', constraintName);
+          console.log(`Foreign key constraint removed: ${constraintName}`);
+          break;
+        } catch (err) {
+          // Continue to next possible name
+          continue;
+        }
+      }
     }
     /*
     try {
