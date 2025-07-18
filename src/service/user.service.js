@@ -1220,7 +1220,7 @@ class UserService extends NotificationService {
           type === 'merchant'
             ? `${user.firstName} ${user.lastName}(${user.MerchantProfile.displayName})`
             : `${user.firstName} ${user.lastName}`,
-        walletBalance:   this.safeParse(user.walletBalance)?.current,
+        walletBalance:  parsedWallet.current,
         orders: user.ClientOrder.length + user.MerchantOrder.length,
         dateJoined: user.createdAt,
         accountStatus: user.disableAccount ? 'Disabled' : 'Active',
@@ -1584,7 +1584,7 @@ class UserService extends NotificationService {
     }
   }
 
-  async safeParse(input) {
+    safeParse(input) {
     if (typeof input === 'string') {
       try {
         return JSON.parse(input);
