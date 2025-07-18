@@ -54,24 +54,39 @@ class DB {
     }
 
     const queryInterface = this.sequelize.getQueryInterface();
+
     try {
-      await queryInterface.removeConstraint('Order', 'Transaction_ibfk_2');
-      console.log('Foreign key constraint removed: Transaction_ibfk_2');
-      console.log('Foreign key constraint removed: Transaction_ibfk_2');
-      console.log('Foreign key constraint removed: Transaction_ibfk_2');
-      console.log('Foreign key constraint removed: Transaction_ibfk_2');
-      console.log('Foreign key constraint removed: Transaction_ibfk_2');
-      console.log('Foreign key constraint removed: Transaction_ibfk_2');
-    } catch (error) {
-      if (error.original?.code === 'ER_CANT_DROP_FIELD_OR_KEY') {
-        console.warn(
-          'Foreign key Transaction_ibfk_2 does not exist, skipping.'
-        );
-      } else if (error.original?.code === 'ER_ROW_IS_REFERENCED') {
-        console.error('Cannot drop FK: rows are referenced.');
+      // 1. Get all constraints for the Order table
+      const [results] = await this.sequelize.query(
+        `SHOW CREATE TABLE \`Order\``
+      );
+
+      const createTableSQL = results['Create Table'];
+
+      // 2. Extract FK name related to transactionId
+      const fkMatch = createTableSQL.match(
+        /CONSTRAINT `([^`]+)` FOREIGN KEY \(`transactionId`\)/
+      );
+
+      if (fkMatch && fkMatch[1]) {
+        const fkName = fkMatch[1];
+        console.log(`Found FK constraint: ${fkName}. Removing...`);
+
+        await queryInterface.removeConstraint('Order', fkName);
+        console.log(`Foreign key constraint removed: ${fkName}`);
+        console.log(`Foreign key constraint removed: ${fkName}`);
+        console.log(`Foreign key constraint removed: ${fkName}`);
+        console.log(`Foreign key constraint removed: ${fkName}`);
+        console.log(`Foreign key constraint removed: ${fkName}`);
+        console.log(`Foreign key constraint removed: ${fkName}`);
+        console.log(`Foreign key constraint removed: ${fkName}`);
       } else {
-        console.error('Error dropping foreign key:', error);
+        console.warn(
+          'No foreign key found on transactionId column. Skipping...'
+        );
       }
+    } catch (error) {
+      console.error('Error dropping foreign key:', error);
     }
 
     /*
