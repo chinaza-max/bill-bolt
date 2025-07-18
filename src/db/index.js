@@ -1,6 +1,5 @@
 import { Sequelize } from 'sequelize';
 import serverConfig from '../config/server.js';
-import { init as initModels } from './models/index.js';
 import { init as initModels, Transaction } from './models/index.js';
 
 class DB {
