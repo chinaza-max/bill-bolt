@@ -1,6 +1,7 @@
 import { Sequelize } from 'sequelize';
 import serverConfig from '../config/server.js';
 import { init as initModels } from './models/index.js';
+import { init as initModels, Transaction } from './models/index.js';
 
 class DB {
   constructor() {
@@ -35,8 +36,15 @@ class DB {
     initModels(this.sequelize);
 
     if (serverConfig.NODE_ENV === 'development') {
-      // await this.sequelize.sync({ alter: true });
+      await this.sequelize.sync({ alter: true });
       //await this.sequelize.sync({ force: true });
+
+      await Transaction.drop();
+      console.log('Transaction table dropped successfully.');
+
+      // ✅ Recreate the Transaction table
+      await Transaction.sync({ force: true });
+      console.log('Transaction table recreated successfully.');
 
       try {
         await this.sequelize.query(`
@@ -53,89 +61,6 @@ class DB {
       }
     }
 
-    const queryInterface = this.sequelize.getQueryInterface();
-
-    try {
-      console.log('Fixing empty transactionId values...');
-
-      // Step 1: Fix empty/null transactionId values
-      const [emptyRows] = await this.sequelize.query(`
-    SELECT id FROM Transaction 
-    WHERE transactionId = '' OR transactionId IS NULL
-  `);
-
-      console.log(`Found ${emptyRows.length} rows with empty transactionId`);
-
-      // Generate unique IDs for empty rows
-      for (const row of emptyRows) {
-        const uniqueId = `TXN_${Date.now()}_${row.id}`;
-
-        await this.sequelize.query(
-          `
-      UPDATE Transaction 
-      SET transactionId = :uniqueId 
-      WHERE id = :id
-    `,
-          {
-            replacements: {
-              uniqueId: uniqueId,
-              id: row.id,
-            },
-          }
-        );
-
-        console.log(`Updated row ${row.id} with transactionId: ${uniqueId}`);
-      }
-
-      // Step 2: Handle any remaining duplicates
-      const [duplicates] = await this.sequelize.query(`
-    SELECT transactionId, COUNT(*) as count, GROUP_CONCAT(id) as ids
-    FROM Transaction 
-    GROUP BY transactionId 
-    HAVING COUNT(*) > 1
-  `);
-
-      if (duplicates.length > 0) {
-        console.log(`Found ${duplicates.length} sets of duplicates`);
-
-        for (const duplicate of duplicates) {
-          const ids = duplicate.ids.split(',');
-          // Keep first one, update the rest
-          for (let i = 1; i < ids.length; i++) {
-            const uniqueId = `${duplicate.transactionId}_${i}`;
-
-            await this.sequelize.query(
-              `
-          UPDATE Transaction 
-          SET transactionId = :uniqueId 
-          WHERE id = :id
-        `,
-              {
-                replacements: {
-                  uniqueId: uniqueId,
-                  id: ids[i],
-                },
-              }
-            );
-
-            console.log(
-              `Updated duplicate row ${ids[i]} with transactionId: ${uniqueId}`
-            );
-          }
-        }
-      }
-
-      // Step 3: Now apply the schema change
-      await queryInterface.changeColumn('Transaction', 'transactionId', {
-        type: Sequelize.STRING(255),
-        allowNull: false,
-        unique: true,
-      });
-
-      console.log('✓ Successfully added UNIQUE constraint to transactionId');
-    } catch (error) {
-      console.error('Error fixing transactionId:', error);
-    }
     /*      
         (async () => {
           try {  
