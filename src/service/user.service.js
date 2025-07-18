@@ -1200,7 +1200,8 @@ class UserService extends NotificationService {
           },
         ],
       });
-
+     console.log(users)
+     //
       const userData = users.map((user) => ({
         id: user.id,
         avatar:
@@ -1212,7 +1213,7 @@ class UserService extends NotificationService {
           type === 'merchant'
             ? `${user.firstName} ${user.lastName}(${user.MerchantProfile.displayName})`
             : `${user.firstName} ${user.lastName}`,
-        walletBalance:   this.safeParse(JSON.parse(user.walletBalance)).current,
+        walletBalance:   this.safeParse(JSON.parse(user.walletBalance))?.current,
         orders: user.ClientOrder.length + user.MerchantOrder.length,
         dateJoined: user.createdAt,
         accountStatus: user.disableAccount ? 'Disabled' : 'Active',
