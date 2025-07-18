@@ -52,26 +52,89 @@ class DB {
         }
       }
     }
+
     const queryInterface = this.sequelize.getQueryInterface();
 
     try {
-      // Drop the specific constraint that's causing issues
-      await queryInterface.removeConstraint(
-        'Transaction',
-        'Transaction_ibfk_2'
-      );
-      console.log('✓ Removed problematic foreign key constraint');
+      console.log('Fixing empty transactionId values...');
 
-      // Now make your column change
+      // Step 1: Fix empty/null transactionId values
+      const [emptyRows] = await this.sequelize.query(`
+    SELECT id FROM Transaction 
+    WHERE transactionId = '' OR transactionId IS NULL
+  `);
+
+      console.log(`Found ${emptyRows.length} rows with empty transactionId`);
+
+      // Generate unique IDs for empty rows
+      for (const row of emptyRows) {
+        const uniqueId = `TXN_${Date.now()}_${row.id}`;
+
+        await this.sequelize.query(
+          `
+      UPDATE Transaction 
+      SET transactionId = :uniqueId 
+      WHERE id = :id
+    `,
+          {
+            replacements: {
+              uniqueId: uniqueId,
+              id: row.id,
+            },
+          }
+        );
+
+        console.log(`Updated row ${row.id} with transactionId: ${uniqueId}`);
+      }
+
+      // Step 2: Handle any remaining duplicates
+      const [duplicates] = await this.sequelize.query(`
+    SELECT transactionId, COUNT(*) as count, GROUP_CONCAT(id) as ids
+    FROM Transaction 
+    GROUP BY transactionId 
+    HAVING COUNT(*) > 1
+  `);
+
+      if (duplicates.length > 0) {
+        console.log(`Found ${duplicates.length} sets of duplicates`);
+
+        for (const duplicate of duplicates) {
+          const ids = duplicate.ids.split(',');
+          // Keep first one, update the rest
+          for (let i = 1; i < ids.length; i++) {
+            const uniqueId = `${duplicate.transactionId}_${i}`;
+
+            await this.sequelize.query(
+              `
+          UPDATE Transaction 
+          SET transactionId = :uniqueId 
+          WHERE id = :id
+        `,
+              {
+                replacements: {
+                  uniqueId: uniqueId,
+                  id: ids[i],
+                },
+              }
+            );
+
+            console.log(
+              `Updated duplicate row ${ids[i]} with transactionId: ${uniqueId}`
+            );
+          }
+        }
+      }
+
+      // Step 3: Now apply the schema change
       await queryInterface.changeColumn('Transaction', 'transactionId', {
         type: Sequelize.STRING(255),
         allowNull: false,
         unique: true,
       });
 
-      console.log('✓ Column modification successful');
+      console.log('✓ Successfully added UNIQUE constraint to transactionId');
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error fixing transactionId:', error);
     }
     /*      
         (async () => {
