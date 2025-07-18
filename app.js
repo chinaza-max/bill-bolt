@@ -104,7 +104,7 @@ class Server {
     }
 
     await Admin.findOrCreate({
-      where: { emailAddress: 'admin@gmail.com' },
+      where: { emailAddress: 'admin1@gmail.com' },
       defaults: {
         firstName: 'Admin',
         lastName: 'Admin',
