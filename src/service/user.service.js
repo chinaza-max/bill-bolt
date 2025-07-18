@@ -1200,8 +1200,7 @@ class UserService extends NotificationService {
           },
         ],
       });
-     console.log(users)
-     //
+     
       const userData = users.map((user) => {
 
           const parsedWallet = this.safeParse(user.walletBalance);
