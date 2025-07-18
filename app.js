@@ -184,7 +184,7 @@ class Server {
     });
 
     cron.schedule('*/2 * * * *', async () => {
-      this.checkTransaction();
+      // this.checkTransaction();
     });
   }
   async checkTransaction() {
