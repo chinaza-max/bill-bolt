@@ -53,6 +53,22 @@ class DB {
       }
     }
 
+    try {
+      await this.sequelize.query(`
+          ALTER TABLE \`Order\` DROP FOREIGN KEY Transaction_ibfk_2;
+        `);
+      console.log('Foreign key constraint removed: Transaction_ibfk_2');
+    } catch (error) {
+      if (error.original?.code === 'ER_CANT_DROP_FIELD_OR_KEY') {
+        console.warn(
+          'Foreign key Transaction_ibfk_2 does not exist, skipping.'
+        );
+      } else if (error.original?.code === 'ER_ROW_IS_REFERENCED') {
+        console.error('Cannot drop FK: rows are referenced.');
+      } else {
+        console.error('Error dropping foreign key:', error);
+      }
+    }
     /*      
         (async () => {
           try {  
