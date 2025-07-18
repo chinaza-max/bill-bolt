@@ -57,6 +57,11 @@ class DB {
     try {
       await queryInterface.removeConstraint('Order', 'Transaction_ibfk_2');
       console.log('Foreign key constraint removed: Transaction_ibfk_2');
+      console.log('Foreign key constraint removed: Transaction_ibfk_2');
+      console.log('Foreign key constraint removed: Transaction_ibfk_2');
+      console.log('Foreign key constraint removed: Transaction_ibfk_2');
+      console.log('Foreign key constraint removed: Transaction_ibfk_2');
+      console.log('Foreign key constraint removed: Transaction_ibfk_2');
     } catch (error) {
       if (error.original?.code === 'ER_CANT_DROP_FIELD_OR_KEY') {
         console.warn(
