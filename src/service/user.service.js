@@ -1202,7 +1202,14 @@ class UserService extends NotificationService {
       });
      console.log(users)
      //
-      const userData = users.map((user) => ({
+      const userData = users.map((user) => {
+
+          const parsedWallet = this.safeParse(user.walletBalance);
+  console.log('Parsed wallet balance for user:', user.id, parsedWallet);
+  console.log(   parsedWallet.current)
+
+      
+      return  {
         id: user.id,
         avatar:
           type === 'merchant' && user.MerchantProfile
@@ -1221,7 +1228,10 @@ class UserService extends NotificationService {
         merchantAccountStatus: user?.MerchantProfile?.accountStatus,
         tel: user.tel,
         isOnline: user.isOnline,
-      }));
+      }
+    
+    
+    });
 
       return {
         totalUsers,
@@ -1583,6 +1593,8 @@ class UserService extends NotificationService {
         return {};
       }
     }
+
+    console.log(input)
     return input || {};
   }
   async handleSubmitComplain(data) {
