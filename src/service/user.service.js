@@ -1137,7 +1137,7 @@ class UserService extends NotificationService {
       throw new SystemError(error.name, error.parent);
     }
   }
-
+  /*
   async handleGetUsers(data) {
     const { type } = await userUtil.verifyHandleGetUsers.validateAsync(data);
 
@@ -1145,10 +1145,8 @@ class UserService extends NotificationService {
       const whereCondition = {};
       if (type === 'merchant') {
         whereCondition.merchantActivated = true;
-      }
-      else{
-          whereCondition.merchantActivated = false;
-
+      } else {
+        whereCondition.merchantActivated = false;
       }
 
       const totalUsers = await this.UserModel.count({ where: whereCondition });
@@ -1200,34 +1198,170 @@ class UserService extends NotificationService {
           },
         ],
       });
-     
-      const userData = users.map((user) => {
 
+      const userData = users.map((user) => {
         const parsedWallet = this.safeParse(user.walletBalance);
-      
-      return  {
-        id: user.id,
-        avatar:
-          type === 'merchant' && user.MerchantProfile
-            ? user.MerchantProfile.imageUrl
-            : user.imageUrl,
-        email: user.emailAddress,
-        name:
+        console.log('Parsed wallet balance for user:', user.id, parsedWallet);
+        console.log(parsedWallet.current);
+
+        return {
+          id: user.id,
+          avatar:
+            type === 'merchant' && user.MerchantProfile
+              ? user.MerchantProfile.imageUrl
+              : user.imageUrl,
+          email: user.emailAddress,
+          name:
+            type === 'merchant'
+              ? `${user.firstName} ${user.lastName}(${user.MerchantProfile.displayName})`
+              : `${user.firstName} ${user.lastName}`,
+          walletBalance: parsedWallet.current,
+          orders: user.ClientOrder.length + user.MerchantOrder.length,
+          dateJoined: user.createdAt,
+          accountStatus: user.disableAccount ? 'Disabled' : 'Active',
+          merchantStatus: user.merchantActivated,
+          merchantAccountStatus: user?.MerchantProfile?.accountStatus,
+          tel: user.tel,
+          isOnline: user.isOnline,
+        };
+      });
+
+      return {
+        totalUsers,
+        activeUsers,
+        newUsersThisMonth,
+        users: userData,
+      };
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+*/
+
+  async handleGetUsers(data) {
+    const { type } = await userUtil.verifyHandleGetUsers.validateAsync(data);
+
+    try {
+      // Define the base where condition
+      let whereCondition = {};
+
+      // For merchant type, we will include only users that have a MerchantProfile
+      const includeConditions = [
+        {
+          model: Orders,
+          as: 'ClientOrder',
+          required: false,
+        },
+        {
+          model: Orders,
+          as: 'MerchantOrder',
+          required: false,
+        },
+        {
+          model: MerchantProfile,
+          as: 'MerchantProfile',
+          required: type === 'merchant', // Only include users with MerchantProfile if type is merchant
+        },
+      ];
+
+      // Count total users
+      const totalUsers = await this.UserModel.count({
+        where: whereCondition,
+        include:
           type === 'merchant'
-            ? `${user.firstName} ${user.lastName}(${user.MerchantProfile.displayName})`
-            : `${user.firstName} ${user.lastName}`,
-        walletBalance:  parsedWallet.current,
-        orders: user.ClientOrder.length + user.MerchantOrder.length,
-        dateJoined: user.createdAt,
-        accountStatus: user.disableAccount ? 'Disabled' : 'Active',
-        merchantStatus: user.merchantActivated,
-        merchantAccountStatus: user?.MerchantProfile?.accountStatus,
-        tel: user.tel,
-        isOnline: user.isOnline,
-      }
-    
-    
-    });
+            ? [
+                {
+                  model: MerchantProfile,
+                  as: 'MerchantProfile',
+                  required: true,
+                },
+              ]
+            : [],
+      });
+
+      // Count active users
+      const activeUsers = await this.UserModel.count({
+        where: { ...whereCondition, isOnline: true },
+        include:
+          type === 'merchant'
+            ? [
+                {
+                  model: MerchantProfile,
+                  as: 'MerchantProfile',
+                  required: true,
+                },
+              ]
+            : [],
+      });
+
+      // Count new users this month
+      const newUsersThisMonth = await this.UserModel.count({
+        where: {
+          ...whereCondition,
+          createdAt: {
+            [Op.gte]: new Date(new Date().setDate(1)), // First day of the current month
+          },
+        },
+        include:
+          type === 'merchant'
+            ? [
+                {
+                  model: MerchantProfile,
+                  as: 'MerchantProfile',
+                  required: true,
+                },
+              ]
+            : [],
+      });
+
+      // Fetch users with relationships
+      const users = await this.UserModel.findAll({
+        where: whereCondition,
+        attributes: [
+          'id',
+          'imageUrl',
+          'emailAddress',
+          'firstName',
+          'lastName',
+          'walletBalance',
+          'createdAt',
+          'disableAccount',
+          'merchantActivated',
+          'tel',
+          'isOnline',
+        ],
+        include: includeConditions,
+      });
+
+      // Map user data
+      const userData = users.map((user) => {
+        const parsedWallet = this.safeParse(user.walletBalance);
+        console.log('Parsed wallet balance for user:', user.id, parsedWallet);
+        console.log(parsedWallet.current);
+
+        return {
+          id: user.id,
+          avatar:
+            type === 'merchant' && user.MerchantProfile
+              ? user.MerchantProfile.imageUrl
+              : user.imageUrl,
+          email: user.emailAddress,
+          name:
+            type === 'merchant' && user.MerchantProfile
+              ? `${user.firstName} ${user.lastName} (${user.MerchantProfile.displayName})`
+              : `${user.firstName} ${user.lastName}`,
+          walletBalance: parsedWallet.current,
+          orders:
+            (user.ClientOrder?.length || 0) + (user.MerchantOrder?.length || 0),
+          dateJoined: user.createdAt,
+          accountStatus: user.disableAccount ? 'Disabled' : 'Active',
+          merchantStatus: !!user.MerchantProfile, // true if MerchantProfile exists
+          merchantAccountStatus: user?.MerchantProfile?.accountStatus || null,
+          tel: user.tel,
+          isOnline: user.isOnline,
+        };
+      });
 
       return {
         totalUsers,
@@ -1472,18 +1606,35 @@ await profile.update({ accountStatus: 'active' });
       const OrdersModelResult = await this.OrdersModel.findAll({
         where: { orderStatus: 'inProgress' },
       });
-      const merchantAdsModelResult = await this.MerchantAdsModel.findOne({
-        where: { userId },
-      });
+
       let totalServiceCharge = 0;
       for (let order of OrdersModelResult) {
-        const amountSummary = this.getdeliveryAmountSummary(
-          merchantAdsModelResult.pricePerThousand,
-          order.amountOrder,
-          settingModelResult.serviceCharge,
+        const merchantAdsModelResult = await this.MerchantAdsModel.findOne({
+          where: { userId: order.merchantId },
+        });
+
+        let pricePerThousand = await this.safeParse(
+          merchantAdsModelResult.pricePerThousand
+        );
+        let serviceCharge = await this.safeParse(
+          settingModelResult.serviceCharge
+        );
+        let gatewayService = await this.safeParse(
           settingModelResult.gatewayService
         );
-        totalServiceCharge += amountSummary.serviceCharge;
+        const amountSummary = await this.getdeliveryAmountSummary(
+          pricePerThousand,
+          order.amountOrder,
+          serviceCharge,
+          gatewayService
+        );
+
+        console.log(amountSummary);
+        //kkk
+        totalServiceCharge +=
+          amountSummary.merchantCharge +
+          amountSummary.serviceCharge +
+          amountSummary.amountOrder;
       }
       const orderStatusCancelled = await this.OrdersModel.count({
         where: { orderStatus: 'cancelled', isDeleted: false },
@@ -1514,6 +1665,7 @@ await profile.update({ accountStatus: 'active' });
         pendingRequest: pendingRequest,
       };
     } catch (error) {
+      console.log(error);
       throw new SystemError(error.name, error.parent);
     }
   }
@@ -1591,7 +1743,7 @@ await profile.update({ accountStatus: 'active' });
     }
   }
 
-    safeParse(input) {
+  safeParse(input) {
     if (typeof input === 'string') {
       try {
         return JSON.parse(input);
@@ -1601,7 +1753,7 @@ await profile.update({ accountStatus: 'active' });
       }
     }
 
-    console.log(input)
+    console.log(input);
     return input || {};
   }
   async handleSubmitComplain(data) {
