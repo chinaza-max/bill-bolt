@@ -522,15 +522,7 @@ async handleGetMyMerchant(data) {
           : merchant.MerchantProfile.deliveryRange <= range
         : true;
 
-      let parsedPricePerThousand = merchant.UserMerchantAds.pricePerThousand;
-      if (typeof parsedPricePerThousand === 'string') {
-        try {
-          parsedPricePerThousand = JSON.parse(parsedPricePerThousand);
-        } catch (err) {
-          console.error('Failed to parse pricePerThousand for merchant:', match.merchantId, err);
-          parsedPricePerThousand = {};
-        }
-      }
+     const parsedPricePerThousand = this.safeParse(merchant.UserMerchantAds.pricePerThousand);
 
       if (isWithinDistance && isWithinRange) {
         filteredMatches.push({
