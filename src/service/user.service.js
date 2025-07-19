@@ -3420,6 +3420,8 @@ await profile.update({ accountStatus: 'active' });
       throw new SystemError(error.name, error.parent);
     }
   }
+
+  /*
   async handleCreateMerchantAds(data) {
     const { minAmount, maxAmount, pricePerThousand, userId } =
       await userUtil.verifyHandleCreateMerchantAds.validateAsync(data);
@@ -3435,7 +3437,7 @@ await profile.update({ accountStatus: 'active' });
     if (!MerchantProfileModelResult)
       throw new NotFoundError('Merchant profile not found');
 
-    const SettingModelResultTiers = JSON.parse(SettingModelResult.tiers);
+    const SettingModelResultTiers =   JSON.parse(SettingModelResult.tiers);
 
     console.log(SettingModelResultTiers);
     //making sure merchant dont set price above there tier
@@ -3473,7 +3475,75 @@ await profile.update({ accountStatus: 'active' });
     } catch (error) {
       throw new SystemError(error.name, error.parent);
     }
+  }*/
+ async handleCreateMerchantAds(data) {
+  const { minAmount, maxAmount, pricePerThousand, userId } =
+    await userUtil.verifyHandleCreateMerchantAds.validateAsync(data);
+
+  const SettingModelResult = await this.SettingModel.findByPk(1);
+  const MerchantProfileModelResult = await this.MerchantProfileModel.findOne({
+    where: { userId },
+  });
+
+  if (minAmount > maxAmount) {
+    throw new BadRequestError(
+      'Minimum amount cannot be greater than maximum amount'
+    );
   }
+
+  if (!MerchantProfileModelResult) {
+    throw new NotFoundError('Merchant profile not found');
+  }
+
+  // ✅ Safely parse the tiers using safeParse
+  const SettingModelResultTiers = this.safeParse(SettingModelResult.tiers);
+
+  console.log(SettingModelResultTiers);
+
+  // ✅ Ensure it's an array before continuing
+  if (!Array.isArray(SettingModelResultTiers)) {
+    throw new SystemError('Parsed tiers is not an array');
+  }
+
+  // ✅ Check tier limit
+  for (let index = 0; index < SettingModelResultTiers.length; index++) {
+    const element = SettingModelResultTiers[index];
+
+    if (element.uniqueNumber === MerchantProfileModelResult.accountTier) {
+      if (maxAmount <= element.maxAmount) {
+        break;
+      } else {
+        throw new ConflictError(
+          `You need to upgrade your account. Your account tier allows you to set a maximum amount of ${element.maxAmount}`
+        );
+      }
+    }
+  }
+
+  try {
+    const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
+      where: { userId },
+    });
+
+    if (MerchantAdsModelResult) {
+      await MerchantAdsModelResult.update({
+        minAmount,
+        maxAmount,
+        pricePerThousand,
+      });
+    } else {
+      await this.MerchantAdsModel.create({
+        minAmount,
+        maxAmount,
+        userId,
+        pricePerThousand,
+      });
+    }
+  } catch (error) {
+    throw new SystemError(error.name, error.parent);
+  }
+}
+
   async makeMatch() {
     const setting = await this.SettingModel.findByPk(1);
 
