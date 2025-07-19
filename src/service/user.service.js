@@ -1145,10 +1145,8 @@ class UserService extends NotificationService {
       const whereCondition = {};
       if (type === 'merchant') {
         whereCondition.merchantActivated = true;
-      }
-      else{
-          whereCondition.merchantActivated = false;
-
+      } else {
+        whereCondition.merchantActivated = false;
       }
 
       const totalUsers = await this.UserModel.count({ where: whereCondition });
@@ -1200,37 +1198,33 @@ class UserService extends NotificationService {
           },
         ],
       });
-     
+
       const userData = users.map((user) => {
+        const parsedWallet = this.safeParse(user.walletBalance);
+        console.log('Parsed wallet balance for user:', user.id, parsedWallet);
+        console.log(parsedWallet.current);
 
-          const parsedWallet = this.safeParse(user.walletBalance);
-  console.log('Parsed wallet balance for user:', user.id, parsedWallet);
-  console.log(   parsedWallet.current)
-
-      
-      return  {
-        id: user.id,
-        avatar:
-          type === 'merchant' && user.MerchantProfile
-            ? user.MerchantProfile.imageUrl
-            : user.imageUrl,
-        email: user.emailAddress,
-        name:
-          type === 'merchant'
-            ? `${user.firstName} ${user.lastName}(${user.MerchantProfile.displayName})`
-            : `${user.firstName} ${user.lastName}`,
-        walletBalance:  parsedWallet.current,
-        orders: user.ClientOrder.length + user.MerchantOrder.length,
-        dateJoined: user.createdAt,
-        accountStatus: user.disableAccount ? 'Disabled' : 'Active',
-        merchantStatus: user.merchantActivated,
-        merchantAccountStatus: user?.MerchantProfile?.accountStatus,
-        tel: user.tel,
-        isOnline: user.isOnline,
-      }
-    
-    
-    });
+        return {
+          id: user.id,
+          avatar:
+            type === 'merchant' && user.MerchantProfile
+              ? user.MerchantProfile.imageUrl
+              : user.imageUrl,
+          email: user.emailAddress,
+          name:
+            type === 'merchant'
+              ? `${user.firstName} ${user.lastName}(${user.MerchantProfile.displayName})`
+              : `${user.firstName} ${user.lastName}`,
+          walletBalance: parsedWallet.current,
+          orders: user.ClientOrder.length + user.MerchantOrder.length,
+          dateJoined: user.createdAt,
+          accountStatus: user.disableAccount ? 'Disabled' : 'Active',
+          merchantStatus: user.merchantActivated,
+          merchantAccountStatus: user?.MerchantProfile?.accountStatus,
+          tel: user.tel,
+          isOnline: user.isOnline,
+        };
+      });
 
       return {
         totalUsers,
@@ -1464,18 +1458,35 @@ class UserService extends NotificationService {
       const OrdersModelResult = await this.OrdersModel.findAll({
         where: { orderStatus: 'inProgress' },
       });
-      const merchantAdsModelResult = await this.MerchantAdsModel.findOne({
-        where: { userId },
-      });
+
       let totalServiceCharge = 0;
       for (let order of OrdersModelResult) {
-        const amountSummary = this.getdeliveryAmountSummary(
-          merchantAdsModelResult.pricePerThousand,
-          order.amountOrder,
-          settingModelResult.serviceCharge,
+        const merchantAdsModelResult = await this.MerchantAdsModel.findOne({
+          where: { userId: order.merchantId },
+        });
+
+        let pricePerThousand = await this.safeParse(
+          merchantAdsModelResult.pricePerThousand
+        );
+        let serviceCharge = await this.safeParse(
+          settingModelResult.serviceCharge
+        );
+        let gatewayService = await this.safeParse(
           settingModelResult.gatewayService
         );
-        totalServiceCharge += amountSummary.serviceCharge;
+        const amountSummary = await this.getdeliveryAmountSummary(
+          pricePerThousand,
+          order.amountOrder,
+          serviceCharge,
+          gatewayService
+        );
+
+        console.log(amountSummary);
+        //kkk
+        totalServiceCharge +=
+          amountSummary.merchantCharge +
+          amountSummary.serviceCharge +
+          amountSummary.amountOrder;
       }
       const orderStatusCancelled = await this.OrdersModel.count({
         where: { orderStatus: 'cancelled', isDeleted: false },
@@ -1506,6 +1517,7 @@ class UserService extends NotificationService {
         pendingRequest: pendingRequest,
       };
     } catch (error) {
+      console.log(error);
       throw new SystemError(error.name, error.parent);
     }
   }
@@ -1583,7 +1595,7 @@ class UserService extends NotificationService {
     }
   }
 
-    safeParse(input) {
+  safeParse(input) {
     if (typeof input === 'string') {
       try {
         return JSON.parse(input);
@@ -1593,7 +1605,7 @@ class UserService extends NotificationService {
       }
     }
 
-    console.log(input)
+    console.log(input);
     return input || {};
   }
   async handleSubmitComplain(data) {
