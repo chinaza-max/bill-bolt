@@ -1203,10 +1203,7 @@ class UserService extends NotificationService {
      
       const userData = users.map((user) => {
 
-          const parsedWallet = this.safeParse(user.walletBalance);
-  console.log('Parsed wallet balance for user:', user.id, parsedWallet);
-  console.log(   parsedWallet.current)
-
+        const parsedWallet = this.safeParse(user.walletBalance);
       
       return  {
         id: user.id,
@@ -1390,10 +1387,21 @@ class UserService extends NotificationService {
         await UserModelResult.update({
           merchantActivated: true,
         });
-        await this.MerchantProfileModel.update(
-          { accountStatus: 'active' },
-          { where: { userId: userId } }
-        );
+
+        const profile = await this.MerchantProfileModel.findOne({
+  where: { userId: userId },
+});
+
+if (!profile) {
+  throw new Error('Merchant profile not found');
+}
+
+await profile.update({ accountStatus: 'active' });
+
+
+
+        await this.sendEmailMerchantAccountActivated(profile.displayName)
+
       } else {
         console.log('updateData', updateData.accountStatus);
         console.log('userId', userId);
@@ -3740,6 +3748,27 @@ class UserService extends NotificationService {
             admin_email: emailAddress,
             admin_password: password,
             admin_name: firstName,
+            // admin_link: serverConfig.CLIENT_URL,
+          },
+        });
+      } catch (error) {
+        console.log(error);
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  async sendEmailMerchantAccountActivated( userName) {
+    try {
+      try {
+        await mailService.sendMail({
+          to: emailAddress,
+          subject: 'login credential',
+          templateName: 'sendEmailMerchantAccountActivated',
+          variables: {
+          
+            userName: userName,
             // admin_link: serverConfig.CLIENT_URL,
           },
         });
