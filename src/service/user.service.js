@@ -1137,7 +1137,7 @@ class UserService extends NotificationService {
       throw new SystemError(error.name, error.parent);
     }
   }
-
+  /*
   async handleGetUsers(data) {
     const { type } = await userUtil.verifyHandleGetUsers.validateAsync(data);
 
@@ -1221,6 +1221,143 @@ class UserService extends NotificationService {
           accountStatus: user.disableAccount ? 'Disabled' : 'Active',
           merchantStatus: user.merchantActivated,
           merchantAccountStatus: user?.MerchantProfile?.accountStatus,
+          tel: user.tel,
+          isOnline: user.isOnline,
+        };
+      });
+
+      return {
+        totalUsers,
+        activeUsers,
+        newUsersThisMonth,
+        users: userData,
+      };
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+*/
+
+  async handleGetUsers(data) {
+    const { type } = await userUtil.verifyHandleGetUsers.validateAsync(data);
+
+    try {
+      // Define the base where condition
+      let whereCondition = {};
+
+      // For merchant type, we will include only users that have a MerchantProfile
+      const includeConditions = [
+        {
+          model: Orders,
+          as: 'ClientOrder',
+          required: false,
+        },
+        {
+          model: Orders,
+          as: 'MerchantOrder',
+          required: false,
+        },
+        {
+          model: MerchantProfile,
+          as: 'MerchantProfile',
+          required: type === 'merchant', // Only include users with MerchantProfile if type is merchant
+        },
+      ];
+
+      // Count total users
+      const totalUsers = await this.UserModel.count({
+        where: whereCondition,
+        include:
+          type === 'merchant'
+            ? [
+                {
+                  model: MerchantProfile,
+                  as: 'MerchantProfile',
+                  required: true,
+                },
+              ]
+            : [],
+      });
+
+      // Count active users
+      const activeUsers = await this.UserModel.count({
+        where: { ...whereCondition, isOnline: true },
+        include:
+          type === 'merchant'
+            ? [
+                {
+                  model: MerchantProfile,
+                  as: 'MerchantProfile',
+                  required: true,
+                },
+              ]
+            : [],
+      });
+
+      // Count new users this month
+      const newUsersThisMonth = await this.UserModel.count({
+        where: {
+          ...whereCondition,
+          createdAt: {
+            [Op.gte]: new Date(new Date().setDate(1)), // First day of the current month
+          },
+        },
+        include:
+          type === 'merchant'
+            ? [
+                {
+                  model: MerchantProfile,
+                  as: 'MerchantProfile',
+                  required: true,
+                },
+              ]
+            : [],
+      });
+
+      // Fetch users with relationships
+      const users = await this.UserModel.findAll({
+        where: whereCondition,
+        attributes: [
+          'id',
+          'imageUrl',
+          'emailAddress',
+          'firstName',
+          'lastName',
+          'walletBalance',
+          'createdAt',
+          'disableAccount',
+          'merchantActivated',
+          'tel',
+          'isOnline',
+        ],
+        include: includeConditions,
+      });
+
+      // Map user data
+      const userData = users.map((user) => {
+        const parsedWallet = this.safeParse(user.walletBalance);
+        console.log('Parsed wallet balance for user:', user.id, parsedWallet);
+        console.log(parsedWallet.current);
+
+        return {
+          id: user.id,
+          avatar:
+            type === 'merchant' && user.MerchantProfile
+              ? user.MerchantProfile.imageUrl
+              : user.imageUrl,
+          email: user.emailAddress,
+          name:
+            type === 'merchant' && user.MerchantProfile
+              ? `${user.firstName} ${user.lastName} (${user.MerchantProfile.displayName})`
+              : `${user.firstName} ${user.lastName}`,
+          walletBalance: parsedWallet.current,
+          orders:
+            (user.ClientOrder?.length || 0) + (user.MerchantOrder?.length || 0),
+          dateJoined: user.createdAt,
+          accountStatus: user.disableAccount ? 'Disabled' : 'Active',
+          merchantStatus: !!user.MerchantProfile, // true if MerchantProfile exists
+          merchantAccountStatus: user?.MerchantProfile?.accountStatus || null,
           tel: user.tel,
           isOnline: user.isOnline,
         };
