@@ -548,7 +548,7 @@ async handleGetMyMerchant(data) {
 
         filteredMatches.push({
           id: merchant.id,
-          name: merchant.MerchantProfile.displayName,
+          name: merchant.MerchantProfile.dataValues.displayname,
           avatar: merchant.MerchantProfile.imageUrl,
           online: merchant.isOnline,
           badge: 'Verified',
