@@ -1534,7 +1534,7 @@ await profile.update({ accountStatus: 'active' });
 
 
 
-        await this.sendEmailMerchantAccountActivated(profile.displayName)
+        await this.sendEmailMerchantAccountActivated(profile.displayName,UserModelResult.emailAddress)
 
       } else {
         console.log('updateData', updateData.accountStatus);
@@ -3911,12 +3911,12 @@ await profile.update({ accountStatus: 'active' });
     }
   }
 
-  async sendEmailMerchantAccountActivated( userName) {
+  async sendEmailMerchantAccountActivated( userName,emailAddress) {
     try {
       try {
         await mailService.sendMail({
           to: emailAddress,
-          subject: 'login credential',
+          subject: 'Merchant account activated',
           templateName: 'sendEmailMerchantAccountActivated',
           variables: {
           
