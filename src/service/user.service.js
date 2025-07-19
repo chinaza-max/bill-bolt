@@ -467,8 +467,6 @@ async handleGetMyMerchant(data) {
     console.log(userId, distance, range )
     const MymatchModel = await this.MymatchModel.findOne({ where: { userId } });
 
-    console.log("MymatchModel:", MymatchModel?.dataValues);
-
     if (!MymatchModel) return [];
 
     let matches = MymatchModel.matches;
@@ -481,17 +479,14 @@ async handleGetMyMerchant(data) {
       }
     }
 
-    console.log("Parsed matches:", matches);
 
     const filteredMatches = [];
 
     for (let i = 0; i < matches.length; i++) {
       const match = matches[i];
-      console.log(`\n--- Checking match ${i + 1} ---`);
-      console.log("Match object:", match);
+
 
       const numberActiveOrder = await this.howmanyActiveOrder(match.merchantId);
-      console.log("Active orders for merchant:", numberActiveOrder);
 
       const merchant = await this.UserModel.findOne({
         where: { id: match.merchantId, disableAccount: false },
@@ -542,8 +537,6 @@ async handleGetMyMerchant(data) {
           : merchant.MerchantProfile.deliveryRange <= range
         : true;
 
-      console.log(`Distance check (${match.distance} <= ${distance}):`, isWithinDistance);
-      console.log(`Range check (${merchant.MerchantProfile.deliveryRange} <= ${range}):`, isWithinRange);
 
       const parsedPricePerThousand = this.safeParse(merchant.UserMerchantAds.pricePerThousand);
 
@@ -551,7 +544,7 @@ async handleGetMyMerchant(data) {
         console.log("✅ Match passed filters. Pushing to result.");
         filteredMatches.push({
           id: merchant.id,
-          name: merchant.MerchantProfile.displayname,
+          name: merchant.MerchantProfile.displayName,
           avatar: merchant.MerchantProfile.imageUrl,
           online: merchant.isOnline,
           badge: 'Verified',
