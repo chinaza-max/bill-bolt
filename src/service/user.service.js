@@ -3321,7 +3321,7 @@ await profile.update({ accountStatus: 'active' });
   async makeMatch() {
     const setting = await this.SettingModel.findByPk(1);
 
-    /*
+    
     try {
       // //Check if match process is running
       console.log('Running every 10 seconds');
@@ -3440,7 +3440,7 @@ await profile.update({ accountStatus: 'active' });
     } finally {
       setting.isMatchRunning = false;
       setting.save();
-    }*/
+    }
   }
 
   calculateDistance(lat1, lng1, lat2, lng2) {
