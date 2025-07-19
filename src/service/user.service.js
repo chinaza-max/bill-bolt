@@ -464,6 +464,20 @@ async handleGetMyMerchant(data) {
 
   try {
     const MymatchModel = await this.MymatchModel.findOne({ where: { userId } });
+    console.log(MymatchModel)
+        console.log("MymatchModel")
+        console.log("MymatchModel")
+        console.log("MymatchModel")
+        console.log("MymatchModel")
+        console.log("MymatchModel")
+        console.log("MymatchModel")
+        console.log("MymatchModel")
+        console.log("MymatchModel")
+        console.log("MymatchModel")
+        console.log("MymatchModel")
+        console.log("MymatchModel")
+        console.log("MymatchModel")
+        console.log("MymatchModel")
 
     if (!MymatchModel) return [];
 
@@ -1795,6 +1809,8 @@ await profile.update({ accountStatus: 'active' });
       throw new SystemError(error.name, error.parent);
     }
   }
+
+  /*
   async handleGetdefaultAds(data) {
     const { userId } = await userUtil.verifyHandleGetdefaultAds.validateAsync(
       data
@@ -1828,7 +1844,42 @@ await profile.update({ accountStatus: 'active' });
       console.error('Error fetching default with details:', error);
       throw new SystemError(error.name, error.parent);
     }
+  }*/
+
+    async handleGetdefaultAds(data) {
+  const { userId } = await userUtil.verifyHandleGetdefaultAds.validateAsync(data);
+
+  try {
+    const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
+      where: { userId },
+    });
+
+    let adsData = {};
+
+    if (MerchantAdsModelResult) {
+      adsData = {
+        min: MerchantAdsModelResult.minAmount,
+        max: MerchantAdsModelResult.maxAmount,
+        breaks: this.safeParse(MerchantAdsModelResult.pricePerThousand),
+      };
+    } else {
+      const settingModelResult = await this.SettingModel.findByPk(1);
+      const settingModelResultParsed = this.safeParse(settingModelResult.defaultAds);
+
+      adsData = {
+        min: 1000,
+        max: 10000,
+        breaks: settingModelResultParsed,
+      };
+    }
+
+    return adsData;
+  } catch (error) {
+    console.error('Error fetching default with details:', error);
+    throw new SystemError(error.name, error.parent);
   }
+}
+
 
   async handleManageBreakPoint(data) {
     const { userId, action, breakPoint } =
