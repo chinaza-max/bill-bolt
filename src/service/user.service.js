@@ -1536,6 +1536,23 @@ await profile.update({ accountStatus: 'active' });
 
         await this.sendEmailMerchantAccountActivated(profile.displayName,UserModelResult.emailAddress)
 
+
+         try {
+      await this.sendToDevice(
+        UserModelResult.fcmToken, // Assuming `userResult` is the customer
+        {
+          title: 'Merchat account activated',
+          body: `Great news your merchant accoutn is now active login and set your price to start taking order near by.`,
+        },
+        {
+          type: 'ACTIVATED_MERCHANT_ACCOUNT',
+          orderId: '', // Replace with your actual order object
+        }
+      );
+    } catch (error) {
+      console.error('Error updating client wallet:', error);
+    }
+
       } else {
         console.log('updateData', updateData.accountStatus);
         console.log('userId', userId);
