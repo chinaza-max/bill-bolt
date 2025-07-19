@@ -542,6 +542,10 @@ async handleGetMyMerchant(data) {
 
       if (isWithinDistance && isWithinRange) {
         console.log("✅ Match passed filters. Pushing to result.");
+                console.log(merchant.MerchantProfile);
+        console.log(merchant.MerchantProfile.displayName);
+        console.log(merchant.MerchantProfile.displayname);
+
         filteredMatches.push({
           id: merchant.id,
           name: merchant.MerchantProfile.displayName,
