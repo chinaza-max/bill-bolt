@@ -463,21 +463,11 @@ async handleGetMyMerchant(data) {
     await userUtil.verifyHandleGetMyMerchant.validateAsync(data);
 
   try {
+
+    console.log(userId, distance, range )
     const MymatchModel = await this.MymatchModel.findOne({ where: { userId } });
-    console.log(MymatchModel)
-        console.log("MymatchModel")
-        console.log("MymatchModel")
-        console.log("MymatchModel")
-        console.log("MymatchModel")
-        console.log("MymatchModel")
-        console.log("MymatchModel")
-        console.log("MymatchModel")
-        console.log("MymatchModel")
-        console.log("MymatchModel")
-        console.log("MymatchModel")
-        console.log("MymatchModel")
-        console.log("MymatchModel")
-        console.log("MymatchModel")
+
+    console.log("MymatchModel:", MymatchModel?.dataValues);
 
     if (!MymatchModel) return [];
 
@@ -491,12 +481,17 @@ async handleGetMyMerchant(data) {
       }
     }
 
+    console.log("Parsed matches:", matches);
+
     const filteredMatches = [];
 
     for (let i = 0; i < matches.length; i++) {
       const match = matches[i];
+      console.log(`\n--- Checking match ${i + 1} ---`);
+      console.log("Match object:", match);
 
       const numberActiveOrder = await this.howmanyActiveOrder(match.merchantId);
+      console.log("Active orders for merchant:", numberActiveOrder);
 
       const merchant = await this.UserModel.findOne({
         where: { id: match.merchantId, disableAccount: false },
@@ -511,14 +506,26 @@ async handleGetMyMerchant(data) {
             model: this.MerchantAdsModel,
             as: 'UserMerchantAds',
             attributes: ['minAmount', 'maxAmount', 'pricePerThousand'],
-            required: true, // you can set this to false if not all merchants have ads
+            required: true,
           },
         ],
         attributes: ['imageUrl', 'isOnline', 'id', 'firstName', 'lastName'],
       });
 
-      // If merchant not found (null), skip to next
-      if (!merchant || !merchant.UserMerchantAds || !merchant.MerchantProfile) continue;
+      if (!merchant) {
+        console.warn("Merchant not found or disabled:", match.merchantId);
+        continue;
+      }
+
+      if (!merchant.MerchantProfile) {
+        console.warn("MerchantProfile missing or inactive:", match.merchantId);
+        continue;
+      }
+
+      if (!merchant.UserMerchantAds) {
+        console.warn("UserMerchantAds missing:", match.merchantId);
+        continue;
+      }
 
       const OrdersModelResult = await this.OrdersModel.count({
         where: {
@@ -529,16 +536,19 @@ async handleGetMyMerchant(data) {
       });
 
       const isWithinDistance = distance ? match.distance <= distance : true;
-
       const isWithinRange = range
         ? Array.isArray(merchant.MerchantProfile)
           ? merchant.MerchantProfile.some((p) => p.deliveryRange <= range)
           : merchant.MerchantProfile.deliveryRange <= range
         : true;
 
-     const parsedPricePerThousand = this.safeParse(merchant.UserMerchantAds.pricePerThousand);
+      console.log(`Distance check (${match.distance} <= ${distance}):`, isWithinDistance);
+      console.log(`Range check (${merchant.MerchantProfile.deliveryRange} <= ${range}):`, isWithinRange);
+
+      const parsedPricePerThousand = this.safeParse(merchant.UserMerchantAds.pricePerThousand);
 
       if (isWithinDistance && isWithinRange) {
+        console.log("✅ Match passed filters. Pushing to result.");
         filteredMatches.push({
           id: merchant.id,
           name: merchant.MerchantProfile.displayname,
@@ -553,9 +563,12 @@ async handleGetMyMerchant(data) {
           distance: match.distance,
           numberOfOrder: OrdersModelResult,
         });
+      } else {
+        console.log("❌ Match failed distance or range check.");
       }
     }
 
+    console.log(`Total filtered matches: ${filteredMatches.length}`);
     return filteredMatches;
   } catch (error) {
     console.error('handleGetMyMerchant error:', error);
