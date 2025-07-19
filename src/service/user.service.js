@@ -187,7 +187,7 @@ class UserService extends NotificationService {
       });
     } catch (err) {
       console.error('Upload error:', err);
-      res.status(500).send('Upload failed');
+      res.status(500).send('Upload failed')
     }
   }
 
@@ -543,8 +543,8 @@ async handleGetMyMerchant(data) {
       if (isWithinDistance && isWithinRange) {
         console.log("✅ Match passed filters. Pushing to result.");
                 console.log(merchant.MerchantProfile);
-        console.log(merchant.MerchantProfile.displayName);
-        console.log(merchant.MerchantProfile.displayname);
+        console.log(merchant.MerchantProfile.dataValues.displayName);
+        console.log(merchant.MerchantProfile.dataValues.displayname);
 
         filteredMatches.push({
           id: merchant.id,
