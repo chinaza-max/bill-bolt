@@ -3369,7 +3369,7 @@ await profile.update({ accountStatus: 'active' });
           where: { userId },
         });
 
-      const SettingModelResultTiers = JSON.parse(SettingModelResult.tiers);
+      const SettingModelResultTiers = this.safeParse(SettingModelResult.tiers);
 
       for (let index = 0; index < SettingModelResultTiers.length; index++) {
         const element = SettingModelResultTiers[index];
