@@ -458,6 +458,106 @@ class UserService extends NotificationService {
     return userResult;
   }
 
+async handleGetMyMerchant(data) {
+  const { userId, distance, range } =
+    await userUtil.verifyHandleGetMyMerchant.validateAsync(data);
+
+  try {
+    const MymatchModel = await this.MymatchModel.findOne({ where: { userId } });
+
+    if (!MymatchModel) return [];
+
+    let matches = MymatchModel.matches;
+    if (typeof matches === 'string') {
+      try {
+        matches = JSON.parse(matches);
+      } catch (err) {
+        console.error('Invalid matches JSON:', err);
+        return [];
+      }
+    }
+
+    const filteredMatches = [];
+
+    for (let i = 0; i < matches.length; i++) {
+      const match = matches[i];
+
+      const numberActiveOrder = await this.howmanyActiveOrder(match.merchantId);
+
+      const merchant = await this.UserModel.findOne({
+        where: { id: match.merchantId, disableAccount: false },
+        include: [
+          {
+            model: MerchantProfile,
+            as: 'MerchantProfile',
+            attributes: ['displayname', 'deliveryRange', 'imageUrl'],
+            where: { accountStatus: 'active' },
+          },
+          {
+            model: this.MerchantAdsModel,
+            as: 'UserMerchantAds',
+            attributes: ['minAmount', 'maxAmount', 'pricePerThousand'],
+            required: true, // you can set this to false if not all merchants have ads
+          },
+        ],
+        attributes: ['imageUrl', 'isOnline', 'id', 'firstName', 'lastName'],
+      });
+
+      // If merchant not found (null), skip to next
+      if (!merchant || !merchant.UserMerchantAds || !merchant.MerchantProfile) continue;
+
+      const OrdersModelResult = await this.OrdersModel.count({
+        where: {
+          isDeleted: false,
+          merchantId: userId,
+          hasIssues: false,
+        },
+      });
+
+      const isWithinDistance = distance ? match.distance <= distance : true;
+
+      const isWithinRange = range
+        ? Array.isArray(merchant.MerchantProfile)
+          ? merchant.MerchantProfile.some((p) => p.deliveryRange <= range)
+          : merchant.MerchantProfile.deliveryRange <= range
+        : true;
+
+      let parsedPricePerThousand = merchant.UserMerchantAds.pricePerThousand;
+      if (typeof parsedPricePerThousand === 'string') {
+        try {
+          parsedPricePerThousand = JSON.parse(parsedPricePerThousand);
+        } catch (err) {
+          console.error('Failed to parse pricePerThousand for merchant:', match.merchantId, err);
+          parsedPricePerThousand = {};
+        }
+      }
+
+      if (isWithinDistance && isWithinRange) {
+        filteredMatches.push({
+          id: merchant.id,
+          name: merchant.MerchantProfile.displayname,
+          avatar: merchant.MerchantProfile.imageUrl,
+          online: merchant.isOnline,
+          badge: 'Verified',
+          priceRanges: {
+            ...merchant.UserMerchantAds.dataValues,
+            pricePerThousand: parsedPricePerThousand,
+          },
+          accuracy: 10,
+          distance: match.distance,
+          numberOfOrder: OrdersModelResult,
+        });
+      }
+    }
+
+    return filteredMatches;
+  } catch (error) {
+    console.error('handleGetMyMerchant error:', error);
+    throw new SystemError(error.name, error.parent);
+  }
+}
+
+  /*
   async handleGetMyMerchant(data) {
     const { userId, distance, range } =
       await userUtil.verifyHandleGetMyMerchant.validateAsync(data);
@@ -557,7 +657,7 @@ class UserService extends NotificationService {
       console.log(error);
       throw new SystemError(error.name, error.parent);
     }
-  }
+  }*/
 
   async handleGetMerchantProfile(data) {
     const { userId } =
