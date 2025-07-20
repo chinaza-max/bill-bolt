@@ -541,10 +541,7 @@ async handleGetMyMerchant(data) {
       const parsedPricePerThousand = this.safeParse(merchant.UserMerchantAds.pricePerThousand);
 
       if (isWithinDistance && isWithinRange) {
-        console.log("✅ Match passed filters. Pushing to result.");
-                console.log(merchant.MerchantProfile);
-        console.log(merchant.MerchantProfile.dataValues.displayname);
-
+     
         filteredMatches.push({
           id: merchant.id,
           name: merchant.MerchantProfile.dataValues.displayname,
@@ -3594,7 +3591,8 @@ await profile.update({ accountStatus: 'active' });
         const userMatches = [];
 
         for (const merchant of merchants) {
-          if (user.id === merchant.id) continue; // Avoid matching user to themselves
+          if (!user.lat || !user.lng) continue;     
+          if (!merchant.lat || !merchant.lng) continue;
 
           if (merchant.deliveryRange) {
             distanceThreshold = Math.max(
