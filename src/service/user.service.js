@@ -3688,12 +3688,12 @@ await profile.update({ accountStatus: 'active' });
   async makeMatch() {
     const setting = await this.SettingModel.findByPk(1);
 
+    const startedAt = new Date(setting.matchStartedAt);
+    const diffMinutes = (now - startedAt) / (1000 * 60);
     
     try {
       // //Check if match process is running
-      console.log('Running every 10 seconds');
-      console.log(setting.isMatchRunning);
-      if (setting.isMatchRunning) return;
+      if (setting.isMatchRunning && diffMinutes < 15) return;
 
       setting.isMatchRunning = true;
       setting.save();
