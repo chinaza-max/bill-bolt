@@ -96,11 +96,25 @@ class UserService extends NotificationService {
     try {
       let imageUrl = '';
       if (file) {
+
+      const { path: filePath, originalname, mimetype } = file;
+      const data = await this.uploadToDrive(filePath, originalname, mimetype);
+
+      imageUrl=data.webViewLink
+      /*
+      res.send({
+        message: 'File uploaded successfully!',
+        publicLink: data.webContentLink,
+        drivePreview: data.webViewLink,
+      });
+*/
+
+/*
         if (serverConfig.NODE_ENV == 'production') {
           imageUrl = serverConfig.DOMAIN + file.path.replace('/home', '');
         } else if (serverConfig.NODE_ENV == 'development') {
           imageUrl = serverConfig.DOMAIN + file.path.replace('public', '');
-        }
+        }*/
       }
 
       const MerchantProfileModelResult =
