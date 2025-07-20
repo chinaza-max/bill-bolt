@@ -166,11 +166,17 @@ class UserService extends NotificationService {
     try {
       let imageUrl = '';
       if (file) {
+
+      const { path: filePath, originalname, mimetype } = file;
+      const data = await this.uploadToDrive(filePath, originalname, mimetype);
+
+      imageUrl=data.webViewLink
+        /*
         if (serverConfig.NODE_ENV == 'production') {
           imageUrl = serverConfig.DOMAIN + file.path.replace('/home', '');
         } else if (serverConfig.NODE_ENV == 'development') {
           imageUrl = serverConfig.DOMAIN + file.path.replace('public', '');
-        }
+        }*/
       }
 
       const UserModelResult = await this.UserModel.findByPk(userId);
@@ -477,6 +483,134 @@ async handleGetMyMerchant(data) {
     await userUtil.verifyHandleGetMyMerchant.validateAsync(data);
 
   try {
+    console.log("➡️ Input Params:", { userId, distance, range });
+
+    const MymatchModel = await this.MymatchModel.findOne({ where: { userId } });
+
+    if (!MymatchModel) {
+      console.warn("⚠️ No MymatchModel found for userId:", userId);
+      return [];
+    }
+
+    let matches = MymatchModel.matches;
+    console.log("📦 Raw matches data:", matches);
+
+    if (typeof matches === 'string') {
+      try {
+        matches = JSON.parse(matches);
+        console.log("✅ Parsed matches:", matches);
+      } catch (err) {
+        console.error('❌ Invalid matches JSON:', err);
+        return [];
+      }
+    }
+
+    if (!Array.isArray(matches) || matches.length === 0) {
+      console.warn("⚠️ Matches is empty or not an array.");
+      return [];
+    }
+
+    const filteredMatches = [];
+
+    for (let i = 0; i < matches.length; i++) {
+      const match = matches[i];
+      console.log(`🔍 Checking match ${i + 1}/${matches.length}:`, match);
+
+      const numberActiveOrder = await this.howmanyActiveOrder(match.merchantId);
+      console.log(`🧾 Active Orders for ${match.merchantId}:`, numberActiveOrder);
+
+      const merchant = await this.UserModel.findOne({
+        where: { id: match.merchantId, disableAccount: false },
+        include: [
+          {
+            model: MerchantProfile,
+            as: 'MerchantProfile',
+            attributes: ['displayname', 'deliveryRange', 'imageUrl'],
+            where: { accountStatus: 'active' },
+          },
+          {
+            model: this.MerchantAdsModel,
+            as: 'UserMerchantAds',
+            attributes: ['minAmount', 'maxAmount', 'pricePerThousand'],
+            required: true,
+          },
+        ],
+        attributes: ['imageUrl', 'isOnline', 'id', 'firstName', 'lastName'],
+      });
+
+      if (!merchant) {
+        console.warn("❌ Merchant not found or disabled:", match.merchantId);
+        continue;
+      }
+
+      if (!merchant.MerchantProfile) {
+        console.warn("❌ MerchantProfile missing or inactive:", match.merchantId);
+        continue;
+      }
+
+      if (!merchant.UserMerchantAds) {
+        console.warn("❌ UserMerchantAds missing:", match.merchantId);
+        continue;
+      }
+
+      const OrdersModelResult = await this.OrdersModel.count({
+        where: {
+          isDeleted: false,
+          merchantId: userId,
+          hasIssues: false,
+        },
+      });
+
+      const isWithinDistance = distance ? match.distance <= distance : true;
+      const isWithinRange = range
+        ? Array.isArray(merchant.MerchantProfile)
+          ? merchant.MerchantProfile.some((p) => p.deliveryRange <= range)
+          : merchant.MerchantProfile.deliveryRange <= range
+        : true;
+
+      console.log(`📏 Distance Check: ${isWithinDistance}, Range Check: ${isWithinRange}`);
+
+      const parsedPricePerThousand = this.safeParse(merchant.UserMerchantAds.pricePerThousand);
+
+      if (isWithinDistance && isWithinRange) {
+        filteredMatches.push({
+          id: merchant.id,
+          name: merchant.MerchantProfile.dataValues.displayname,
+          avatar: merchant.MerchantProfile.imageUrl,
+          online: merchant.isOnline,
+          badge: 'Verified',
+          priceRanges: {
+            ...merchant.UserMerchantAds.dataValues,
+            pricePerThousand: parsedPricePerThousand,
+          },
+          accuracy: 10,
+          distance: match.distance,
+          numberOfOrder: OrdersModelResult,
+        });
+        console.log(`✅ Match added:`, merchant.id);
+      } else {
+        console.log("❌ Match failed distance or range check:", {
+          merchantId: merchant.id,
+          matchDistance: match.distance,
+          merchantRange: merchant.MerchantProfile.deliveryRange,
+        });
+      }
+    }
+
+    console.log(`🎯 Total filtered matches: ${filteredMatches.length}`);
+    return filteredMatches;
+  } catch (error) {
+    console.error('🚨 handleGetMyMerchant error:', error);
+    throw new SystemError(error.name, error.parent);
+  }
+}
+
+  /*
+async handleGetMyMerchant(data) {
+  const { userId, distance, range } =
+    await userUtil.verifyHandleGetMyMerchant.validateAsync(data);
+
+  try {
 
     console.log(userId, distance, range )
     const MymatchModel = await this.MymatchModel.findOne({ where: { userId } });
@@ -581,7 +715,7 @@ async handleGetMyMerchant(data) {
     console.error('handleGetMyMerchant error:', error);
     throw new SystemError(error.name, error.parent);
   }
-}
+}*/
 
   /*
   async handleGetMyMerchant(data) {
