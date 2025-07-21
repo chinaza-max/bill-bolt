@@ -3686,7 +3686,7 @@ await profile.update({ accountStatus: 'active' });
 }
 
   async makeMatch() {
-    const setting = await SettingModel.findByPk(1);
+    const setting = await this.SettingModel.findByPk(1);
 const startedAt = setting.matchStartedAt ? new Date(setting.matchStartedAt) : null;
 const diffMinutes = startedAt ? (Date.now() - startedAt) / (1000 * 60) : null;
 
