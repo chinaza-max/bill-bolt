@@ -3687,7 +3687,7 @@ await profile.update({ accountStatus: 'active' });
 
   async makeMatch() {
     const setting = await this.SettingModel.findByPk(1);
-
+    const now = new Date();
     const startedAt = new Date(setting.matchStartedAt);
     const diffMinutes = (now - startedAt) / (1000 * 60);
     
@@ -3696,6 +3696,8 @@ await profile.update({ accountStatus: 'active' });
       if (setting.isMatchRunning && diffMinutes < 15) return;
 
       setting.isMatchRunning = true;
+      setting.matchStartedAt = new Date();
+
       setting.save();
       let distanceThreshold = setting.distanceThreshold || 10; // Example threshold in kilometers
 
@@ -3740,7 +3742,6 @@ await profile.update({ accountStatus: 'active' });
 
         for (const merchant of merchants) {
           if (user.id == merchant.id) continue;     
-
           if (!user.lat || !user.lng) continue;     
           if (!merchant.lat || !merchant.lng) continue;
 

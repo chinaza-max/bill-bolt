@@ -82,6 +82,10 @@ export function init(connection) {
         allowNull: false,
         defaultValue: false,
       },
+      matchStartedAt:{
+        type: DataTypes.DATE,
+        allowNull: true, 
+      }
     },
     {
       tableName: 'Setting', // The table name
