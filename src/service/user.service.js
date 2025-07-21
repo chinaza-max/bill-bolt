@@ -3739,6 +3739,8 @@ await profile.update({ accountStatus: 'active' });
         const userMatches = [];
 
         for (const merchant of merchants) {
+          if (user.id == merchant.id) continue;     
+
           if (!user.lat || !user.lng) continue;     
           if (!merchant.lat || !merchant.lng) continue;
 
