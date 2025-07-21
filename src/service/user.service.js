@@ -3686,14 +3686,21 @@ await profile.update({ accountStatus: 'active' });
 }
 
   async makeMatch() {
-    const setting = await this.SettingModel.findByPk(1);
-    const now = new Date();
-    const startedAt = new Date(setting.matchStartedAt);
-    const diffMinutes = (now - startedAt) / (1000 * 60);
+    const setting = await SettingModel.findByPk(1);
+const startedAt = setting.matchStartedAt ? new Date(setting.matchStartedAt) : null;
+const diffMinutes = startedAt ? (Date.now() - startedAt) / (1000 * 60) : null;
+
     
     try {
       // //Check if match process is running
-      if (setting.isMatchRunning && diffMinutes < 15) return;
+    //  if (setting.isMatchRunning && diffMinutes < 15) return;
+
+
+
+      if (setting.isMatchRunning && diffMinutes > 15) {
+        await SettingModel.update({ isMatchRunning: false, matchStartedAt: null }, { where: { id: 1 } });
+        console.log("🧹 Reset stuck match state.");
+      }
 
       setting.isMatchRunning = true;
       setting.matchStartedAt = new Date();
