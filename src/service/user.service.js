@@ -96,12 +96,11 @@ class UserService extends NotificationService {
     try {
       let imageUrl = '';
       if (file) {
+        const { path: filePath, originalname, mimetype } = file;
+        const data = await this.uploadToDrive(filePath, originalname, mimetype);
 
-      const { path: filePath, originalname, mimetype } = file;
-      const data = await this.uploadToDrive(filePath, originalname, mimetype);
-
-      imageUrl=data.webViewLink
-      /*
+        imageUrl = data.webViewLink;
+        /*
       res.send({
         message: 'File uploaded successfully!',
         publicLink: data.webContentLink,
@@ -109,7 +108,7 @@ class UserService extends NotificationService {
       });
 */
 
-/*
+        /*
         if (serverConfig.NODE_ENV == 'production') {
           imageUrl = serverConfig.DOMAIN + file.path.replace('/home', '');
         } else if (serverConfig.NODE_ENV == 'development') {
@@ -166,11 +165,10 @@ class UserService extends NotificationService {
     try {
       let imageUrl = '';
       if (file) {
+        const { path: filePath, originalname, mimetype } = file;
+        const data = await this.uploadToDrive(filePath, originalname, mimetype);
 
-      const { path: filePath, originalname, mimetype } = file;
-      const data = await this.uploadToDrive(filePath, originalname, mimetype);
-
-      imageUrl=data.webViewLink
+        imageUrl = data.webViewLink;
         /*
         if (serverConfig.NODE_ENV == 'production') {
           imageUrl = serverConfig.DOMAIN + file.path.replace('/home', '');
@@ -207,7 +205,7 @@ class UserService extends NotificationService {
       });
     } catch (err) {
       console.error('Upload error:', err);
-      res.status(500).send('Upload failed')
+      res.status(500).send('Upload failed');
     }
   }
 
@@ -478,132 +476,147 @@ class UserService extends NotificationService {
     return userResult;
   }
 
-async handleGetMyMerchant(data) {
-  const { userId, distance, range } =
-    await userUtil.verifyHandleGetMyMerchant.validateAsync(data);
+  async handleGetMyMerchant(data) {
+    const { userId, distance, range } =
+      await userUtil.verifyHandleGetMyMerchant.validateAsync(data);
 
-  try {
-    console.log("➡️ Input Params:", { userId, distance, range });
+    try {
+      console.log('➡️ Input Params:', { userId, distance, range });
 
-    const MymatchModel = await this.MymatchModel.findOne({ where: { userId } });
+      const MymatchModel = await this.MymatchModel.findOne({
+        where: { userId },
+      });
 
-    if (!MymatchModel) {
-      console.warn("⚠️ No MymatchModel found for userId:", userId);
-      return [];
-    }
-
-    let matches = MymatchModel.matches;
-    console.log("📦 Raw matches data:", matches);
-
-    if (typeof matches === 'string') {
-      try {
-        matches = JSON.parse(matches);
-        console.log("✅ Parsed matches:", matches);
-      } catch (err) {
-        console.error('❌ Invalid matches JSON:', err);
+      console.log('MymatchModel', MymatchModel);
+      if (!MymatchModel) {
+        console.warn('⚠️ No MymatchModel found for userId:', userId);
         return [];
       }
-    }
 
-    if (!Array.isArray(matches) || matches.length === 0) {
-      console.warn("⚠️ Matches is empty or not an array.");
-      return [];
-    }
+      let matches = MymatchModel.matches;
+      console.log('📦 Raw matches data:', matches);
 
-    const filteredMatches = [];
-
-    for (let i = 0; i < matches.length; i++) {
-      const match = matches[i];
-      console.log(`🔍 Checking match ${i + 1}/${matches.length}:`, match);
-
-      const numberActiveOrder = await this.howmanyActiveOrder(match.merchantId);
-      console.log(`🧾 Active Orders for ${match.merchantId}:`, numberActiveOrder);
-
-      const merchant = await this.UserModel.findOne({
-        where: { id: match.merchantId, disableAccount: false },
-        include: [
-          {
-            model: MerchantProfile,
-            as: 'MerchantProfile',
-            attributes: ['displayname', 'deliveryRange', 'imageUrl'],
-            where: { accountStatus: 'active' },
-          },
-          {
-            model: this.MerchantAdsModel,
-            as: 'UserMerchantAds',
-            attributes: ['minAmount', 'maxAmount', 'pricePerThousand'],
-            required: true,
-          },
-        ],
-        attributes: ['imageUrl', 'isOnline', 'id', 'firstName', 'lastName'],
-      });
-
-      if (!merchant) {
-        console.warn("❌ Merchant not found or disabled:", match.merchantId);
-        continue;
+      if (typeof matches === 'string') {
+        try {
+          matches = JSON.parse(matches);
+          console.log('✅ Parsed matches:', matches);
+        } catch (err) {
+          console.error('❌ Invalid matches JSON:', err);
+          return [];
+        }
       }
 
-      if (!merchant.MerchantProfile) {
-        console.warn("❌ MerchantProfile missing or inactive:", match.merchantId);
-        continue;
+      if (!Array.isArray(matches) || matches.length === 0) {
+        console.warn('⚠️ Matches is empty or not an array.');
+        return [];
       }
 
-      if (!merchant.UserMerchantAds) {
-        console.warn("❌ UserMerchantAds missing:", match.merchantId);
-        continue;
-      }
+      const filteredMatches = [];
 
-      const OrdersModelResult = await this.OrdersModel.count({
-        where: {
-          isDeleted: false,
-          merchantId: userId,
-          hasIssues: false,
-        },
-      });
+      for (let i = 0; i < matches.length; i++) {
+        const match = matches[i];
+        console.log(`🔍 Checking match ${i + 1}/${matches.length}:`, match);
 
-      const isWithinDistance = distance ? match.distance <= distance : true;
-      const isWithinRange = range
-        ? Array.isArray(merchant.MerchantProfile)
-          ? merchant.MerchantProfile.some((p) => p.deliveryRange <= range)
-          : merchant.MerchantProfile.deliveryRange <= range
-        : true;
+        const numberActiveOrder = await this.howmanyActiveOrder(
+          match.merchantId
+        );
+        console.log(
+          `🧾 Active Orders for ${match.merchantId}:`,
+          numberActiveOrder
+        );
 
-      console.log(`📏 Distance Check: ${isWithinDistance}, Range Check: ${isWithinRange}`);
-
-      const parsedPricePerThousand = this.safeParse(merchant.UserMerchantAds.pricePerThousand);
-
-      if (isWithinDistance && isWithinRange) {
-        filteredMatches.push({
-          id: merchant.id,
-          name: merchant.MerchantProfile.dataValues.displayname,
-          avatar: merchant.MerchantProfile.imageUrl,
-          online: merchant.isOnline,
-          badge: 'Verified',
-          priceRanges: {
-            ...merchant.UserMerchantAds.dataValues,
-            pricePerThousand: parsedPricePerThousand,
-          },
-          accuracy: 10,
-          distance: match.distance,
-          numberOfOrder: OrdersModelResult,
+        const merchant = await this.UserModel.findOne({
+          where: { id: match.merchantId, disableAccount: false },
+          include: [
+            {
+              model: MerchantProfile,
+              as: 'MerchantProfile',
+              attributes: ['displayname', 'deliveryRange', 'imageUrl'],
+              where: { accountStatus: 'active' },
+            },
+            {
+              model: this.MerchantAdsModel,
+              as: 'UserMerchantAds',
+              attributes: ['minAmount', 'maxAmount', 'pricePerThousand'],
+              required: true,
+            },
+          ],
+          attributes: ['imageUrl', 'isOnline', 'id', 'firstName', 'lastName'],
         });
-        console.log(`✅ Match added:`, merchant.id);
-      } else {
-        console.log("❌ Match failed distance or range check:", {
-          merchantId: merchant.id,
-          matchDistance: match.distance,
-          merchantRange: merchant.MerchantProfile.deliveryRange,
-        });
-      }
-    }
 
-    console.log(`🎯 Total filtered matches: ${filteredMatches.length}`);
-    return filteredMatches;
-  } catch (error) {
-    console.error('🚨 handleGetMyMerchant error:', error);
-    throw new SystemError(error.name, error.parent);
+        if (!merchant) {
+          console.warn('❌ Merchant not found or disabled:', match.merchantId);
+          continue;
+        }
+
+        if (!merchant.MerchantProfile) {
+          console.warn(
+            '❌ MerchantProfile missing or inactive:',
+            match.merchantId
+          );
+          continue;
+        }
+
+        if (!merchant.UserMerchantAds) {
+          console.warn('❌ UserMerchantAds missing:', match.merchantId);
+          continue;
+        }
+
+        const OrdersModelResult = await this.OrdersModel.count({
+          where: {
+            isDeleted: false,
+            merchantId: userId,
+            hasIssues: false,
+          },
+        });
+
+        const isWithinDistance = distance ? match.distance <= distance : true;
+        const isWithinRange = range
+          ? Array.isArray(merchant.MerchantProfile)
+            ? merchant.MerchantProfile.some((p) => p.deliveryRange <= range)
+            : merchant.MerchantProfile.deliveryRange <= range
+          : true;
+
+        console.log(
+          `📏 Distance Check: ${isWithinDistance}, Range Check: ${isWithinRange}`
+        );
+
+        const parsedPricePerThousand = this.safeParse(
+          merchant.UserMerchantAds.pricePerThousand
+        );
+
+        if (isWithinDistance && isWithinRange) {
+          filteredMatches.push({
+            id: merchant.id,
+            name: merchant.MerchantProfile.dataValues.displayname,
+            avatar: merchant.MerchantProfile.imageUrl,
+            online: merchant.isOnline,
+            badge: 'Verified',
+            priceRanges: {
+              ...merchant.UserMerchantAds.dataValues,
+              pricePerThousand: parsedPricePerThousand,
+            },
+            accuracy: 10,
+            distance: match.distance,
+            numberOfOrder: OrdersModelResult,
+          });
+          console.log(`✅ Match added:`, merchant.id);
+        } else {
+          console.log('❌ Match failed distance or range check:', {
+            merchantId: merchant.id,
+            matchDistance: match.distance,
+            merchantRange: merchant.MerchantProfile.deliveryRange,
+          });
+        }
+      }
+
+      console.log(`🎯 Total filtered matches: ${filteredMatches.length}`);
+      return filteredMatches;
+    } catch (error) {
+      console.error('🚨 handleGetMyMerchant error:', error);
+      throw new SystemError(error.name, error.parent);
+    }
   }
-}
 
   /*
 async handleGetMyMerchant(data) {
@@ -1783,36 +1796,35 @@ async handleGetMyMerchant(data) {
         });
 
         const profile = await this.MerchantProfileModel.findOne({
-  where: { userId: userId },
-});
+          where: { userId: userId },
+        });
 
-if (!profile) {
-  throw new Error('Merchant profile not found');
-}
-
-await profile.update({ accountStatus: 'active' });
-
-
-
-        await this.sendEmailMerchantAccountActivated(profile.displayName,UserModelResult.emailAddress)
-
-
-         try {
-      await this.sendToDevice(
-        UserModelResult.fcmToken, // Assuming `userResult` is the customer
-        {
-          title: 'Merchat account activated',
-          body: `Great news your merchant accoutn is now active login and set your price to start taking order near by.`,
-        },
-        {
-          type: 'ACTIVATED_MERCHANT_ACCOUNT',
-          orderId: '', // Replace with your actual order object
+        if (!profile) {
+          throw new Error('Merchant profile not found');
         }
-      );
-    } catch (error) {
-      console.error('Error updating client wallet:', error);
-    }
 
+        await profile.update({ accountStatus: 'active' });
+
+        await this.sendEmailMerchantAccountActivated(
+          profile.displayName,
+          UserModelResult.emailAddress
+        );
+
+        try {
+          await this.sendToDevice(
+            UserModelResult.fcmToken, // Assuming `userResult` is the customer
+            {
+              title: 'Merchat account activated',
+              body: `Great news your merchant accoutn is now active login and set your price to start taking order near by.`,
+            },
+            {
+              type: 'ACTIVATED_MERCHANT_ACCOUNT',
+              orderId: '', // Replace with your actual order object
+            }
+          );
+        } catch (error) {
+          console.error('Error updating client wallet:', error);
+        }
       } else {
         console.log('updateData', updateData.accountStatus);
         console.log('userId', userId);
@@ -2000,40 +2012,43 @@ await profile.update({ accountStatus: 'active' });
     }
   }*/
 
-    async handleGetdefaultAds(data) {
-  const { userId } = await userUtil.verifyHandleGetdefaultAds.validateAsync(data);
+  async handleGetdefaultAds(data) {
+    const { userId } = await userUtil.verifyHandleGetdefaultAds.validateAsync(
+      data
+    );
 
-  try {
-    const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
-      where: { userId },
-    });
+    try {
+      const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
+        where: { userId },
+      });
 
-    let adsData = {};
+      let adsData = {};
 
-    if (MerchantAdsModelResult) {
-      adsData = {
-        min: MerchantAdsModelResult.minAmount,
-        max: MerchantAdsModelResult.maxAmount,
-        breaks: this.safeParse(MerchantAdsModelResult.pricePerThousand),
-      };
-    } else {
-      const settingModelResult = await this.SettingModel.findByPk(1);
-      const settingModelResultParsed = this.safeParse(settingModelResult.defaultAds);
+      if (MerchantAdsModelResult) {
+        adsData = {
+          min: MerchantAdsModelResult.minAmount,
+          max: MerchantAdsModelResult.maxAmount,
+          breaks: this.safeParse(MerchantAdsModelResult.pricePerThousand),
+        };
+      } else {
+        const settingModelResult = await this.SettingModel.findByPk(1);
+        const settingModelResultParsed = this.safeParse(
+          settingModelResult.defaultAds
+        );
 
-      adsData = {
-        min: 1000,
-        max: 10000,
-        breaks: settingModelResultParsed,
-      };
+        adsData = {
+          min: 1000,
+          max: 10000,
+          breaks: settingModelResultParsed,
+        };
+      }
+
+      return adsData;
+    } catch (error) {
+      console.error('Error fetching default with details:', error);
+      throw new SystemError(error.name, error.parent);
     }
-
-    return adsData;
-  } catch (error) {
-    console.error('Error fetching default with details:', error);
-    throw new SystemError(error.name, error.parent);
   }
-}
-
 
   async handleManageBreakPoint(data) {
     const { userId, action, breakPoint } =
@@ -3617,89 +3632,93 @@ await profile.update({ accountStatus: 'active' });
       throw new SystemError(error.name, error.parent);
     }
   }*/
- async handleCreateMerchantAds(data) {
-  const { minAmount, maxAmount, pricePerThousand, userId } =
-    await userUtil.verifyHandleCreateMerchantAds.validateAsync(data);
+  async handleCreateMerchantAds(data) {
+    const { minAmount, maxAmount, pricePerThousand, userId } =
+      await userUtil.verifyHandleCreateMerchantAds.validateAsync(data);
 
-  const SettingModelResult = await this.SettingModel.findByPk(1);
-  const MerchantProfileModelResult = await this.MerchantProfileModel.findOne({
-    where: { userId },
-  });
-
-  if (minAmount > maxAmount) {
-    throw new BadRequestError(
-      'Minimum amount cannot be greater than maximum amount'
-    );
-  }
-
-  if (!MerchantProfileModelResult) {
-    throw new NotFoundError('Merchant profile not found');
-  }
-
-  // ✅ Safely parse the tiers using safeParse
-  const SettingModelResultTiers = this.safeParse(SettingModelResult.tiers);
-
-  console.log(SettingModelResultTiers);
-
-  // ✅ Ensure it's an array before continuing
-  if (!Array.isArray(SettingModelResultTiers)) {
-    throw new SystemError('Parsed tiers is not an array');
-  }
-
-  // ✅ Check tier limit
-  for (let index = 0; index < SettingModelResultTiers.length; index++) {
-    const element = SettingModelResultTiers[index];
-
-    if (element.uniqueNumber === MerchantProfileModelResult.accountTier) {
-      if (maxAmount <= element.maxAmount) {
-        break;
-      } else {
-        throw new ConflictError(
-          `You need to upgrade your account. Your account tier allows you to set a maximum amount of ${element.maxAmount}`
-        );
-      }
-    }
-  }
-
-  try {
-    const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
+    const SettingModelResult = await this.SettingModel.findByPk(1);
+    const MerchantProfileModelResult = await this.MerchantProfileModel.findOne({
       where: { userId },
     });
 
-    if (MerchantAdsModelResult) {
-      await MerchantAdsModelResult.update({
-        minAmount,
-        maxAmount,
-        pricePerThousand,
-      });
-    } else {
-      await this.MerchantAdsModel.create({
-        minAmount,
-        maxAmount,
-        userId,
-        pricePerThousand,
-      });
+    if (minAmount > maxAmount) {
+      throw new BadRequestError(
+        'Minimum amount cannot be greater than maximum amount'
+      );
     }
-  } catch (error) {
-    throw new SystemError(error.name, error.parent);
+
+    if (!MerchantProfileModelResult) {
+      throw new NotFoundError('Merchant profile not found');
+    }
+
+    // ✅ Safely parse the tiers using safeParse
+    const SettingModelResultTiers = this.safeParse(SettingModelResult.tiers);
+
+    console.log(SettingModelResultTiers);
+
+    // ✅ Ensure it's an array before continuing
+    if (!Array.isArray(SettingModelResultTiers)) {
+      throw new SystemError('Parsed tiers is not an array');
+    }
+
+    // ✅ Check tier limit
+    for (let index = 0; index < SettingModelResultTiers.length; index++) {
+      const element = SettingModelResultTiers[index];
+
+      if (element.uniqueNumber === MerchantProfileModelResult.accountTier) {
+        if (maxAmount <= element.maxAmount) {
+          break;
+        } else {
+          throw new ConflictError(
+            `You need to upgrade your account. Your account tier allows you to set a maximum amount of ${element.maxAmount}`
+          );
+        }
+      }
+    }
+
+    try {
+      const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
+        where: { userId },
+      });
+
+      if (MerchantAdsModelResult) {
+        await MerchantAdsModelResult.update({
+          minAmount,
+          maxAmount,
+          pricePerThousand,
+        });
+      } else {
+        await this.MerchantAdsModel.create({
+          minAmount,
+          maxAmount,
+          userId,
+          pricePerThousand,
+        });
+      }
+    } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
   }
-}
 
   async makeMatch() {
     const setting = await this.SettingModel.findByPk(1);
-const startedAt = setting.matchStartedAt ? new Date(setting.matchStartedAt) : null;
-const diffMinutes = startedAt ? (Date.now() - startedAt) / (1000 * 60) : null;
+    const startedAt = setting.matchStartedAt
+      ? new Date(setting.matchStartedAt)
+      : null;
+    const diffMinutes = startedAt
+      ? (Date.now() - startedAt) / (1000 * 60)
+      : null;
 
-    
     try {
       // //Check if match process is running
-    //  if (setting.isMatchRunning && diffMinutes < 15) return;
-
-
+      //  if (setting.isMatchRunning && diffMinutes < 15) return;
 
       if (setting.isMatchRunning && diffMinutes > 15) {
-        await SettingModel.update({ isMatchRunning: false, matchStartedAt: null }, { where: { id: 1 } });
-        console.log("🧹 Reset stuck match state.");
+        await SettingModel.update(
+          { isMatchRunning: false, matchStartedAt: null },
+          { where: { id: 1 } }
+        );
+        console.log('🧹 Reset stuck match state.');
       }
 
       setting.isMatchRunning = true;
@@ -3748,8 +3767,8 @@ const diffMinutes = startedAt ? (Date.now() - startedAt) / (1000 * 60) : null;
         const userMatches = [];
 
         for (const merchant of merchants) {
-          if (user.id == merchant.id) continue;     
-          if (!user.lat || !user.lng) continue;     
+          if (user.id == merchant.id) continue;
+          if (!user.lat || !user.lng) continue;
           if (!merchant.lat || !merchant.lng) continue;
 
           if (merchant.deliveryRange) {
@@ -4306,7 +4325,7 @@ const diffMinutes = startedAt ? (Date.now() - startedAt) / (1000 * 60) : null;
     }
   }
 
-  async sendEmailMerchantAccountActivated( userName,emailAddress) {
+  async sendEmailMerchantAccountActivated(userName, emailAddress) {
     try {
       try {
         await mailService.sendMail({
@@ -4314,7 +4333,6 @@ const diffMinutes = startedAt ? (Date.now() - startedAt) / (1000 * 60) : null;
           subject: 'Merchant account activated',
           templateName: 'sendEmailMerchantAccountActivated',
           variables: {
-          
             userName: userName,
             // admin_link: serverConfig.CLIENT_URL,
           },
