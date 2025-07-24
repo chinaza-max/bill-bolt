@@ -3784,7 +3784,14 @@ async handleGetMyMerchant(data) {
             Number(merchant.lat),
             Number(merchant.lng)
           );
+          console.log(
+            Number(user.lat),
+            Number(user.lng),
+            Number(merchant.lat),
+            Number(merchant.lng)
+          );
 
+          console.log('distance', distance);
           if (distance <= distanceThreshold) {
             userMatches.push({ merchantId: merchant.id, distance });
           }
