@@ -58,7 +58,7 @@ class DB {
       }
     }
 
-    try {
+    /*S   try {
       await this.sequelize.query(`
   ALTER TABLE MerchantProfile
   CHANGE COLUMN displayname displayName VARCHAR(255) NOT NULL;
@@ -70,7 +70,7 @@ class DB {
       } else {
         console.error('Error updating column name:', error);
       }
-    }
+    }*/
 
     /*      
         (async () => {

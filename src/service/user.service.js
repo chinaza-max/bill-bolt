@@ -531,7 +531,7 @@ class UserService extends NotificationService {
             {
               model: MerchantProfile,
               as: 'MerchantProfile',
-              attributes: ['displayname', 'deliveryRange', 'imageUrl'],
+              // attributes: ['displayName', 'deliveryRange', 'imageUrl'],
               where: { accountStatus: 'active' },
             },
             {
