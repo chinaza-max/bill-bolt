@@ -1,6 +1,10 @@
 import { Sequelize } from 'sequelize';
 import serverConfig from '../config/server.js';
-import { init as initModels, Transaction } from './models/index.js';
+import {
+  init as initModels,
+  Transaction,
+  MerchantProfile,
+} from './models/index.js';
 
 class DB {
   constructor() {
@@ -132,6 +136,34 @@ this.sequelize.query(disableForeignKeyChecks)
       console.log('All existing transactions updated successfully.');
     } catch (error) {
       console.error('Error updating existing transaction IDs:', error);
+    }
+  }
+
+  async updateEmptyDisplayNames(sequelize) {
+    try {
+      const { Op } = sequelize;
+
+      // Find all merchant profiles with empty or null displayName
+      const merchantsToUpdate = await MerchantProfile.findAll({
+        where: {
+          [Op.or]: [{ displayName: null }, { displayName: '' }],
+        },
+      });
+
+      console.log(
+        `Found ${merchantsToUpdate.length} profiles with missing displayName.`
+      );
+
+      for (const merchant of merchantsToUpdate) {
+        await merchant.update({ displayName: 'sharp guy' });
+        console.log(
+          `Updated MerchantProfile ${merchant.id} with displayName: "sharp guy"`
+        );
+      }
+
+      console.log('All empty displayNames updated successfully.');
+    } catch (error) {
+      console.error('Error updating display names:', error);
     }
   }
 
