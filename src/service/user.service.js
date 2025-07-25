@@ -581,12 +581,20 @@ class UserService extends NotificationService {
           `📏 Distance Check: ${isWithinDistance}, Range Check: ${isWithinRange}`
         );
 
+        const profile = merchant.MerchantProfile;
+
         console.log(
-          merchant.MerchantProfile.dataValues.displayname ||
-            merchant.MerchantProfile.dataValues.displayName ||
-            merchant.MerchantProfile.displayname ||
-            merchant.MerchantProfile.displayName
+          'profile.dataValues.displayname:',
+          profile?.dataValues?.displayname
         );
+        console.log(
+          'profile.dataValues.displayName:',
+          profile?.dataValues?.displayName
+        );
+        console.log('profile.displayname:', profile?.displayname);
+        console.log('profile.displayName:', profile?.displayName);
+
+        console.log(merchant.MerchantProfile);
 
         const parsedPricePerThousand = this.safeParse(
           merchant.UserMerchantAds.pricePerThousand
