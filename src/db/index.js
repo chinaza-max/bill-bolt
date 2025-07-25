@@ -34,11 +34,10 @@ class DB {
 
     initModels(this.sequelize);
 
-    
     if (serverConfig.NODE_ENV === 'development') {
-     // await this.sequelize.sync({ alter: true });
-     // await this.sequelize.sync({ force: true });
-   //  await this.updateExistingTransactionIds();
+      // await this.sequelize.sync({ alter: true });
+      // await this.sequelize.sync({ force: true });
+      //  await this.updateExistingTransactionIds();
 
       try {
         await this.sequelize.query(`
@@ -52,6 +51,20 @@ class DB {
         } else {
           console.error('Error updating column name:', error);
         }
+      }
+    }
+
+    try {
+      await this.sequelize.query(`
+          ALTER TABLE    
+          CHANGE COLUMN displayname displayName STRING NOT NULL;
+        `);
+      console.log('Column name updated: accoutTier → accountTier');
+    } catch (error) {
+      if (error.original && error.original.code === 'ER_BAD_FIELD_ERROR') {
+        console.warn('Column accoutTier does not exist, skipping rename.');
+      } else {
+        console.error('Error updating column name:', error);
       }
     }
 
@@ -98,18 +111,22 @@ this.sequelize.query(disableForeignKeyChecks)
         where: {
           [this.sequelize.Op.or]: [
             { transactionId: null },
-            { transactionId: '' }
-          ]
-        }
+            { transactionId: '' },
+          ],
+        },
       });
 
-      console.log(`Found ${transactionsToUpdate.length} transactions with missing transactionId`);
+      console.log(
+        `Found ${transactionsToUpdate.length} transactions with missing transactionId`
+      );
 
       // Update each transaction with a unique ID
       for (const transaction of transactionsToUpdate) {
         const newTransactionId = this.generateUniqueTransactionId();
         await transaction.update({ transactionId: newTransactionId });
-        console.log(`Updated transaction ${transaction.id} with new transactionId: ${newTransactionId}`);
+        console.log(
+          `Updated transaction ${transaction.id} with new transactionId: ${newTransactionId}`
+        );
       }
 
       console.log('All existing transactions updated successfully.');

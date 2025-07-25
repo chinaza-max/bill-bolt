@@ -13,7 +13,6 @@ export function init(connection) {
       displayName: {
         type: DataTypes.STRING,
         allowNull: false,
-        field: 'displayname',
       },
       tel: {
         type: DataTypes.STRING,

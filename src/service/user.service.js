@@ -589,7 +589,7 @@ class UserService extends NotificationService {
           filteredMatches.push({
             id: merchant.id,
             name:
-              merchant.MerchantProfile.dataValues.displayname ||
+              // merchant.MerchantProfile.dataValues.displayname ||
               merchant.MerchantProfile.dataValues.displayName,
             avatar: merchant.MerchantProfile.imageUrl,
             online: merchant.isOnline,
