@@ -141,7 +141,7 @@ this.sequelize.query(disableForeignKeyChecks)
 
   async updateEmptyDisplayNames(sequelize) {
     try {
-      const { Op } = sequelize;
+      const { Op } = Sequelize;
 
       // Find all merchant profiles with empty or null displayName
       await MerchantProfile.update(
