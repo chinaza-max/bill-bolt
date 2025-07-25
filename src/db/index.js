@@ -59,7 +59,7 @@ class DB {
           ALTER TABLE  MerchantProfile
           CHANGE COLUMN displayname displayName STRING NOT NULL;
         `);
-      console.log('Column name updated: accoutTier → accountTier');
+      console.log('Column name updated: displayname → displayName');
     } catch (error) {
       if (error.original && error.original.code === 'ER_BAD_FIELD_ERROR') {
         console.warn('Column accoutTier does not exist, skipping rename.');
