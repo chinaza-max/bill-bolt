@@ -565,7 +565,7 @@ class UserService extends NotificationService {
         const OrdersModelResult = await this.OrdersModel.count({
           where: {
             isDeleted: false,
-            merchantId: userId,
+            merchantId: match.merchantId /* userId*/,
             hasIssues: false,
           },
         });

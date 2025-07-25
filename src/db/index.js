@@ -42,7 +42,7 @@ class DB {
       // await this.sequelize.sync({ alter: true });
       // await this.sequelize.sync({ force: true });
       //  await this.updateExistingTransactionIds();
-      await this.updateEmptyDisplayNames();
+      //  await this.updateEmptyDisplayNames();
       try {
         await this.sequelize.query(`
           ALTER TABLE MerchantProfile 
@@ -138,7 +138,7 @@ this.sequelize.query(disableForeignKeyChecks)
       console.error('Error updating existing transaction IDs:', error);
     }
   }
-
+  /*
   async updateEmptyDisplayNames(sequelize) {
     try {
       // Find all merchant profiles with empty or null displayName
@@ -165,7 +165,7 @@ this.sequelize.query(disableForeignKeyChecks)
     } catch (error) {
       console.error('Error updating display names:', error);
     }
-  }
+  }*/
 
   generateUniqueTransactionId() {
     const timestamp = Date.now().toString();
