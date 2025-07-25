@@ -56,9 +56,9 @@ class DB {
 
     try {
       await this.sequelize.query(`
-          ALTER TABLE  MerchantProfile
-          CHANGE COLUMN displayname displayName STRING NOT NULL;
-        `);
+  ALTER TABLE MerchantProfile
+  CHANGE COLUMN displayname displayName VARCHAR(255) NOT NULL;
+`);
       console.log('Column name updated: displayname → displayName');
     } catch (error) {
       if (error.original && error.original.code === 'ER_BAD_FIELD_ERROR') {
