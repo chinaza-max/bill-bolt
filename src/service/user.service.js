@@ -588,7 +588,9 @@ class UserService extends NotificationService {
         if (isWithinDistance && isWithinRange) {
           filteredMatches.push({
             id: merchant.id,
-            name: merchant.MerchantProfile.dataValues.displayname,
+            name:
+              merchant.MerchantProfile.dataValues.displayname ||
+              merchant.MerchantProfile.dataValues.displayName,
             avatar: merchant.MerchantProfile.imageUrl,
             online: merchant.isOnline,
             badge: 'Verified',
