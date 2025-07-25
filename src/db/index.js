@@ -56,7 +56,7 @@ class DB {
 
     try {
       await this.sequelize.query(`
-          ALTER TABLE    
+          ALTER TABLE  MerchantProfile
           CHANGE COLUMN displayname displayName STRING NOT NULL;
         `);
       console.log('Column name updated: accoutTier → accountTier');
