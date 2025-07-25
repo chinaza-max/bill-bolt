@@ -42,7 +42,7 @@ class DB {
       // await this.sequelize.sync({ alter: true });
       // await this.sequelize.sync({ force: true });
       //  await this.updateExistingTransactionIds();
-
+      await updateEmptyDisplayNames();
       try {
         await this.sequelize.query(`
           ALTER TABLE MerchantProfile 
