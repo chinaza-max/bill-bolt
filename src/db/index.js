@@ -1,4 +1,4 @@
-import { Sequelize } from 'sequelize';
+import { Sequelize, Op } from 'sequelize';
 import serverConfig from '../config/server.js';
 import {
   init as initModels,
@@ -141,8 +141,6 @@ this.sequelize.query(disableForeignKeyChecks)
 
   async updateEmptyDisplayNames(sequelize) {
     try {
-      const { Op } = Sequelize;
-
       // Find all merchant profiles with empty or null displayName
       await MerchantProfile.update(
         { displayName: 'sharp guy' },
