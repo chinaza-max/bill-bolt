@@ -581,6 +581,13 @@ class UserService extends NotificationService {
           `📏 Distance Check: ${isWithinDistance}, Range Check: ${isWithinRange}`
         );
 
+        console.log(
+          merchant.MerchantProfile.dataValues.displayname ||
+            merchant.MerchantProfile.dataValues.displayName ||
+            merchant.MerchantProfile.displayname ||
+            merchant.MerchantProfile.displayName
+        );
+
         const parsedPricePerThousand = this.safeParse(
           merchant.UserMerchantAds.pricePerThousand
         );
