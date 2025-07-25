@@ -144,22 +144,24 @@ this.sequelize.query(disableForeignKeyChecks)
       const { Op } = sequelize;
 
       // Find all merchant profiles with empty or null displayName
-      const merchantsToUpdate = await MerchantProfile.findAll({
+      await MerchantProfile.update(
+        { displayName: 'sharp guy' },
+        {
+          where: {
+            [Op.or]: [{ displayName: null }, { displayName: '' }],
+          },
+        }
+      );
+
+      const stillEmpty = await MerchantProfile.findAll({
         where: {
           [Op.or]: [{ displayName: null }, { displayName: '' }],
         },
       });
 
       console.log(
-        `Found ${merchantsToUpdate.length} profiles with missing displayName.`
+        `${stillEmpty.length} profiles still have empty displayName.`
       );
-
-      for (const merchant of merchantsToUpdate) {
-        await merchant.update({ displayName: 'sharp guy' });
-        console.log(
-          `Updated MerchantProfile ${merchant.id} with displayName: "sharp guy"`
-        );
-      }
 
       console.log('All empty displayNames updated successfully.');
     } catch (error) {
