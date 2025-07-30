@@ -1652,6 +1652,8 @@ async handleGetMyMerchant(data) {
           merchantAccountStatus: user?.MerchantProfile?.accountStatus || null,
           tel: user.tel,
           isOnline: user.isOnline,
+          lat: user.lat,
+          lng: user.lng,
         };
       });
 
