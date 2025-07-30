@@ -1620,6 +1620,8 @@ async handleGetMyMerchant(data) {
           'merchantActivated',
           'tel',
           'isOnline',
+          'lat',
+          'lng',
         ],
         include: includeConditions,
       });
