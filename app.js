@@ -31,13 +31,14 @@ class Server {
     this.app = express();
     this.initializeDbAndFirebase();
     this.initializeMiddlewaresAndRoutes();
-    this.loadCronJobs();
     this.httpServer = http.createServer(this.app);
     this.setupSocket();
   }
 
   async initializeDbAndFirebase() {
     await DB.connectDB();
+    this.loadCronJobs();
+
     const [setting, created] = await Setting.findOrCreate({
       where: { id: 1 },
       defaults: {

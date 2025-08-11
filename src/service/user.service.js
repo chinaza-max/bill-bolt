@@ -1622,6 +1622,7 @@ async handleGetMyMerchant(data) {
           'isOnline',
           'lat',
           'lng',
+          'updatedAt',
         ],
         include: includeConditions,
       });
@@ -1654,6 +1655,7 @@ async handleGetMyMerchant(data) {
           isOnline: user.isOnline,
           lat: user.lat,
           lng: user.lng,
+          updatedAt: user.updatedAt,
         };
       });
 
@@ -3723,6 +3725,7 @@ async handleGetMyMerchant(data) {
 
   async makeMatch() {
     const setting = await this.SettingModel.findByPk(1);
+
     const startedAt = setting.matchStartedAt
       ? new Date(setting.matchStartedAt)
       : null;
