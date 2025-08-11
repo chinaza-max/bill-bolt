@@ -3738,7 +3738,7 @@ async handleGetMyMerchant(data) {
       //  if (setting.isMatchRunning && diffMinutes < 15) return;
 
       if (setting.isMatchRunning && diffMinutes > 15) {
-        await SettingModel.update(
+        await this.SettingModel.update(
           { isMatchRunning: false, matchStartedAt: null },
           { where: { id: 1 } }
         );
