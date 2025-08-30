@@ -1004,8 +1004,13 @@ async handleGetMyMerchant(data) {
     } else {
       userResult = await this.UserModel.findByPk(OrdersModelResult.clientId);
     }
+
+    console.log('➡️ Order Action:', { orderId, userId, type, reason });
     if (type === 'cancel') {
-      if (OrdersModelResult.orderStatus !== 'completed') {
+      if (
+        OrdersModelResult.orderStatus === 'inProgress' ||
+        OrdersModelResult.orderStatus === 'pending'
+      ) {
         try {
           await this.refundOrderTransaction(
             OrdersModelResult,
