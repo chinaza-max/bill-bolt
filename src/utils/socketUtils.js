@@ -98,6 +98,29 @@ export const configureSocket = (io) => {
       });
     });
 
+    socket.on('joinOrderRoom', (data) => {
+      socket.join(`order_${data.orderId}`);
+      console.log(`User joined order room: order_${data.orderId}`);
+    });
+
+    socket.on('qrScanned', (data) => {
+      // Notify all users in the order room
+      io.to(`order_${data.orderId}`).emit('qrScanSuccess', {
+        message: 'QR Code has been scanned successfully',
+        orderId: data.orderId,
+        timestamp: data.timestamp,
+      });
+    });
+
+    socket.on('qrVerified', (data) => {
+      // Notify all users in the order room about verification
+      io.to(`order_${data.orderId}`).emit('orderStatusUpdate', {
+        orderId: data.orderId,
+        status: 'completed',
+        timestamp: data.timestamp,
+      });
+    });
+
     socket.on('disconnect', () => {
       console.log(`User disconnected: ${socket.id}`);
 
