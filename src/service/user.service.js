@@ -1040,7 +1040,8 @@ async handleGetMyMerchant(data) {
     } else if (type === 'reject') {
       if (
         OrdersModelResult.orderStatus !== 'completed' &&
-        OrdersModelResult.orderStatus !== 'rejected'
+        OrdersModelResult.orderStatus !== 'rejected' &&
+        OrdersModelResult.orderStatus !== 'cancelled'
       ) {
         try {
           await this.refundOrderTransaction(
@@ -4386,100 +4387,105 @@ async handleGetMyMerchant(data) {
       console.error('Error converting to JSON:', error);
     }
   };
-  async updateClientWallet(userId, amount) {
-    // Create transaction
-    await this.TransactionModel.create({
-      userId,
-      amount,
-      transactionId: this.generateOrderId('NG_TX', 10),
-      transactionType: 'fundWallet',
-      paymentStatus: 'successful',
-      transactionFrom: 'wallet',
-    });
 
-    // Fetch user with await
-    const user = await this.UserModel.findByPk(userId);
-    if (!user) {
-      throw new NotFoundError('User not found');
-    }
+  async updateClientWallet(userId, amount, transaction) {
+    // Wrap everything in a DB transaction
+    const tx = transaction || (await this.sequelize.transaction());
+    let externalTx = !!transaction;
 
     try {
-      // Safely parse wallet balance
-      let walletBalance = this.convertToJson(user.walletBalance);
-      if (!walletBalance) {
-        walletBalance = { previous: 0, current: 0 };
+      // 1. Log the transaction
+      await this.TransactionModel.create(
+        {
+          userId,
+          amount,
+          transactionId: this.generateOrderId('NG_TX', 10),
+          transactionType: 'fundWallet',
+          paymentStatus: 'successful',
+          transactionFrom: 'wallet',
+        },
+        { transaction: tx }
+      );
+
+      // 2. Lock the user row FOR UPDATE (avoids race conditions)
+      const user = await this.UserModel.findByPk(userId, {
+        transaction: tx,
+        lock: tx.LOCK.UPDATE,
+      });
+
+      if (!user) {
+        throw new NotFoundError('User not found');
       }
 
-      // Update balance
+      // 3. Safely parse and update wallet balance
+      let walletBalance = this.convertToJson(user.walletBalance) || {
+        previous: 0,
+        current: 0,
+      };
       walletBalance.previous = walletBalance.current;
       walletBalance.current += parseFloat(amount);
 
-      // Persist updated balance
-      await user.update({ walletBalance });
+      // 4. Save updated balance
+      await user.update({ walletBalance }, { transaction: tx });
+
+      // ✅ Only commit if this method owns the transaction
+      if (!externalTx) {
+        await tx.commit();
+      }
     } catch (error) {
-      console.log(error);
-      return error;
+      if (!externalTx) {
+        await tx.rollback();
+      }
+      throw error;
     }
   }
+
   async refundOrderTransaction(OrdersModelResult, orderStatus, reason = '') {
-    await OrdersModelResult.update({ orderStatus, reason });
-
-    await OrdersModelResult.update({ moneyStatus: 'refund' });
-    const settingResult = await this.SettingModel.findByPk(1);
-    if (settingResult) {
-      new NotFoundError('Settings not found');
-    }
-
+    const transaction = await this.sequelize.transaction();
     try {
-      /*
-      const merchantAdsModelResult = await this.MerchantAdsModel.findOne({
-        where: { userId: OrdersModelResult.merchantId },
-      });
-      const priceData = this.convertToJson(
-        merchantAdsModelResult.pricePerThousand
-      );
-      const serviceCharge = this.convertToJson(settingResult.serviceCharge);
-      const gatewayService = this.convertToJson(settingResult.gatewayService);
-
-      const amountSummary = await this.getdeliveryAmountSummary(
-        priceData,
-        OrdersModelResult.amountOrder,
-        serviceCharge,
-        gatewayService
+      // 1. Update order status and refund reason
+      await OrdersModelResult.update(
+        { orderStatus, reason, moneyStatus: 'refund' },
+        { transaction }
       );
 
-      const amount =
-        amountSummary.amountOrder +
-        amountSummary.merchantCharge +
-        amountSummary.serviceCharge;*/
+      // 2. Update client wallet (make sure this uses the same transaction)
       await this.updateClientWallet(
         OrdersModelResult.clientId,
-        OrdersModelResult.totalAmount
+        OrdersModelResult.totalAmount,
+        transaction
       );
+
+      // ✅ Commit only if both succeed
+      await transaction.commit();
     } catch (error) {
-      new SystemError(error);
+      // ❌ Rollback everything if one step fails
+      await transaction.rollback();
+      throw new SystemError(error);
     }
 
+    // 3. After transaction is done, handle notification (non-critical)
     try {
+      const userResult = await this.UserModel.findByPk(
+        OrdersModelResult.clientId
+      );
+
       await this.sendToDevice(
-        userResult.fcmToken, // Assuming `userResult` is the customer
+        userResult.fcmToken,
         {
           title: 'Order Rejected ❌',
           body: `Your order was rejected. Please try another merchant. The amount has been refunded to your wallet.`,
         },
         {
           type: 'ORDER_REJECTED',
-          orderId: rejectedOrder.orderId, // Replace with your actual order object
+          orderId: OrdersModelResult.id,
         }
       );
     } catch (error) {
-      console.error('Error updating client wallet:', error);
+      console.error('Error sending notification:', error);
     }
-    /* })
-          .catch((error) => {
-            console.error('Update failed:', error);
-          });*/
   }
+
   rawOrderHash(clientId, merchantId, userPassword, orderId) {
     const unConvertedHash =
       clientId +
