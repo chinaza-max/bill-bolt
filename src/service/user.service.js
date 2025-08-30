@@ -4390,7 +4390,7 @@ async handleGetMyMerchant(data) {
 
   async updateClientWallet(userId, amount, transaction) {
     // Wrap everything in a DB transaction
-    const tx = transaction || (await this.sequelize.transaction());
+    const tx = transaction || (await db.sequelize.transaction());
     let externalTx = !!transaction;
 
     try {
@@ -4441,7 +4441,8 @@ async handleGetMyMerchant(data) {
   }
 
   async refundOrderTransaction(OrdersModelResult, orderStatus, reason = '') {
-    const transaction = await this.sequelize.transaction();
+    const transaction = await db.sequelize.transaction();
+
     try {
       // 1. Update order status and refund reason
       await OrdersModelResult.update(
