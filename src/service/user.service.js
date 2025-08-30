@@ -4440,6 +4440,7 @@ async handleGetMyMerchant(data) {
       throw error;
     }
   }*/
+
   async updateClientWallet(userId, amount, transaction) {
     const tx = transaction || (await db.sequelize.transaction());
     const externalTx = !!transaction;
@@ -4474,37 +4475,38 @@ async handleGetMyMerchant(data) {
       console.log(`[Wallet Update] User found: id=${user.id}`);
 
       // 3. Parse wallet balance
-      let walletBalance;
-      try {
-        walletBalance = this.convertToJson(user.walletBalance);
-        console.log(
-          `[Wallet Update] Raw walletBalance from DB:`,
-          user.walletBalance
-        );
-        console.log(`[Wallet Update] Parsed walletBalance:`, walletBalance);
-      } catch (err) {
-        console.error(`[Wallet Update] Failed to parse walletBalance`, err);
-        walletBalance = { previous: 0, current: 0 };
-      }
-
-      if (!walletBalance) {
-        walletBalance = { previous: 0, current: 0 };
-      }
+      let walletBalance = this.convertToJson(user.walletBalance) || {
+        previous: 0,
+        current: 0,
+      };
+      console.log(`[Wallet Update] Before:`, walletBalance);
 
       // 4. Update balance
       walletBalance.previous = walletBalance.current;
       walletBalance.current += parseFloat(amount);
-      console.log(`[Wallet Update] New walletBalance:`, walletBalance);
 
-      // 5. Save
-      await user.update({ walletBalance }, { transaction: tx });
-      console.log(`[Wallet Update] User balance updated in DB`);
+      // 5. Persist using Model.update (guarantees SQL execution)
+      await this.UserModel.update(
+        { walletBalance },
+        { where: { id: userId }, transaction: tx }
+      );
 
-      // 6. Commit
+      // 6. Fetch updated balance inside same tx to verify
+      const updatedUser = await this.UserModel.findByPk(userId, {
+        transaction: tx,
+      });
+      console.log(
+        `[Wallet Update] After update:`,
+        this.convertToJson(updatedUser.walletBalance)
+      );
+
+      // 7. Commit
       if (!externalTx) {
         await tx.commit();
         console.log(`[Wallet Update] Transaction committed ✅`);
       }
+
+      return updatedUser; // return updated user so caller can see new balance
     } catch (error) {
       console.error(`[Wallet Update] ERROR:`, error);
       if (!externalTx) {
