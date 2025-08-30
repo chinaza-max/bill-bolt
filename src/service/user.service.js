@@ -4388,6 +4388,7 @@ async handleGetMyMerchant(data) {
     }
   };
 
+  /*
   async updateClientWallet(userId, amount, transaction) {
     // Wrap everything in a DB transaction
     const tx = transaction || (await db.sequelize.transaction());
@@ -4435,6 +4436,80 @@ async handleGetMyMerchant(data) {
     } catch (error) {
       if (!externalTx) {
         await tx.rollback();
+      }
+      throw error;
+    }
+  }*/
+  async updateClientWallet(userId, amount, transaction) {
+    const tx = transaction || (await db.sequelize.transaction());
+    const externalTx = !!transaction;
+
+    console.log(
+      `[Wallet Update] Start | userId=${userId}, amount=${amount}, externalTx=${externalTx}`
+    );
+
+    try {
+      // 1. Log the transaction
+      const trx = await this.TransactionModel.create(
+        {
+          userId,
+          amount,
+          transactionId: this.generateOrderId('NG_TX', 10),
+          transactionType: 'fundWallet',
+          paymentStatus: 'successful',
+          transactionFrom: 'wallet',
+        },
+        { transaction: tx }
+      );
+      console.log(`[Wallet Update] Transaction log created:`, trx.toJSON());
+
+      // 2. Lock the user row FOR UPDATE
+      const user = await this.UserModel.findByPk(userId, {
+        transaction: tx,
+        lock: tx.LOCK.UPDATE,
+      });
+      if (!user) {
+        throw new NotFoundError('User not found');
+      }
+      console.log(`[Wallet Update] User found: id=${user.id}`);
+
+      // 3. Parse wallet balance
+      let walletBalance;
+      try {
+        walletBalance = this.convertToJson(user.walletBalance);
+        console.log(
+          `[Wallet Update] Raw walletBalance from DB:`,
+          user.walletBalance
+        );
+        console.log(`[Wallet Update] Parsed walletBalance:`, walletBalance);
+      } catch (err) {
+        console.error(`[Wallet Update] Failed to parse walletBalance`, err);
+        walletBalance = { previous: 0, current: 0 };
+      }
+
+      if (!walletBalance) {
+        walletBalance = { previous: 0, current: 0 };
+      }
+
+      // 4. Update balance
+      walletBalance.previous = walletBalance.current;
+      walletBalance.current += parseFloat(amount);
+      console.log(`[Wallet Update] New walletBalance:`, walletBalance);
+
+      // 5. Save
+      await user.update({ walletBalance }, { transaction: tx });
+      console.log(`[Wallet Update] User balance updated in DB`);
+
+      // 6. Commit
+      if (!externalTx) {
+        await tx.commit();
+        console.log(`[Wallet Update] Transaction committed ✅`);
+      }
+    } catch (error) {
+      console.error(`[Wallet Update] ERROR:`, error);
+      if (!externalTx) {
+        await tx.rollback();
+        console.log(`[Wallet Update] Transaction rolled back ❌`);
       }
       throw error;
     }
