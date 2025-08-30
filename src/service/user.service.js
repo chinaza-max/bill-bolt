@@ -4445,10 +4445,6 @@ async handleGetMyMerchant(data) {
     const tx = transaction || (await db.sequelize.transaction());
     const externalTx = !!transaction;
 
-    console.log(
-      `[Wallet Update] Start | userId=${userId}, amount=${amount}, externalTx=${externalTx}`
-    );
-
     try {
       // 1. Log the transaction
       const trx = await this.TransactionModel.create(
@@ -4462,7 +4458,6 @@ async handleGetMyMerchant(data) {
         },
         { transaction: tx }
       );
-      console.log(`[Wallet Update] Transaction log created:`, trx.toJSON());
 
       // 2. Lock the user row FOR UPDATE
       const user = await this.UserModel.findByPk(userId, {
@@ -4472,14 +4467,12 @@ async handleGetMyMerchant(data) {
       if (!user) {
         throw new NotFoundError('User not found');
       }
-      console.log(`[Wallet Update] User found: id=${user.id}`);
 
       // 3. Parse wallet balance
       let walletBalance = this.convertToJson(user.walletBalance) || {
         previous: 0,
         current: 0,
       };
-      console.log(`[Wallet Update] Before:`, walletBalance);
 
       // 4. Update balance
       walletBalance.previous = walletBalance.current;
@@ -4489,15 +4482,6 @@ async handleGetMyMerchant(data) {
       await this.UserModel.update(
         { walletBalance },
         { where: { id: userId }, transaction: tx }
-      );
-
-      // 6. Fetch updated balance inside same tx to verify
-      const updatedUser = await this.UserModel.findByPk(userId, {
-        transaction: tx,
-      });
-      console.log(
-        `[Wallet Update] After update:`,
-        this.convertToJson(updatedUser.walletBalance)
       );
 
       // 7. Commit
