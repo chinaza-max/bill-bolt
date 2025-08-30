@@ -4494,8 +4494,6 @@ async handleGetMyMerchant(data) {
         await tx.commit();
         console.log(`[Wallet Update] Transaction committed ✅`);
       }
-
-      return updatedUser; // return updated user so caller can see new balance
     } catch (error) {
       console.error(`[Wallet Update] ERROR:`, error);
       if (!externalTx) {
