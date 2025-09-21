@@ -1,4 +1,4 @@
-import Notification from '../db/models/notification';
+import Notification from '../db/models/notification.js';
 
 class NotificationService {
   /**
