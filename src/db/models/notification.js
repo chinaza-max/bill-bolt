@@ -22,9 +22,18 @@ export function init(connection) {
         type: DataTypes.STRING,
         allowNull: false,
       },
+      type: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
       metaData: {
         type: DataTypes.JSON,
         allowNull: true,
+      },
+      isRead: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
       },
       isDeleted: {
         type: DataTypes.BOOLEAN,

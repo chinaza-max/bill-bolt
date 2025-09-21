@@ -856,6 +856,79 @@ export default class UserController {
     }
   }
 
+  async getNotifications(req, res, next) {
+    try {
+      const data = req.query;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      const result = await userService.fetchNotifications(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async toggleDelete(req, res, next) {
+    try {
+      const { id } = req.params;
+      const notification = await userService.toggleDelete(id);
+
+      return res.status(200).json({
+        status: 200,
+        message: `Notification ${
+          notification.isDeleted ? 'deleted' : 'restored'
+        }`,
+        data: notification,
+      });
+    } catch (error) {
+      console.error(error);
+      next(error);
+    }
+  }
+
+  async getUnreadCount(req, res, next) {
+    try {
+      const userId = req.user.id; // assuming auth middleware sets req.user
+      const count = await userService.countUnreadNotifications(userId);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'Unread notifications fetched successfully',
+        data: { unreadCount: count },
+      });
+    } catch (error) {
+      console.error(error);
+      next(error);
+    }
+  }
+
+  async markAsRead(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      const notification = await userService.markAsRead(id);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'Notification marked as read',
+        data: notification,
+      });
+    } catch (error) {
+      console.error(error);
+      next(error);
+    }
+  }
+
   async getProfileInformation(req, res, next) {
     try {
       const data = req.body;

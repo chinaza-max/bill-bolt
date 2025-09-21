@@ -1,6 +1,7 @@
 import admin from '../config/firebase.js';
+import NotificationService from '../../src/service/notification.service.js';
 
-export default class NotificationService {
+export default class NotificationServicePush extends NotificationService {
   /**
    * Send push notification to a single device
    * @param {string} token - FCM device token
@@ -50,6 +51,14 @@ export default class NotificationService {
       };
 
       const response = await admin.messaging().send(message);
+
+      await this.addNotification({
+        userId: data.userId,
+        title: notification.title,
+        body: notification.body,
+        type: data.type || 'push',
+        metaData: data,
+      });
       console.log('Notification sent successfully:', response);
       return { success: true, messageId: response };
     } catch (error) {

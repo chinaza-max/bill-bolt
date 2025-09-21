@@ -26,7 +26,7 @@ import { fn, col, literal } from 'sequelize';
 import axios from 'axios';
 import { loadActiveGateway } from '../utils/gatewayLoader.js';
 import { getSocketInstance } from '../utils/socketUtils.js';
-import NotificationService from '../service/push.service.js';
+import NotificationServicePush from '../service/push.service.js';
 import fs from 'fs';
 import path from 'path';
 import { customAlphabet } from 'nanoid';
@@ -42,9 +42,10 @@ import {
   BadRequestError,
   SystemError,
 } from '../errors/index.js';
+import NotificationService from './notification.service.js';
 //import { setTimeout } from 'timers/promises';
 
-class UserService extends NotificationService {
+class UserService extends NotificationServicePush {
   EmailandTelValidationModel = EmailandTelValidation;
   UserModel = User;
   SettingModel = Setting;
@@ -63,6 +64,7 @@ class UserService extends NotificationService {
     this.gateway;
     this.validFor;
     this.callbackUrl;
+    this.notificationService = new NotificationService();
 
     // this.getRouteSummary(-74.044502, 40.689247, -73.98513, 40.758896);
   }
@@ -393,6 +395,82 @@ class UserService extends NotificationService {
     }
   }
 
+  async fetchNotifications(req, res, next) {
+    try {
+      const { page = 1, limit = 10 } = req.query;
+
+      const result = await this.notificationService.fetchNotifications(
+        req.user.id,
+        { page: parseInt(page), limit: parseInt(limit) }
+      );
+
+      return res.status(200).json({
+        status: 200,
+        message: 'Notifications fetched successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.error(error);
+      next(error);
+    }
+  }
+
+  async countUnreadNotifications(userId) {
+    return await this.notificationService.countUnreadNotifications(userId);
+  }
+
+  async toggleDelete(notificationId) {
+    const notification = await this.notificationService.toggleDelete(
+      notificationId
+    );
+    if (!notification) {
+      throw new Error('Notification not found');
+    }
+
+    notification.isDeleted = !notification.isDeleted;
+    await notification.save();
+
+    return notification;
+  }
+
+  async markAsRead(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      const notification = await this.notificationService.markAsRead(id);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'Notification marked as read',
+        data: notification,
+      });
+    } catch (error) {
+      console.error(error);
+      next(error);
+    }
+  }
+
+  async getNotificationsByType(req, res, next) {
+    try {
+      const { page = 1, limit = 10, type } = req.query;
+
+      const result = await this.notificationService.fetchNotificationsByType(
+        req.user.id,
+        type,
+        { page: parseInt(page), limit: parseInt(limit) }
+      );
+
+      return res.status(200).json({
+        status: 200,
+        message: 'Notifications by type fetched successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.error(error);
+      next(error);
+    }
+  }
+
   async handleSubmitUserMessage(data) {
     const { userId, title, message, complaintType } =
       await userUtil.verifyHandleSubmitUserMessage.validateAsync(data);
@@ -635,220 +713,6 @@ class UserService extends NotificationService {
     }
   }
 
-  /*
-async handleGetMyMerchant(data) {
-  const { userId, distance, range } =
-    await userUtil.verifyHandleGetMyMerchant.validateAsync(data);
-
-  try {
-
-    console.log(userId, distance, range )
-    const MymatchModel = await this.MymatchModel.findOne({ where: { userId } });
-
-    if (!MymatchModel) return [];
-
-    let matches = MymatchModel.matches;
-    if (typeof matches === 'string') {
-      try {
-        matches = JSON.parse(matches);
-      } catch (err) {
-        console.error('Invalid matches JSON:', err);
-        return [];
-      }
-    }
-
-
-    const filteredMatches = [];
-
-    for (let i = 0; i < matches.length; i++) {
-      const match = matches[i];
-
-
-      const numberActiveOrder = await this.howmanyActiveOrder(match.merchantId);
-
-      const merchant = await this.UserModel.findOne({
-        where: { id: match.merchantId, disableAccount: false },
-        include: [
-          {
-            model: MerchantProfile,
-            as: 'MerchantProfile',
-            attributes: ['displayname', 'deliveryRange', 'imageUrl'],
-            where: { accountStatus: 'active' },
-          },
-          {
-            model: this.MerchantAdsModel,
-            as: 'UserMerchantAds',
-            attributes: ['minAmount', 'maxAmount', 'pricePerThousand'],
-            required: true,
-          },
-        ],
-        attributes: ['imageUrl', 'isOnline', 'id', 'firstName', 'lastName'],
-      });
-
-      if (!merchant) {
-        console.warn("Merchant not found or disabled:", match.merchantId);
-        continue;
-      }
-
-      if (!merchant.MerchantProfile) {
-        console.warn("MerchantProfile missing or inactive:", match.merchantId);
-        continue;
-      }
-
-      if (!merchant.UserMerchantAds) {
-        console.warn("UserMerchantAds missing:", match.merchantId);
-        continue;
-      }
-
-      const OrdersModelResult = await this.OrdersModel.count({
-        where: {
-          isDeleted: false,
-          merchantId: userId,
-          hasIssues: false,
-        },
-      });
-
-      const isWithinDistance = distance ? match.distance <= distance : true;
-      const isWithinRange = range
-        ? Array.isArray(merchant.MerchantProfile)
-          ? merchant.MerchantProfile.some((p) => p.deliveryRange <= range)
-          : merchant.MerchantProfile.deliveryRange <= range
-        : true;
-
-
-      const parsedPricePerThousand = this.safeParse(merchant.UserMerchantAds.pricePerThousand);
-
-      if (isWithinDistance && isWithinRange) {
-     
-        filteredMatches.push({
-          id: merchant.id,
-          name: merchant.MerchantProfile.dataValues.displayname,
-          avatar: merchant.MerchantProfile.imageUrl,
-          online: merchant.isOnline,
-          badge: 'Verified',
-          priceRanges: {
-            ...merchant.UserMerchantAds.dataValues,
-            pricePerThousand: parsedPricePerThousand,
-          },
-          accuracy: 10,
-          distance: match.distance,
-          numberOfOrder: OrdersModelResult,
-        });
-      } else {
-        console.log("❌ Match failed distance or range check.");
-      }
-    }
-
-    console.log(`Total filtered matches: ${filteredMatches.length}`);
-    return filteredMatches;
-  } catch (error) {
-    console.error('handleGetMyMerchant error:', error);
-    throw new SystemError(error.name, error.parent);
-  }
-}*/
-
-  /*
-  async handleGetMyMerchant(data) {
-    const { userId, distance, range } =
-      await userUtil.verifyHandleGetMyMerchant.validateAsync(data);
-
-    //  const SettingModelResult = await this.SettingModel.findByPk(1);
-
-    try {
-      const MymatchModel = await this.MymatchModel.findOne({
-        where: {
-          userId,
-        },
-      });
-
-      if (MymatchModel) {
-        let matches = MymatchModel.matches;
-
-        if (typeof matches === 'string') {
-          matches = JSON.parse(matches);
-        }
-
-        const filteredMatches = [];
-
-        for (let i = 0; i < matches.length; i++) {
-          const numberActiveOrder = await this.howmanyActiveOrder(
-            matches[i].merchantId
-          );
-          //if (numberActiveOrder > SettingModelResult.maxOrderPerMerchant)
-          // continue;
-          let merchant = await this.UserModel.findOne({
-            where: { id: matches[i].merchantId, disableAccount: false },
-            include: [
-              {
-                model: MerchantProfile,
-                as: 'MerchantProfile',
-                attributes: ['displayname', 'deliveryRange', 'imageUrl'],
-                where: {
-                  accountStatus: 'active',
-                },
-              },
-              {
-                model: this.MerchantAdsModel,
-                as: 'UserMerchantAds',
-                attributes: ['minAmount', 'maxAmount', 'pricePerThousand'],
-                required: true,
-              },
-            ],
-            attributes: ['imageUrl', 'isOnline', 'id', 'firstName', 'lastName'],
-          });
-
-          let OrdersModelResult = await this.OrdersModel.count({
-            where: {
-              isDeleted: false,
-              merchantId: userId,
-              hasIssues: false,
-            },
-          });
-
-          const isWithinDistance = distance
-            ? matches[i].distance <= distance
-            : true;
-
-          const isWithinRange = range
-            ? merchant.MerchantProfile.some((pr) => pr.deliveryRange <= range)
-            : true;
-
-          if (typeof merchant.UserMerchantAds.pricePerThousand === 'string') {
-            try {
-              merchant.UserMerchantAds.pricePerThousand = JSON.parse(
-                merchant.UserMerchantAds.pricePerThousand
-              );
-            } catch (error) {
-              console.error('Invalid JSON format for pricePerThousand:', error);
-            }
-          }
-
-          if (isWithinDistance && isWithinRange) {
-            filteredMatches.push({
-              id: merchant.id,
-              name: merchant.MerchantProfile.dataValues.displayname,
-              avatar: merchant.MerchantProfile.dataValues.imageUrl,
-              online: merchant.isOnline,
-              badge: 'Verified',
-              priceRanges: merchant.UserMerchantAds,
-              accuracy: 10,
-              distance: matches[i].distance,
-              numberOfOrder: OrdersModelResult,
-            });
-          }
-        }
-        //await new Promise((resolve) => setTimeout(resolve, 20000));
-
-        return filteredMatches;
-      } else {
-        return [];
-      }
-    } catch (error) {
-      console.log(error);
-      throw new SystemError(error.name, error.parent);
-    }
-  }*/
-
   async handleGetMerchantProfile(data) {
     const { userId } =
       await userUtil.verifyHandleGetMerchantProfile.validateAsync(data);
@@ -1029,6 +893,7 @@ async handleGetMyMerchant(data) {
               {
                 type: 'ORDER_CANCELLED',
                 orderId: OrdersModelResult.id,
+                userId: userResult.id,
               }
             );
           } catch (error) {
@@ -1066,6 +931,7 @@ async handleGetMyMerchant(data) {
               {
                 type: 'ORDER_REJECTED',
                 orderId: OrdersModelResult.id,
+                userId: userResult.id,
               }
             );
           } catch (error) {
@@ -1098,6 +964,7 @@ async handleGetMyMerchant(data) {
             {
               type: 'ORDER_ACCEPTED',
               orderId: OrdersModelResult.id,
+              userId: userResult.id,
             }
           );
         } catch (error) {
@@ -1433,107 +1300,6 @@ async handleGetMyMerchant(data) {
       throw new SystemError(error.name, error.parent);
     }
   }
-  /*
-  async handleGetUsers(data) {
-    const { type } = await userUtil.verifyHandleGetUsers.validateAsync(data);
-
-    try {
-      const whereCondition = {};
-      if (type === 'merchant') {
-        whereCondition.merchantActivated = true;
-      } else {
-        whereCondition.merchantActivated = false;
-      }
-
-      const totalUsers = await this.UserModel.count({ where: whereCondition });
-      const activeUsers = await this.UserModel.count({
-        where: { ...whereCondition, isOnline: true },
-      });
-      const newUsersThisMonth = await this.UserModel.count({
-        where: {
-          ...whereCondition,
-          createdAt: {
-            [Op.gte]: new Date(new Date().setDate(1)), // First day of the current month
-          },
-        },
-      });
-
-      const users = await this.UserModel.findAll({
-        where: whereCondition,
-        attributes: [
-          'id',
-          'imageUrl',
-          'emailAddress',
-          'firstName',
-          'lastName',
-          'walletBalance',
-          'createdAt',
-          'disableAccount',
-          'merchantActivated',
-          'tel',
-          'isOnline',
-        ],
-        include: [
-          {
-            model: Orders,
-            as: 'ClientOrder',
-            // attributes: ['id'],
-            required: false,
-          },
-          {
-            model: Orders,
-            as: 'MerchantOrder',
-            // attributes: ['id'],
-            required: false,
-          },
-
-          {
-            model: MerchantProfile,
-            as: 'MerchantProfile',
-            required: false,
-          },
-        ],
-      });
-
-      const userData = users.map((user) => {
-        const parsedWallet = this.safeParse(user.walletBalance);
-        console.log('Parsed wallet balance for user:', user.id, parsedWallet);
-        console.log(parsedWallet.current);
-
-        return {
-          id: user.id,
-          avatar:
-            type === 'merchant' && user.MerchantProfile
-              ? user.MerchantProfile.imageUrl
-              : user.imageUrl,
-          email: user.emailAddress,
-          name:
-            type === 'merchant'
-              ? `${user.firstName} ${user.lastName}(${user.MerchantProfile.displayName})`
-              : `${user.firstName} ${user.lastName}`,
-          walletBalance: parsedWallet.current,
-          orders: user.ClientOrder.length + user.MerchantOrder.length,
-          dateJoined: user.createdAt,
-          accountStatus: user.disableAccount ? 'Disabled' : 'Active',
-          merchantStatus: user.merchantActivated,
-          merchantAccountStatus: user?.MerchantProfile?.accountStatus,
-          tel: user.tel,
-          isOnline: user.isOnline,
-        };
-      });
-
-      return {
-        totalUsers,
-        activeUsers,
-        newUsersThisMonth,
-        users: userData,
-      };
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-      throw new SystemError(error.name, error.parent);
-    }
-  }
-*/
 
   async handleGetUsers(data) {
     const { type } = await userUtil.verifyHandleGetUsers.validateAsync(data);
@@ -1844,11 +1610,12 @@ async handleGetMyMerchant(data) {
             UserModelResult.fcmToken, // Assuming `userResult` is the customer
             {
               title: 'Merchat account activated',
-              body: `Great news your merchant accoutn is now active login and set your price to start taking order near by.`,
+              body: `Great news your merchant accout is now active login and set your price to start taking order near by.`,
             },
             {
               type: 'ACTIVATED_MERCHANT_ACCOUNT',
               orderId: '', // Replace with your actual order object
+              userId: userResult.id,
             }
           );
         } catch (error) {
@@ -2004,42 +1771,6 @@ async handleGetMyMerchant(data) {
       throw new SystemError(error.name, error.parent);
     }
   }
-
-  /*
-  async handleGetdefaultAds(data) {
-    const { userId } = await userUtil.verifyHandleGetdefaultAds.validateAsync(
-      data
-    );
-    try {
-      const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
-        where: { userId },
-      });
-      let adsData = {};
-      if (MerchantAdsModelResult) {
-        adsData = {
-          min: MerchantAdsModelResult.minAmount,
-          max: MerchantAdsModelResult.maxAmount,
-          breaks: JSON.parse(MerchantAdsModelResult.pricePerThousand),
-        };
-      } else {
-        const settingModelResult = await this.SettingModel.findByPk(1);
-        const settingModelResultPared = JSON.parse(
-          settingModelResult.defaultAds
-        );
-
-        adsData = {
-          min: 1000,
-          max: 10000,
-          breaks: settingModelResultPared,
-        };
-      }
-
-      return adsData;
-    } catch (error) {
-      console.error('Error fetching default with details:', error);
-      throw new SystemError(error.name, error.parent);
-    }
-  }*/
 
   async handleGetdefaultAds(data) {
     const { userId } = await userUtil.verifyHandleGetdefaultAds.validateAsync(
@@ -2449,102 +2180,6 @@ async handleGetMyMerchant(data) {
       throw new SystemError(error.name, error.parent || error.message);
     }
   }
-  /*
-  async handleverifyCompleteOrder(data) {
-    try {
-      // Validate the input data
-      const { userId, orderId, hash } =
-        await userUtil.verifyHandleverifyCompleteOrder.validateAsync(data);
-
-      // Fetch the order by ID
-      const orderResult = await this.OrdersModel.findByPk(orderId);
-      if (!orderResult) {
-        throw new NotFoundError(`Order with ID ${orderId} not found.`);
-      }
-
-      if (orderResult.orderStatus === 'completed') {
-        throw new ConflictError(`Order marked as completed already.`);
-      } else if (
-        orderResult.orderStatus === 'cancelled' ||
-        orderResult.orderStatus === 'rejected'
-      ) {
-        throw new ConflictError(
-          `Order marked as ${orderResult.orderStatus} already.`
-        );
-      }
-
-      // Validate that the correct user is accessing
-      const userResult = await this.UserModel.findByPk(orderResult.clientId);
-      if (!userResult) {
-        throw new NotFoundError(
-          `Client with ID ${orderResult.clientId} not found.`
-        );
-      }
-
-      // Construct hash and compare
-      const unConvertedHash =
-        orderResult.clientId +
-        orderResult.merchantId +
-        userResult.password +
-        serverConfig.GET_QR_CODE_HASH;
-
-      const isValidHash = await bcrypt.compare(unConvertedHash, hash);
-
-      if (!isValidHash) {
-        throw new BadRequestError('The provided hash is invalid or tampered.');
-      }
-
-      // Fetch merchant ad
-      const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
-        where: { userId: orderResult.merchantId },
-      });
-      if (!MerchantAdsModelResult) {
-        throw new NotFoundError('No ad found for this merchant.');
-      }
-
-      // Parse required settings and calculate delivery summary
-      const priceData = this.convertToJson(
-        MerchantAdsModelResult.pricePerThousand
-      );
-      const settingResult = await this.SettingModel.findByPk(1);
-      if (!settingResult) {
-        throw new SystemError('SettingsNotFound', 'System settings not found.');
-      }
-
-      const serviceCharge = this.convertToJson(settingResult.serviceCharge);
-      const gatewayService = this.convertToJson(settingResult.gatewayService);
-      const getdeliveryAmountSummary = await this.getdeliveryAmountSummary(
-        priceData,
-        orderResult.amountOrder,
-        serviceCharge,
-        gatewayService
-      );
-
-      const merchantPayOut =
-        getdeliveryAmountSummary.merchantCharge +
-        getdeliveryAmountSummary.amountOrder;
-      const commission = getdeliveryAmountSummary.serviceCharge;
-
-      // Update wallets
-      await this.updateWallet(userId, orderResult.totalAmount);
-      await this.updateAdminWallet(1, commission);
-      // Update order status
-      await orderResult.update({
-        orderStatus: 'completed',
-        moneyStatus: 'received',
-      });
-    } catch (error) {
-      console.error('handleverifyCompleteOrder Error:', error); // Optional logging
-      // Return or throw a clean error
-      if (error instanceof SystemError) {
-        throw error; // Already structured
-      }
-      throw new SystemError(
-        'UnexpectedError',
-        error.message || 'An unexpected error occurred.'
-      );
-    }
-  }*/
 
   async handleverifyCompleteOrder(data) {
     try {
@@ -2640,6 +2275,7 @@ async handleGetMyMerchant(data) {
             {
               type: 'ORDER_COMPLETED',
               orderId: orderResult.id,
+              userId: userResult.id,
             }
           );
         } catch (notifyErr) {
@@ -2657,6 +2293,7 @@ async handleGetMyMerchant(data) {
             {
               type: 'ORDER_COMPLETED',
               orderId: orderResult.id,
+              userId: userResult.id,
             }
           );
         } catch (notifyErr) {
@@ -2734,168 +2371,6 @@ async handleGetMyMerchant(data) {
       throw new SystemError(error.name, error.parent);
     }
   }
-  /*
-  async handleMakeOrderPayment(data) {
-    const sequelize = this.UserModel.sequelize;
-    let validatedData;
-
-    try {
-      validatedData = await userUtil.verifyHandleMakeOrderPayment.validateAsync(
-        data
-      );
-    } catch (err) {
-      throw new BadRequestError('Invalid input: ' + err.message);
-    }
-
-    const { userId, userId2, amount, amountOrder } = validatedData;
-
-    return await sequelize.transaction(async (t) => {
-      // 1. Fetch and validate User
-      const userResult = await this.UserModel.findByPk(userId, {
-        transaction: t,
-      });
-      if (!userResult) throw new NotFoundError('User not found');
-
-      // Parse wallet safely
-      let userWallet = { current: 0, previous: 0 };
-      try {
-        userWallet =
-          typeof userResult.walletBalance === 'string'
-            ? JSON.parse(userResult.walletBalance)
-            : userResult.walletBalance || { current: 0, previous: 0 };
-      } catch (e) {
-        console.error('Error parsing user walletBalance:', e);
-        throw new SystemError('Corrupt user wallet data');
-      }
-
-      const currentUserBalance = Number(userWallet.current) || 0;
-      if (currentUserBalance < amount) {
-        throw new BadRequestError('Insufficient balance');
-      }
-
-      // 2. Fetch and validate Merchant Ad
-      const merchantAd = await this.MerchantAdsModel.findOne({
-        where: { userId: userId2 },
-        transaction: t,
-      });
-      if (!merchantAd) {
-        throw new NotFoundError('Merchant ads not found');
-      }
-
-      // 3. Fetch Setting
-      const settingModelResult = await this.SettingModel.findByPk(1, {
-        transaction: t,
-      });
-      if (!settingModelResult) {
-        throw new InternalServerError('System settings not found');
-      }
-
-      // 4. Update User wallet
-      const updatedUserWallet = {
-        previous: currentUserBalance,
-        current: currentUserBalance - amount,
-      };
-      await userResult.update(
-        { walletBalance: updatedUserWallet },
-        { transaction: t }
-      );
-
-      // 5. Update Setting wallet (service charge)
-      let settingWallet = { previous: 0, current: 0 };
-      try {
-        settingWallet =
-          typeof settingModelResult.walletBalance === 'string'
-            ? JSON.parse(settingModelResult.walletBalance)
-            : settingModelResult.walletBalance || { previous: 0, current: 0 };
-      } catch (e) {
-        console.error('Error parsing setting walletBalance:', e);
-        throw new SystemError('Corrupt setting wallet data');
-      }
-
-      const previousSettingBalance = Number(settingWallet.current) || 0;
-
-      let pricePerThousand = merchantAd.pricePerThousand;
-      let serviceCharge = settingModelResult.serviceCharge;
-      let gatewayService = settingModelResult.gatewayService;
-
-      pricePerThousand = await this.safeParse(pricePerThousand);
-      serviceCharge = await this.safeParse(serviceCharge);
-      gatewayService = await this.safeParse(gatewayService);
-
-      const amountSummary = await this.getdeliveryAmountSummary(
-        pricePerThousand,
-        amountOrder,
-        serviceCharge,
-        gatewayService
-      );
-
-      // const serviceCharge = amountSummary.serviceCharge;
-      const updatedSettingWallet = {
-        previous: previousSettingBalance,
-        current: previousSettingBalance + amountSummary.serviceCharge,
-      };
-      await settingModelResult.update(
-        { walletBalance: updatedSettingWallet },
-        { transaction: t }
-      );
-
-      // 6. Log Transaction
-      const transactionResult = await this.TransactionModel.create(
-        {
-          userId,
-          merchantId: userId2,
-          orderAmount: amountOrder,
-          amount,
-          transactionType: 'order',
-          paymentStatus: 'successful',
-          transactionFrom: 'wallet',
-        },
-        { transaction: t }
-      );
-
-      // 7. Create Order
-      const newOrder = await this.OrdersModel.create(
-        {
-          orderStatus: 'notAccepted',
-          moneyStatus: 'received',
-          orderId: this.generateOrderId('NG', 10),
-          clientId: userId,
-          merchantId: userId2,
-          amountOrder,
-          amount,
-          qrCodeHash: await this.getQRCodeHash(
-            userId,
-            userId2,
-            userResult.password
-          ),
-          transactionId: transactionResult.id,
-        },
-        { transaction: t }
-      );
-
-      const merchantUser = await this.UserModel.findByPk(userId2, {
-        transaction: t,
-      });
-      if (merchantUser && merchantUser.fcmToken) {
-        await this.sendToDevice(
-          merchantUser.fcmToken,
-          {
-            title: 'New Order Alert 🚀',
-            body: `You’ve received a new order from ${userResult.firstName}. Open the app to accept it.`,
-          },
-          {
-            type: 'NEW_ORDER',
-            orderId: newOrder.orderId,
-          }
-        );
-      }
-
-      return {
-        success: true,
-        message: 'Order payment processed successfully',
-      };
-    });
-  }*/
 
   async handleMakeOrderPayment(data) {
     const sequelize = this.UserModel.sequelize;
@@ -3053,6 +2528,7 @@ async handleGetMyMerchant(data) {
           {
             type: 'NEW_ORDER',
             orderId: newOrder.orderId,
+            userId: userResult.id,
           }
         );
       } catch (notificationError) {
@@ -4393,59 +3869,6 @@ async handleGetMyMerchant(data) {
     }
   };
 
-  /*
-  async updateClientWallet(userId, amount, transaction) {
-    // Wrap everything in a DB transaction
-    const tx = transaction || (await db.sequelize.transaction());
-    let externalTx = !!transaction;
-
-    try {
-      // 1. Log the transaction
-      await this.TransactionModel.create(
-        {
-          userId,
-          amount,
-          transactionId: this.generateOrderId('NG_TX', 10),
-          transactionType: 'fundWallet',
-          paymentStatus: 'successful',
-          transactionFrom: 'wallet',
-        },
-        { transaction: tx }
-      );
-
-      // 2. Lock the user row FOR UPDATE (avoids race conditions)
-      const user = await this.UserModel.findByPk(userId, {
-        transaction: tx,
-        lock: tx.LOCK.UPDATE,
-      });
-
-      if (!user) {
-        throw new NotFoundError('User not found');
-      }
-
-      // 3. Safely parse and update wallet balance
-      let walletBalance = this.convertToJson(user.walletBalance) || {
-        previous: 0,
-        current: 0,
-      };
-      walletBalance.previous = walletBalance.current;
-      walletBalance.current += parseFloat(amount);
-
-      // 4. Save updated balance
-      await user.update({ walletBalance }, { transaction: tx });
-
-      // ✅ Only commit if this method owns the transaction
-      if (!externalTx) {
-        await tx.commit();
-      }
-    } catch (error) {
-      if (!externalTx) {
-        await tx.rollback();
-      }
-      throw error;
-    }
-  }*/
-
   async updateClientWallet(userId, amount, transaction) {
     const tx = transaction || (await db.sequelize.transaction());
     const externalTx = !!transaction;
@@ -4492,13 +3915,11 @@ async handleGetMyMerchant(data) {
       // 7. Commit
       if (!externalTx) {
         await tx.commit();
-        console.log(`[Wallet Update] Transaction committed ✅`);
       }
     } catch (error) {
       console.error(`[Wallet Update] ERROR:`, error);
       if (!externalTx) {
         await tx.rollback();
-        console.log(`[Wallet Update] Transaction rolled back ❌`);
       }
       throw error;
     }
@@ -4544,6 +3965,7 @@ async handleGetMyMerchant(data) {
         {
           type: 'ORDER_REJECTED',
           orderId: OrdersModelResult.id,
+          userId: userResult.id,
         }
       );
     } catch (error) {
@@ -4561,6 +3983,7 @@ async handleGetMyMerchant(data) {
 
     return unConvertedHash;
   }
+
   async startTestPush() {
     /*
     const sendTestNotification = async () => {
