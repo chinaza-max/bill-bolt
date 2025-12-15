@@ -89,6 +89,8 @@ class MailService {
     console.log('chinaza');
     console.log('chinaza');
     console.log('chinaza');
+    console.log(emailCommand);
+
     console.log('chinaza');
     console.log('chinaza');
     console.log('chinaza');
