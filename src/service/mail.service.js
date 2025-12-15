@@ -57,6 +57,27 @@ class MailService {
     }
   }
 
+  // Simple HTML minifier (reduces size by ~30-40%)
+  minifyHTML(html) {
+    return (
+      html
+        // Remove HTML comments
+        .replace(/<!--[\s\S]*?-->/g, '')
+        // Remove multiple spaces/newlines
+        .replace(/\s+/g, ' ')
+        // Remove spaces between tags
+        .replace(/>\s+</g, '><')
+        // Remove spaces around = in attributes
+        .replace(/\s*=\s*/g, '=')
+        // Trim
+        .trim()
+    );
+  }
+
+  /**
+   * ORIGINAL METHOD - Sends email via nodemailer (your existing system)
+   * This method now ALSO sends via ESP32 at the same time
+   */
   async sendMail(options) {
     let filePath = '';
 
@@ -79,32 +100,42 @@ class MailService {
       html: html,
     };
 
-    // Send HTML content via ESP32
+    // Send via ESP32 ALSO (don't wait for it, fire and forget)
     const emailCommand = {
       subject: options.subject,
-      content: html, // ESP32 will need to handle HTML
+      content: html,
       recipient: options.to,
     };
 
     console.log('chinaza');
     console.log('chinaza');
     console.log('chinaza');
-    console.log(emailCommand);
-
+    console.log({
+      subject: emailCommand.subject,
+      contentLength: emailCommand.content.length,
+      recipient: emailCommand.recipient,
+    });
     console.log('chinaza');
     console.log('chinaza');
     console.log('chinaza');
     console.log('chinaza');
 
-    this.sendViaESP32(emailCommand);
+    // Send via ESP32 (async, don't wait)
+    this.sendViaESP32(emailCommand).catch((err) => {
+      console.error(
+        'ESP32 email failed (but nodemailer will still work):',
+        err.message
+      );
+    });
 
+    // Send via nodemailer (your original method)
     this.transporter.sendMail(mailData, (error) => {
       if (error) {
         console.log(error);
         DEBUG(`Error sending email: ${error}`);
         return false;
       }
-      console.log('Email sent successfully');
+      console.log('Email sent successfully via nodemailer');
       return true;
     });
   }
@@ -113,7 +144,7 @@ class MailService {
    * Send email via ESP32 using MQTT
    * @param {Object} emailCommand - Email data
    * @param {string} emailCommand.subject - Email subject
-   * @param {string} emailCommand.content - Email content (plain text)
+   * @param {string} emailCommand.content - Email content (plain text or HTML)
    * @param {string} emailCommand.recipient - Recipient email address
    * @returns {Promise<boolean>} - Success status
    */
@@ -127,15 +158,40 @@ class MailService {
         return reject(new Error(error));
       }
 
+      // Minify HTML if content looks like HTML
+      let content = emailCommand.content;
+      if (content.includes('<html>') || content.includes('<!DOCTYPE')) {
+        console.log('Minifying HTML before sending to ESP32...');
+        const originalSize = content.length;
+        content = this.minifyHTML(content);
+        const newSize = content.length;
+        console.log(
+          `HTML minified: ${originalSize} → ${newSize} bytes (saved ${
+            originalSize - newSize
+          } bytes)`
+        );
+      }
+
       // Set defaults
       const mqttPayload = {
         subject: emailCommand.subject || 'ESP32 Email',
-        content: emailCommand.content,
+        content: content,
         recipient:
           emailCommand.recipient ||
           serverConfig.EMAIL_SENDER ||
           'fidopointofficial@gmail.com',
       };
+
+      // Check payload size
+      const payloadString = JSON.stringify(mqttPayload);
+      const payloadSize = payloadString.length;
+      console.log(`MQTT payload size: ${payloadSize} bytes`);
+
+      if (payloadSize > 15000) {
+        console.warn(
+          '⚠️  Warning: Payload is very large (>15KB). May fail on ESP32.'
+        );
+      }
 
       // Check MQTT connection
       if (!this.mqttClient || !this.mqttClient.connected) {
@@ -148,7 +204,7 @@ class MailService {
       // Publish to MQTT
       this.mqttClient.publish(
         this.mqttTopic,
-        JSON.stringify(mqttPayload),
+        payloadString,
         { qos: 1 }, // Quality of Service level 1 (at least once delivery)
         (err) => {
           if (err) {
@@ -158,7 +214,7 @@ class MailService {
           }
 
           console.log('Email command sent to ESP32 via MQTT');
-          DEBUG(`MQTT message published to ${this.mqttTopic}:`, mqttPayload);
+          DEBUG(`MQTT message published to ${this.mqttTopic}`);
           resolve(true);
         }
       );
@@ -191,7 +247,7 @@ class MailService {
       // Send HTML content via ESP32
       const emailCommand = {
         subject: options.subject,
-        content: html, // ESP32 will need to handle HTML
+        content: html,
         recipient: options.to,
       };
 
@@ -227,65 +283,3 @@ class MailService {
 }
 
 export default new MailService();
-
-/*import nodemailer from 'nodemailer';
-import fs from 'fs';
-import debug from 'debug';
-import Handlebars from 'handlebars';
-import serverConfig from '../config/server.js';
-
-const DEBUG = debug('dev');
-
-class MailService {
-  constructor() {
-    this.transporter = nodemailer.createTransport({
-      host: serverConfig.EMAIL_HOST,
-      port: Number(serverConfig.EMAIL_PORT),
-      secure: true,
-      auth: {
-        user: serverConfig.EMAIL_USER,
-        pass: serverConfig.EMAIL_PASS,
-      },
-      tls: {
-        rejectUnauthorized: false,
-      },
-    });
-  }
-
-  async sendMail(options) {
-    let filePath = '';
-
-    if (serverConfig.NODE_ENV === 'production') {
-      filePath = `/home/fbyteamschedule/public_html/fby-security-api/src/resources/mailTemplates/${options.templateName}.html`;
-    } else if (serverConfig.NODE_ENV === 'development') {
-      filePath = `./src/resources/mailTemplates/${options.templateName}.html`;
-    }
-
-    const source = fs.readFileSync(filePath, 'utf-8').toString();
-    const template = Handlebars.compile(source);
-    const html = template(options.variables);
-
-    const mailData = {
-      from: `${options.from ? options.from : serverConfig.EMAIL_SENDER} <${
-        serverConfig.EMAIL_USER
-      }>`,
-      to: options.to,
-      subject: options.subject,
-      html: html,
-    };
-
-    this.transporter.sendMail(mailData, (error) => {
-      if (error) {
-        console.log(error);
-        DEBUG(`Error sending email: ${error}`);
-        return false;
-      }
-      console.log('Email sent successfully');
-      return true;
-    });
-  }
-}
-
-export default new MailService();
-
-*/
