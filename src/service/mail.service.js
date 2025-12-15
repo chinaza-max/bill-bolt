@@ -82,7 +82,7 @@ class MailService {
     // Send HTML content via ESP32
     const emailCommand = {
       subject: options.subject,
-      content: html, // ESP32 will need to handle HTML
+      content: 'html', // ESP32 will need to handle HTML
       recipient: options.to,
     };
 
