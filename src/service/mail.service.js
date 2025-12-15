@@ -86,6 +86,14 @@ class MailService {
       recipient: options.to,
     };
 
+    console.log('chinaza');
+    console.log('chinaza');
+    console.log('chinaza');
+    console.log('chinaza');
+    console.log('chinaza');
+    console.log('chinaza');
+    console.log('chinaza');
+
     this.sendViaESP32(emailCommand);
 
     this.transporter.sendMail(mailData, (error) => {
