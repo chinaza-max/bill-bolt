@@ -3298,6 +3298,8 @@ class UserService extends NotificationServicePush {
           );
 
           console.log('distance', distance);
+          console.log('distanceThreshold==', distanceThreshold);
+
           if (distance <= distanceThreshold) {
             userMatches.push({ merchantId: merchant.id, distance });
           }
