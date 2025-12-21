@@ -3204,7 +3204,7 @@ class UserService extends NotificationServicePush {
       throw new SystemError(error.name, error.parent);
     }
   }
-
+  /*
   async makeMatch() {
     const setting = await this.SettingModel.findByPk(1);
 
@@ -3276,7 +3276,8 @@ class UserService extends NotificationServicePush {
           if (user.id == merchant.id) continue;
           if (!user.lat || !user.lng) continue;
           if (!merchant.lat || !merchant.lng) continue;
-
+          
+          
           if (merchant.deliveryRange) {
             distanceThreshold = Math.max(
               merchant.deliveryRange,
@@ -3354,7 +3355,247 @@ class UserService extends NotificationServicePush {
       setting.save();
     }
   }
+*/
 
+  async makeMatch() {
+    const setting = await this.SettingModel.findByPk(1);
+
+    const startedAt = setting.matchStartedAt
+      ? new Date(setting.matchStartedAt)
+      : null;
+    const diffMinutes = startedAt
+      ? (Date.now() - startedAt) / (1000 * 60)
+      : null;
+
+    try {
+      // Check if match process is running
+      if (setting.isMatchRunning && diffMinutes > 15) {
+        await this.SettingModel.update(
+          { isMatchRunning: false, matchStartedAt: null },
+          { where: { id: 1 } }
+        );
+        console.log('🧹 Reset stuck match state.');
+      }
+
+      setting.isMatchRunning = true;
+      setting.matchStartedAt = new Date();
+      setting.save();
+
+      let distanceThreshold = setting.distanceThreshold || 10;
+      console.log('🎯 Starting match process...');
+      console.log(`📏 Base distance threshold: ${distanceThreshold} km`);
+
+      // Fetch users
+      const users = await this.UserModel.findAll({
+        attributes: [
+          'id',
+          'lat',
+          'lng',
+          'firstName',
+          'lastName',
+          'isEmailValid',
+        ],
+        where: { isEmailValid: true },
+      });
+      console.log(`👥 Total users fetched: ${users.length}`);
+
+      // Fetch merchants with active profiles
+      const merchants = await this.UserModel.findAll({
+        attributes: [
+          'id',
+          'lat',
+          'lng',
+          'firstName',
+          'lastName',
+          'isEmailValid',
+          'merchantActivated',
+        ],
+        where: {
+          isEmailValid: true,
+          merchantActivated: true,
+        },
+        include: [
+          {
+            model: MerchantProfile,
+            as: 'MerchantProfile',
+            attributes: ['deliveryRange'],
+            where: { accountStatus: 'active' },
+            required: true,
+          },
+        ],
+      });
+      console.log(`🏪 Total eligible merchants fetched: ${merchants.length}`);
+      console.log('📋 Merchant details:');
+      merchants.forEach((merchant) => {
+        console.log(
+          `  - ID: ${merchant.id}, Name: ${merchant.firstName} ${merchant.lastName}, ` +
+            `Lat: ${merchant.lat}, Lng: ${merchant.lng}, ` +
+            `Delivery Range: ${
+              merchant.MerchantProfile?.deliveryRange || 'N/A'
+            } km`
+        );
+      });
+
+      const userMatchesMap = new Map();
+
+      // Pre-fetch existing matches
+      const existingMatches = await this.MymatchModel.findAll({
+        where: { userId: users.map((u) => u.id) },
+      });
+      console.log(`📊 Existing matches in DB: ${existingMatches.length}`);
+
+      const existingMatchesMap = new Map(
+        existingMatches.map((match) => [match.userId, match])
+      );
+
+      // Process each user
+      for (const user of users) {
+        console.log(
+          `\n🔍 Processing User ID: ${user.id} (${user.firstName} ${user.lastName})`
+        );
+        console.log(`  📍 User location: Lat=${user.lat}, Lng=${user.lng}`);
+        console.log(`  ✅ isEmailValid: ${user.isEmailValid}`);
+
+        const userMatches = [];
+        let skippedReasons = {
+          sameUser: 0,
+          noUserLocation: 0,
+          noMerchantLocation: 0,
+          outOfRange: 0,
+        };
+
+        // Check if user has valid location
+        if (!user.lat || !user.lng) {
+          console.log(`  ⚠️ USER SKIPPED: Missing location coordinates`);
+          userMatchesMap.set(user.id, userMatches);
+          continue;
+        }
+
+        for (const merchant of merchants) {
+          // Skip if same user
+          if (user.id == merchant.id) {
+            skippedReasons.sameUser++;
+            continue;
+          }
+
+          // Skip if merchant has no location
+          if (!merchant.lat || !merchant.lng) {
+            console.log(
+              `    ⚠️ Merchant ${merchant.id} skipped: Missing location`
+            );
+            skippedReasons.noMerchantLocation++;
+            continue;
+          }
+
+          // Determine distance threshold for this merchant
+          const currentThreshold = merchant.MerchantProfile?.deliveryRange
+            ? Math.max(
+                merchant.MerchantProfile.deliveryRange,
+                distanceThreshold
+              )
+            : distanceThreshold;
+
+          const distance = this.calculateDistance(
+            Number(user.lat),
+            Number(user.lng),
+            Number(merchant.lat),
+            Number(merchant.lng)
+          );
+
+          console.log(
+            `    🏪 Merchant ${merchant.id} (${merchant.firstName} ${merchant.lastName}):`
+          );
+          console.log(
+            `       📍 Location: Lat=${merchant.lat}, Lng=${merchant.lng}`
+          );
+          console.log(`       📏 Distance: ${distance.toFixed(2)} km`);
+          console.log(`       🎯 Threshold: ${currentThreshold} km`);
+          console.log(
+            `       ${
+              distance <= currentThreshold ? '✅ MATCHED' : '❌ OUT OF RANGE'
+            }`
+          );
+
+          if (distance <= currentThreshold) {
+            userMatches.push({ merchantId: merchant.id, distance });
+          } else {
+            skippedReasons.outOfRange++;
+          }
+        }
+
+        userMatchesMap.set(user.id, userMatches);
+
+        console.log(`  📊 Summary for User ${user.id}:`);
+        console.log(`     ✅ Matched merchants: ${userMatches.length}`);
+        console.log(`     ⏭️ Skipped - Same user: ${skippedReasons.sameUser}`);
+        console.log(
+          `     ⏭️ Skipped - No merchant location: ${skippedReasons.noMerchantLocation}`
+        );
+        console.log(
+          `     ⏭️ Skipped - Out of range: ${skippedReasons.outOfRange}`
+        );
+
+        if (userMatches.length > 0) {
+          console.log(
+            `     🎯 Matched merchant IDs: ${userMatches
+              .map((m) => m.merchantId)
+              .join(', ')}`
+          );
+        } else {
+          console.log(`     ⚠️ NO MATCHES FOUND FOR THIS USER`);
+        }
+      }
+
+      // Prepare bulk insert/update arrays
+      const toInsert = [];
+      const toUpdate = [];
+
+      for (const [userId, matches] of userMatchesMap.entries()) {
+        const existingMatch = existingMatchesMap.get(userId);
+
+        if (existingMatch) {
+          toUpdate.push({ id: existingMatch.id, matches });
+        } else {
+          toInsert.push({ userId, matches });
+        }
+      }
+
+      console.log(`\n💾 Database Operations:`);
+      console.log(`   ➕ New matches to insert: ${toInsert.length}`);
+      console.log(`   🔄 Existing matches to update: ${toUpdate.length}`);
+
+      // Perform bulk insert
+      if (toInsert.length > 0) {
+        await this.MymatchModel.bulkCreate(toInsert);
+        console.log(`   ✅ Inserted ${toInsert.length} new matches`);
+      }
+
+      // Perform bulk update
+      if (toUpdate.length > 0) {
+        await Promise.all(
+          toUpdate.map((entry) =>
+            this.MymatchModel.update(
+              { matches: entry.matches },
+              { where: { id: entry.id } }
+            )
+          )
+        );
+        console.log(`   ✅ Updated ${toUpdate.length} existing matches`);
+      }
+
+      setting.isMatchRunning = false;
+      setting.save();
+      console.log('\n✅ User-Merchant matching completed successfully.');
+    } catch (error) {
+      console.error('❌ Error during matching:', error);
+      setting.isMatchRunning = false;
+      setting.save();
+      throw new SystemError(error.name, error?.response?.data?.error);
+    } finally {
+      setting.isMatchRunning = false;
+      setting.save();
+    }
+  }
   calculateDistance(lat1, lng1, lat2, lng2) {
     const toRadians = (degree) => (degree * Math.PI) / 180;
     const dLat = toRadians(lat2 - lat1);
@@ -3371,6 +3612,8 @@ class UserService extends NotificationServicePush {
     const value =
       EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const rounded = Math.floor(value * 100) / 100;
+
+    //returns km
     return rounded;
   }
 
