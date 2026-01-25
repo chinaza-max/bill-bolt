@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Verify PIN Reset</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #1a5f3f 0%, #0d3d28 100%);
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+      }
+
+      .container {
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        max-width: 500px;
+        width: 100%;
+        padding: 40px;
+        text-align: center;
+      }
+
+      .logo {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 20px;
+        background-image: url('https://res.cloudinary.com/dvznn9s4g/image/upload/v1744585559/icon_yelohe.png');
+        background-size: 60px 60px;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-color: #f8f9fa;
+        border-radius: 15px;
+      }
+
+      .spinner {
+        width: 60px;
+        height: 60px;
+        margin: 20px auto;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #d4af37;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      h1 {
+        color: #1e1e2d;
+        font-size: 28px;
+        margin-bottom: 15px;
+      }
+
+      p {
+        color: #666;
+        font-size: 16px;
+        line-height: 1.6;
+        margin-bottom: 20px;
+      }
+
+      .status {
+        padding: 15px 20px;
+        border-radius: 10px;
+        margin: 20px 0;
+        font-weight: 500;
+      }
+
+      .status.loading {
+        background: #e8f5e9;
+        color: #1a5f3f;
+      }
+
+      .status.success {
+        background: #e8f5e9;
+        color: #1a5f3f;
+      }
+
+      .status.error {
+        background: #ffebee;
+        color: #c62828;
+      }
+
+      .icon {
+        font-size: 48px;
+        margin: 20px 0;
+      }
+
+      .icon.success {
+        color: #1a5f3f;
+      }
+
+      .icon.error {
+        color: #f44336;
+      }
+
+      .btn {
+        display: inline-block;
+        padding: 12px 30px;
+        background: #d4af37;
+        color: #1a5f3f;
+        text-decoration: none;
+        border-radius: 25px;
+        font-weight: 600;
+        margin-top: 20px;
+        transition: background 0.3s;
+        cursor: pointer;
+        border: none;
+        font-size: 16px;
+      }
+
+      .btn:hover {
+        background: #c5a028;
+      }
+
+      .btn:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+
+      #loading {
+        display: block;
+      }
+
+      #success,
+      #error {
+        display: none;
+      }
+
+      .email-display {
+        background: #f5f5f5;
+        padding: 10px;
+        border-radius: 8px;
+        margin: 15px 0;
+        font-family: monospace;
+        color: #333;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="logo"></div>
+
+      <!-- Loading State -->
+      <div id="loading">
+        <div class="spinner"></div>
+        <h1>Verifying Your Request</h1>
+        <p>Please wait while we verify your PIN reset request...</p>
+        <div class="status loading">Processing verification</div>
+      </div>
+
+      <!-- Success State -->
+      <div id="success">
+        <div class="icon success">✓</div>
+        <h1>Verification Successful!</h1>
+        <p>
+          Your PIN reset has been verified successfully. You can now proceed to
+          set your new PIN.
+        </p>
+        <div class="status success">Verification complete</div>
+        <button id="continueBtn" class="btn">Continue to App</button>
+      </div>
+
+      <!-- Error State -->
+      <div id="error">
+        <div class="icon error">✕</div>
+        <h1>Verification Failed</h1>
+        <p id="errorMessage">
+          The verification link is invalid or has expired. Please request a new
+          PIN reset.
+        </p>
+        <div class="status error">Verification failed</div>
+        <div
+          id="emailDisplay"
+          class="email-display"
+          style="display: none"
+        ></div>
+        <button id="retryBtn" class="btn">Request New Reset</button>
+      </div>
+    </div>
+
+    <script>
+      // Get URL parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const otp = urlParams.get('otp');
+      const userId = urlParams.get('userId');
+      const verifyApiEndpoint = urlParams.get('verifyApiEndpoint');
+      const resendRequestPinApiEndpoint = urlParams.get(
+        'resendRequestPinApiEndpoint'
+      );
+      const appUrl = urlParams.get('appUrl');
+      const emailOrPhone =
+        urlParams.get('email') || urlParams.get('emailOrPhone');
+
+      // Display email if available
+      if (emailOrPhone) {
+        const emailDisplay = document.getElementById('emailDisplay');
+        emailDisplay.textContent = `Email: ${emailOrPhone}`;
+        emailDisplay.style.display = 'block';
+      }
+
+      // Function to verify PIN reset
+      async function verifyPinReset() {
+        // Validate parameters
+        if (!otp || !userId) {
+          showError(
+            'Invalid verification link. Missing required parameters (OTP or User ID).'
+          );
+          return;
+        }
+
+        if (!verifyApiEndpoint) {
+          showError('Configuration error. Missing verification API endpoint.');
+          return;
+        }
+
+        try {
+          const response = await fetch(verifyApiEndpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              otp: otp,
+              userId: userId,
+            }),
+          });
+
+          const data = await response.json();
+
+          if (response.ok && (data.success || response.status === 200)) {
+            showSuccess(data.message || 'Verification successful!');
+          } else {
+            showError(data.message || 'Verification failed. Please try again.');
+          }
+        } catch (error) {
+          console.error('Verification error:', error);
+          showError(
+            'An error occurred during verification. Please check your connection and try again.'
+          );
+        }
+      }
+
+      // Function to request new reset
+      async function requestNewReset() {
+        if (!emailOrPhone) {
+          showError('Cannot request new reset. Email address not found.');
+          return;
+        }
+
+        if (!resendRequestPinApiEndpoint) {
+          showError('Configuration error. Missing reset request API endpoint.');
+          return;
+        }
+
+        const retryBtn = document.getElementById('retryBtn');
+        retryBtn.disabled = true;
+        retryBtn.textContent = 'Sending...';
+
+        try {
+          const response = await fetch(resendRequestPinApiEndpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              emailOrPhone: emailOrPhone,
+              workType: 'user',
+            }),
+          });
+
+          const data = await response.json();
+
+          if (response.ok && (data.success || response.status === 200)) {
+            showSuccess(
+              data.message ||
+                'Reset OTP sent successfully! Please check your email.'
+            );
+            setTimeout(() => {
+              if (appUrl) {
+                window.location.href = appUrl;
+              }
+            }, 3000);
+          } else {
+            showError(
+              data.message || 'Failed to send reset OTP. Please try again.'
+            );
+            retryBtn.disabled = false;
+            retryBtn.textContent = 'Request New Reset';
+          }
+        } catch (error) {
+          console.error('Reset request error:', error);
+          showError(
+            'Network error. Please check your connection and try again.'
+          );
+          retryBtn.disabled = false;
+          retryBtn.textContent = 'Request New Reset';
+        }
+      }
+
+      // Show success state
+      function showSuccess(message) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('error').style.display = 'none';
+        document.getElementById('success').style.display = 'block';
+
+        if (message) {
+          document.querySelector('#success p').textContent = message;
+        }
+      }
+
+      // Show error state
+      function showError(message) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('success').style.display = 'none';
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('errorMessage').textContent = message;
+      }
+
+      // Execute verification on page load
+      window.addEventListener('DOMContentLoaded', () => {
+        verifyPinReset();
+      });
+
+      // Continue button - redirect to app
+      document.getElementById('continueBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        if (appUrl) {
+          window.location.href = appUrl;
+        } else {
+          alert('App URL not configured. Please contact support.');
+        }
+      });
+
+      // Retry button - request new reset
+      document.getElementById('retryBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        requestNewReset();
+      });
+    </script>
+  </body>
+</html>

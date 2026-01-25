@@ -16,6 +16,7 @@ import Transaction, { init as initTransaction } from './transaction.js';
 import Admin, { init as initAdmin } from './admin.js';
 import Notification, { init as initNotification } from './notification.js';
 import NinOtp, { init as initNinOtp } from './ninOtp.js';
+import PinReset, { init as initPinReset } from './pinReset.js';
 
 function associate() {
   User.hasOne(MerchantProfile, {
@@ -132,6 +133,7 @@ export {
   Admin,
   Notification,
   NinOtp,
+  PinReset,
 };
 
 export function init(connection) {
@@ -149,6 +151,7 @@ export function init(connection) {
   initAdmin(connection);
   initNotification(connection);
   initNinOtp(connection);
+  initPinReset(connection);
   associate();
   authenticateConnection(connection);
 }

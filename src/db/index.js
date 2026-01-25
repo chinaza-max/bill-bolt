@@ -40,7 +40,7 @@ class DB {
 
     if (serverConfig.NODE_ENV === 'development') {
       //await this.sequelize.sync({ alter: true });
-      // await this.sequelize.sync({ force: true });
+      //await this.sequelize.sync({ force: true });
       //  await this.updateExistingTransactionIds();
       //  await this.updateEmptyDisplayNames();
       try {
