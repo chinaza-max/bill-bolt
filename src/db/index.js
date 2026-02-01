@@ -176,7 +176,7 @@ this.sequelize.query(disableForeignKeyChecks)
       console.error('Error updating display names:', error);
     }
   }*/
-
+  //
   generateUniqueTransactionId() {
     const timestamp = Date.now().toString();
     const random = Math.random().toString(36).substring(2, 8).toUpperCase();
