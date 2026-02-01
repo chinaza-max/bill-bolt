@@ -5,6 +5,7 @@ import {
   Transaction,
   MerchantProfile,
 } from './models/index.js';
+import fs from 'fs';
 
 class DB {
   constructor() {
