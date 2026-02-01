@@ -424,7 +424,7 @@ export default class AuthenticationController {
       await authService.handleSendPinResetOtp(req.body);
       return res.status(200).json({
         status: 200,
-        message: 'A reset link was sent successfully your email',
+        message: 'A reset link was sent successfully to your email',
       });
     } catch (error) {
       next(error);

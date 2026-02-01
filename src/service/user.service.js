@@ -1302,13 +1302,14 @@ class UserService extends NotificationServicePush {
   }
 
   async handleGetUsers(data) {
-    const { type } = await userUtil.verifyHandleGetUsers.validateAsync(data);
+    const { type, page, limit } =
+      await userUtil.verifyHandleGetUsers.validateAsync(data);
 
     try {
-      // Define the base where condition
+      const offset = (page - 1) * limit;
+
       let whereCondition = {};
 
-      // For merchant type, we will include only users that have a MerchantProfile
       const includeConditions = [
         {
           model: Orders,
@@ -1323,11 +1324,12 @@ class UserService extends NotificationServicePush {
         {
           model: MerchantProfile,
           as: 'MerchantProfile',
-          required: type === 'merchant', // Only include users with MerchantProfile if type is merchant
+          required: type === 'merchant',
         },
       ];
 
-      // Count total users
+      /* ---------------- COUNTS ---------------- */
+
       const totalUsers = await this.UserModel.count({
         where: whereCondition,
         include:
@@ -1340,29 +1342,34 @@ class UserService extends NotificationServicePush {
                 },
               ]
             : [],
+        distinct: true,
       });
 
-      // Count active users
       const activeUsers = await this.UserModel.count({
-        where: { ...whereCondition, isOnline: true },
-        include:
-          type === 'merchant'
-            ? [
-                {
-                  model: MerchantProfile,
-                  as: 'MerchantProfile',
-                  required: true,
-                },
-              ]
-            : [],
+        where: {
+          ...whereCondition,
+          isOnline: true,
+        },
+        include: [
+          {
+            model: MerchantProfile,
+            as: 'MerchantProfile',
+            required: true,
+            where: {
+              accountStatus: 'active',
+              isDeleted: false,
+              disableAccount: false,
+            },
+          },
+        ],
+        distinct: true,
       });
 
-      // Count new users this month
       const newUsersThisMonth = await this.UserModel.count({
         where: {
           ...whereCondition,
           createdAt: {
-            [Op.gte]: new Date(new Date().setDate(1)), // First day of the current month
+            [Op.gte]: new Date(new Date().setDate(1)),
           },
         },
         include:
@@ -1375,11 +1382,16 @@ class UserService extends NotificationServicePush {
                 },
               ]
             : [],
+        distinct: true,
       });
 
-      // Fetch users with relationships
+      /* ---------------- PAGINATED FETCH ---------------- */
+
       const users = await this.UserModel.findAll({
         where: whereCondition,
+        limit,
+        offset,
+        order: [['createdAt', 'DESC']],
         attributes: [
           'id',
           'imageUrl',
@@ -1397,13 +1409,11 @@ class UserService extends NotificationServicePush {
           'updatedAt',
         ],
         include: includeConditions,
+        distinct: true,
       });
 
-      // Map user data
       const userData = users.map((user) => {
         const parsedWallet = this.safeParse(user.walletBalance);
-        console.log('Parsed wallet balance for user:', user.id, parsedWallet);
-        console.log(parsedWallet.current);
 
         return {
           id: user.id,
@@ -1421,7 +1431,7 @@ class UserService extends NotificationServicePush {
             (user.ClientOrder?.length || 0) + (user.MerchantOrder?.length || 0),
           dateJoined: user.createdAt,
           accountStatus: user.disableAccount ? 'Disabled' : 'Active',
-          merchantStatus: !!user.MerchantProfile, // true if MerchantProfile exists
+          merchantStatus: !!user.MerchantProfile,
           merchantAccountStatus: user?.MerchantProfile?.accountStatus || null,
           tel: user.tel,
           isOnline: user.isOnline,
@@ -1431,10 +1441,20 @@ class UserService extends NotificationServicePush {
         };
       });
 
+      /* ---------------- RESPONSE ---------------- */
+
       return {
-        totalUsers,
-        activeUsers,
-        newUsersThisMonth,
+        meta: {
+          page,
+          limit,
+          totalUsers,
+          totalPages: Math.ceil(totalUsers / limit),
+        },
+        stats: {
+          totalUsers,
+          activeUsers,
+          newUsersThisMonth,
+        },
         users: userData,
       };
     } catch (error) {

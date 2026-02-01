@@ -11,9 +11,9 @@ class ExampleGateway extends BaseGateway {
         ? 'https://api.sandbox.safehavenmfb.com'
         : 'https://api.safehavenmfb.com';
     this.apiKey = process.env.SAVE_HAVEN_API_KEY;
-    this.clientAssertionType = serverConfig.CLIENT_ASSERTION_TYPE;
-    this.clientId = serverConfig.CLIENTID;
-    this.clientAssertion = serverConfig.CLIENT_ASSERTION;
+    this.clientAssertionType = serverConfig.SAVE_HEAVEN_CLIENT_ASSERTION_TYPE;
+    this.clientId = serverConfig.SAVE_HEAVEN_CLIENTID;
+    this.clientAssertion = serverConfig.SAVE_HEAVEN_CLIENT_ASSERTION;
   }
 
   async generateRefreshToken() {
@@ -108,10 +108,10 @@ class ExampleGateway extends BaseGateway {
     const data = {
       validFor,
       settlementAccount: {
-        bankCode: serverConfig.BANK_CODE,
-        accountNumber: serverConfig.ACCOUNT_NUMBER,
+        bankCode: serverConfig.SAVE_HEAVEN_BANK_CODE,
+        accountNumber: serverConfig.SAVE_HEAVEN_ACCOUNT_NUMBER,
       },
-      amountControl: serverConfig.AMOUNT_CONTROL,
+      amountControl: serverConfig.SAVE_HEAVEN_AMOUNT_CONTROL,
       amount,
       callbackUrl,
       externalReference,
@@ -523,3 +523,6 @@ class ExampleGateway extends BaseGateway {
 }
 
 export default ExampleGateway;
+
+//https://chatgpt.com/c/697bd4f2-45ec-8328-927e-42228a17b530
+//https://claude.ai/chat/e7d1b3cb-e70f-483d-b67e-9d16ebffa5af

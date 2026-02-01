@@ -21,6 +21,13 @@ class DB {
       port: Number(serverConfig.DB_PORT),
       database: serverConfig.DB_NAME,
       logQueryParameters: true,
+
+      dialectOptions: {
+        ssl: {
+          ca: fs.readFileSync('./certs/aiven-ca.pem'),
+          rejectUnauthorized: true,
+        },
+      },
       /*  pool: {
         max: 4, // Maximum number of connections in the poo
         min: 0, // Minimum number of connections in  the pool
