@@ -3,7 +3,7 @@ import serverConfig from '../config/server.js';
 import axios from 'axios';
 import qs from 'qs';
 
-class ExampleGateway extends BaseGateway {
+class SafeHavenGateway extends BaseGateway {
   constructor(gateWayEnvironment) {
     super();
     this.apiUrl =
@@ -14,12 +14,16 @@ class ExampleGateway extends BaseGateway {
     this.clientAssertionType = serverConfig.CLIENT_ASSERTION_TYPE;
     this.clientId = serverConfig.CLIENTID;
     this.clientAssertion = serverConfig.CLIENT_ASSERTION;
+    this.refreshToken = null;
+    this.accessToken = null;
   }
+
+  /* ---------------------- AUTH ---------------------- */
 
   async generateRefreshToken() {
     const url = `${this.apiUrl}/oauth2/token`;
-
     const data = qs.stringify({
+      grant_type: 'client_credentials',
       client_assertion_type: this.clientAssertionType,
       client_id: this.clientId,
       client_assertion: this.clientAssertion,
@@ -27,14 +31,16 @@ class ExampleGateway extends BaseGateway {
 
     try {
       const response = await axios.post(url, data, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       });
       this.refreshToken = response.data.refresh_token;
+      this.accessToken = response.data.access_token;
       return response.data;
     } catch (error) {
-      console.error('Error generating refresh token:', error);
+      console.error(
+        'Error generating refresh token:',
+        error.response?.data || error.message
+      );
       throw error;
     }
   }
@@ -42,6 +48,7 @@ class ExampleGateway extends BaseGateway {
   async getAccessToken() {
     const url = `${this.apiUrl}/oauth2/token`;
     const data = qs.stringify({
+      grant_type: 'refresh_token',
       client_assertion_type: this.clientAssertionType,
       client_id: this.clientId,
       client_assertion: this.clientAssertion,
@@ -50,68 +57,45 @@ class ExampleGateway extends BaseGateway {
 
     try {
       const response = await axios.post(url, data, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       });
       this.accessToken = response.data.access_token;
       return response.data;
     } catch (error) {
-      console.error('Error getting access token:', error);
+      console.error(
+        'Error getting access token:',
+        error.response?.data || error.message
+      );
       throw error;
     }
   }
 
-  async getVirtualAccount(accountId) {
-    const url = `${this.apiUrl}/virtual-accounts/${accountId}`;
-
+  async ensureToken() {
     if (!this.accessToken) {
-      console.log('Access token missing, generating a new one...');
       await this.generateRefreshToken();
-      await this.getAccessToken();
-    }
-
-    try {
-      const response = await axios.get(url, {
-        headers: {
-          Authorization: `Bearer ${this.accessToken}`,
-          ClientID: this.clientId,
-          Accept: 'application/json',
-        },
-      });
-      return response.data;
-    } catch (error) {
-      if (error.response && error.response.status === 401) {
-        console.log('Access token expired, refreshing token...');
-        await this.getAccessToken();
-        return this.getVirtualAccount(accountId);
-      }
-      console.error('Error fetching virtual account details:', error);
-      throw error;
     }
   }
 
-  async generateVirtualAccount(
+  /* ------------------ VIRTUAL ACCOUNTS ------------------ */
+
+  // Create Virtual Account
+  async createVirtualAccount({
     validFor = 900,
+    amountControl,
     amount,
     callbackUrl,
-    externalReference
-  ) {
+    externalReference,
+  }) {
+    await this.ensureToken();
+
     const url = `${this.apiUrl}/virtual-accounts`;
-
-    if (!this.accessToken) {
-      console.log('Access token missing, generating a new one...');
-      await this.generateRefreshToken();
-      await this.getAccessToken();
-    }
-
     const data = {
       validFor,
       settlementAccount: {
         bankCode: serverConfig.BANK_CODE,
         accountNumber: serverConfig.ACCOUNT_NUMBER,
       },
-      amountControl: serverConfig.AMOUNT_CONTROL,
+      amountControl,
       amount,
       callbackUrl,
       externalReference,
@@ -128,32 +112,114 @@ class ExampleGateway extends BaseGateway {
       });
       return response.data;
     } catch (error) {
-      if (error.response && error.response.status === 401) {
-        console.log('Access token expired, refreshing token...');
+      if (error.response?.status === 401) {
         await this.getAccessToken();
-        return this.generateVirtualAccount(
+        return this.createVirtualAccount({
           validFor,
-          settlementAccount,
           amountControl,
           amount,
           callbackUrl,
-          externalReference
-        );
+          externalReference,
+        });
       }
-      console.error('Error generating virtual account:', error);
+      console.error(
+        'Error creating virtual account:',
+        error.response?.data || error.message
+      );
       throw error;
     }
   }
 
-  async getVirtualAccountTransferStatus(sessionId) {
-    const url = `${this.apiUrl}/virtual-accounts/status`;
+  // Get Virtual Account Details
+  async getVirtualAccount(accountId) {
+    await this.ensureToken();
 
-    if (!this.accessToken) {
-      console.log('Access token missing, generating a new one...');
-      await this.generateRefreshToken();
-      await this.getAccessToken();
+    const url = `${this.apiUrl}/virtual-accounts/${accountId}`;
+
+    try {
+      const response = await axios.get(url, {
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          ClientID: this.clientId,
+          Accept: 'application/json',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      if (error.response?.status === 401) {
+        await this.getAccessToken();
+        return this.getVirtualAccount(accountId);
+      }
+      console.error(
+        'Error getting virtual account:',
+        error.response?.data || error.message
+      );
+      throw error;
     }
+  }
 
+  // Update Virtual Account
+  async updateVirtualAccount(accountId, updateFields) {
+    await this.ensureToken();
+
+    const url = `${this.apiUrl}/virtual-accounts/${accountId}`;
+
+    try {
+      const response = await axios.put(url, updateFields, {
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          ClientID: this.clientId,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      if (error.response?.status === 401) {
+        await this.getAccessToken();
+        return this.updateVirtualAccount(accountId, updateFields);
+      }
+      console.error(
+        'Error updating virtual account:',
+        error.response?.data || error.message
+      );
+      throw error;
+    }
+  }
+
+  // Delete Virtual Account
+  async deleteVirtualAccount(accountId) {
+    await this.ensureToken();
+
+    const url = `${this.apiUrl}/virtual-accounts/${accountId}`;
+
+    try {
+      const response = await axios.delete(url, {
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          ClientID: this.clientId,
+          Accept: 'application/json',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      if (error.response?.status === 401) {
+        await this.getAccessToken();
+        return this.deleteVirtualAccount(accountId);
+      }
+      console.error(
+        'Error deleting virtual account:',
+        error.response?.data || error.message
+      );
+      throw error;
+    }
+  }
+
+  // Get Virtual Account Transfer Status
+  async getVirtualAccountTransferStatus(sessionId) {
+    await this.ensureToken();
+
+    const url = `${this.apiUrl}/virtual-accounts/status`;
     const data = { sessionId };
 
     try {
@@ -167,100 +233,48 @@ class ExampleGateway extends BaseGateway {
       });
       return response.data;
     } catch (error) {
-      if (error.response && error.response.status === 401) {
-        console.log('Access token expired, refreshing token...');
+      if (error.response?.status === 401) {
         await this.getAccessToken();
         return this.getVirtualAccountTransferStatus(sessionId);
       }
-      console.error('Error fetching virtual account transfer status:', error);
+      console.error(
+        'Error fetching virtual account transfer status:',
+        error.response?.data || error.message
+      );
       throw error;
     }
   }
 
-  async getVirtualTransaction(virtualAccountId) {
-    const url = `${this.apiUrl}/virtual-accounts/${virtualAccountId}/transaction`;
+  // Get Virtual Account Transactions
+  async getVirtualAccountTransactions(virtualAccountId) {
+    await this.ensureToken();
 
-    if (!this.accessToken) {
-      console.log('Access token missing, generating a new one...');
-      await this.generateRefreshToken();
-      await this.getAccessToken();
-    }
+    const url = `${this.apiUrl}/virtual-accounts/${virtualAccountId}/transaction`;
 
     try {
       const response = await axios.get(url, {
         headers: {
           Authorization: `Bearer ${this.accessToken}`,
-          Accept: 'application/json',
-        },
-      });
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching virtual transaction:', error);
-      throw error;
-    }
-  }
-
-  async updateVirtualAccount(accountId, callbackUrl) {
-    const url = `${this.apiUrl}/virtual-accounts/${accountId}`;
-
-    if (!this.accessToken) {
-      console.log('Access token missing, generating a new one...');
-      await this.generateRefreshToken();
-      await this.getAccessToken();
-    }
-
-    const data = {
-      callbackUrl, // New callback URL to update
-    };
-
-    try {
-      const response = await axios.put(url, data, {
-        headers: {
-          Authorization: `Bearer ${this.accessToken}`,
-          ClientID: this.clientId,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-      });
-      return response.data;
-    } catch (error) {
-      if (error.response && error.response.status === 401) {
-        console.log('Access token expired, refreshing token...');
-        await this.getAccessToken();
-        return this.updateVirtualAccount(accountId, callbackUrl);
-      }
-      console.error('Error updating virtual account:', error);
-      throw error;
-    }
-  }
-  async deleteVirtualAccount(accountId) {
-    const url = `${this.apiUrl}/virtual-accounts/${accountId}`;
-
-    if (!this.accessToken) {
-      console.log('Access token missing, generating a new one...');
-      await this.generateRefreshToken();
-      await this.getAccessToken();
-    }
-
-    try {
-      const response = await axios.delete(url, {
-        headers: {
-          Authorization: `Bearer ${this.accessToken}`,
           ClientID: this.clientId,
           Accept: 'application/json',
         },
       });
       return response.data;
     } catch (error) {
-      if (error.response && error.response.status === 401) {
-        console.log('Access token expired, refreshing token...');
+      if (error.response?.status === 401) {
         await this.getAccessToken();
-        return this.deleteVirtualAccount(accountId);
+        return this.getVirtualAccountTransactions(virtualAccountId);
       }
-      console.error('Error deleting virtual account:', error);
+      console.error(
+        'Error getting virtual account transactions:',
+        error.response?.data || error.message
+      );
       throw error;
     }
   }
+
+  /* ------------------ IDENTITY VERIFICATION ------------------ */
+
   async initiateVerification({
     NIN,
     debitAccountNumber,
@@ -269,16 +283,19 @@ class ExampleGateway extends BaseGateway {
     provider = 'creditRegistry',
     async = true,
   }) {
-    const url = `${this.apiUrl}/identity/v2`;
+    await this.ensureToken();
 
+    const url = `${this.apiUrl}/identity/v2`;
     const data = {
-      type: 'NIN', // Assuming 'BVN' as the default type, change accordingly
-      debitAccountNumber, // Debit account number
-      otp, // Only for BVNUSSD
-      verifierId, // Default to 'default' for vNIN
-      provider, // 'creditRegistry' or 'firstCentral'
-      async, // true by default
+      type: 'NIN',
+      number: NIN,
+      debitAccountNumber,
+      otp,
+      verifierId,
+      provider,
+      async,
     };
+
     try {
       const response = await axios.post(url, data, {
         headers: {
@@ -290,8 +307,7 @@ class ExampleGateway extends BaseGateway {
       });
       return response.data;
     } catch (error) {
-      if (error.response && error.response.status === 401) {
-        console.log('Access token expired, refreshing token...');
+      if (error.response?.status === 401) {
         await this.getAccessToken();
         return this.initiateVerification({
           NIN,
@@ -302,17 +318,22 @@ class ExampleGateway extends BaseGateway {
           async,
         });
       }
-      console.error('Error initiating verification:', error);
+      console.error(
+        'Error initiating verification:',
+        error.response?.data || error.message
+      );
       throw error;
     }
   }
-  async validateVerification({ identityId, type, otp }) {
-    const url = `${this.apiUrl}/identity/v2/validate`;
 
+  async validateVerification({ identityId, type, otp }) {
+    await this.ensureToken();
+
+    const url = `${this.apiUrl}/identity/v2/validate`;
     const data = {
-      identityId, // The _id captured from the initial request
-      type, // Verification type (NIN or BVN)
-      otp, // OTP sent to the customer's phone
+      identityId,
+      type,
+      otp,
     };
 
     try {
@@ -324,25 +345,26 @@ class ExampleGateway extends BaseGateway {
           Accept: 'application/json',
         },
       });
-      return response.data; // Return the response from the validation
+      return response.data;
     } catch (error) {
-      if (error.response && error.response.status === 401) {
-        console.log('Access token expired, refreshing token...');
+      if (error.response?.status === 401) {
         await this.getAccessToken();
         return this.validateVerification({ identityId, type, otp });
       }
-      console.error('Error validating verification:', error);
+      console.error(
+        'Error validating verification:',
+        error.response?.data || error.message
+      );
       throw error;
     }
   }
-  async getBankList() {
-    const url = `${this.apiUrl}/transfers/banks`;
 
-    if (!this.accessToken) {
-      console.log('Access token missing, generating a new one...');
-      await this.generateRefreshToken();
-      await this.getAccessToken();
-    }
+  /* ------------------ TRANSFERS ------------------ */
+
+  async getBankList() {
+    await this.ensureToken();
+
+    const url = `${this.apiUrl}/transfers/banks`;
 
     try {
       const response = await axios.get(url, {
@@ -354,19 +376,22 @@ class ExampleGateway extends BaseGateway {
       });
       return response.data;
     } catch (error) {
-      console.error('Error fetching bank list:', error);
+      if (error.response?.status === 401) {
+        await this.getAccessToken();
+        return this.getBankList();
+      }
+      console.error(
+        'Error fetching bank list:',
+        error.response?.data || error.message
+      );
       throw error;
     }
   }
+
   async nameEnquiry(bankCode, accountNumber) {
+    await this.ensureToken();
+
     const url = `${this.apiUrl}/transfers/name-enquiry`;
-
-    if (!this.accessToken) {
-      console.log('Access token missing, generating a new one...');
-      await this.generateRefreshToken();
-      await this.getAccessToken();
-    }
-
     const data = {
       bankCode,
       accountNumber,
@@ -383,24 +408,22 @@ class ExampleGateway extends BaseGateway {
       });
       return response.data;
     } catch (error) {
-      if (error.response && error.response.status === 401) {
-        console.log('Access token expired, refreshing token...');
+      if (error.response?.status === 401) {
         await this.getAccessToken();
         return this.nameEnquiry(bankCode, accountNumber);
       }
-      console.error('Error performing name enquiry:', error);
+      console.error(
+        'Error performing name enquiry:',
+        error.response?.data || error.message
+      );
       throw error;
     }
   }
+
   async initiateTransfer(payload) {
+    await this.ensureToken();
+
     const url = `${this.apiUrl}/transfers`;
-
-    if (!this.accessToken) {
-      console.log('Access token missing, generating a new one...');
-      await this.generateRefreshToken();
-      await this.getAccessToken();
-    }
-
     const data = {
       nameEnquiryReference: payload.nameEnquiryReference,
       debitAccountNumber: payload.debitAccountNumber,
@@ -423,24 +446,22 @@ class ExampleGateway extends BaseGateway {
       });
       return response.data;
     } catch (error) {
-      if (error.response && error.response.status === 401) {
-        console.log('Access token expired, refreshing token...');
+      if (error.response?.status === 401) {
         await this.getAccessToken();
         return this.initiateTransfer(payload);
       }
-      console.error('Error initiating transfer:', error);
+      console.error(
+        'Error initiating transfer:',
+        error.response?.data || error.message
+      );
       throw error;
     }
   }
+
   async getTransferStatus(sessionId) {
+    await this.ensureToken();
+
     const url = `${this.apiUrl}/transfers/status`;
-
-    if (!this.accessToken) {
-      console.log('Access token missing, generating a new one...');
-      await this.generateRefreshToken();
-      await this.getAccessToken();
-    }
-
     const data = { sessionId };
 
     try {
@@ -454,23 +475,22 @@ class ExampleGateway extends BaseGateway {
       });
       return response.data;
     } catch (error) {
-      if (error.response && error.response.status === 401) {
-        console.log('Access token expired, refreshing token...');
+      if (error.response?.status === 401) {
         await this.getAccessToken();
         return this.getTransferStatus(sessionId);
       }
-      console.error('Error fetching transfer status:', error);
+      console.error(
+        'Error fetching transfer status:',
+        error.response?.data || error.message
+      );
       throw error;
     }
   }
-  async getTransfers(params) {
-    const url = `${this.apiUrl}/transfers`;
 
-    if (!this.accessToken) {
-      console.log('Access token missing, generating a new one...');
-      await this.generateRefreshToken();
-      await this.getAccessToken();
-    }
+  async getTransfers(params) {
+    await this.ensureToken();
+
+    const url = `${this.apiUrl}/transfers`;
 
     try {
       const queryString = qs.stringify(params, { addQueryPrefix: true });
@@ -483,23 +503,24 @@ class ExampleGateway extends BaseGateway {
       });
       return response.data;
     } catch (error) {
-      if (error.response && error.response.status === 401) {
-        console.log('Access token expired, refreshing token...');
+      if (error.response?.status === 401) {
         await this.getAccessToken();
         return this.getTransfers(params);
       }
-      console.error('Error fetching transfers:', error);
+      console.error(
+        'Error fetching transfers:',
+        error.response?.data || error.message
+      );
       throw error;
     }
   }
-  async getAccount(accountId) {
-    const url = `${this.apiUrl}/accounts/${accountId}`;
 
-    if (!this.accessToken) {
-      console.log('Access token missing, generating a new one...');
-      await this.generateRefreshToken();
-      await this.getAccessToken();
-    }
+  /* ------------------ ACCOUNTS ------------------ */
+
+  async getAccount(accountId) {
+    await this.ensureToken();
+
+    const url = `${this.apiUrl}/accounts/${accountId}`;
 
     try {
       const response = await axios.get(url, {
@@ -511,15 +532,17 @@ class ExampleGateway extends BaseGateway {
       });
       return response.data;
     } catch (error) {
-      if (error.response && error.response.status === 401) {
-        console.log('Access token expired, refreshing token...');
+      if (error.response?.status === 401) {
         await this.getAccessToken();
         return this.getAccount(accountId);
       }
-      console.error('Error fetching account details:', error);
+      console.error(
+        'Error fetching account details:',
+        error.response?.data || error.message
+      );
       throw error;
     }
   }
 }
 
-export default ExampleGateway;
+export default SafeHavenGateway;
