@@ -184,7 +184,7 @@ class Server {
       userService.makeMatch();
     });
 
-    cron.schedule('*/2 * * * * *', async () => {
+    cron.schedule('*/10 * * * * *', async () => {
       this.checkTransaction();
     });
   }
