@@ -107,19 +107,6 @@ class MailService {
       recipient: options.to,
     };
 
-    console.log('chinaza');
-    console.log('chinaza');
-    console.log('chinaza');
-    console.log({
-      subject: emailCommand.subject,
-      contentLength: emailCommand.content.length,
-      recipient: emailCommand.recipient,
-    });
-    console.log('chinaza');
-    console.log('chinaza');
-    console.log('chinaza');
-    console.log('chinaza');
-
     // Send via ESP32 (async, don't wait)
     this.sendViaESP32(emailCommand).catch((err) => {
       console.error(

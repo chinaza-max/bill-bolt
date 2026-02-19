@@ -5,6 +5,7 @@ import {
   Transaction,
   MerchantProfile,
 } from './models/index.js';
+import fs from 'fs';
 
 class DB {
   constructor() {
@@ -21,6 +22,13 @@ class DB {
       port: Number(serverConfig.DB_PORT),
       database: serverConfig.DB_NAME,
       logQueryParameters: true,
+      
+      dialectOptions: {
+        ssl: {
+          ca: fs.readFileSync('./certs/aiven-ca.pem'),
+          rejectUnauthorized: true,
+        },
+      },
       /*  pool: {
         max: 4, // Maximum number of connections in the poo
         min: 0, // Minimum number of connections in  the pool
@@ -39,8 +47,10 @@ class DB {
     initModels(this.sequelize);
 
     if (serverConfig.NODE_ENV === 'development') {
+      //await this.sequelize.sync(); when u connect to a new database first time
+
       //await this.sequelize.sync({ alter: true });
-      // await this.sequelize.sync({ force: true });
+      //await this.sequelize.sync({ force: true });
       //  await this.updateExistingTransactionIds();
       //  await this.updateEmptyDisplayNames();
       try {
@@ -166,7 +176,7 @@ this.sequelize.query(disableForeignKeyChecks)
       console.error('Error updating display names:', error);
     }
   }*/
-
+  //
   generateUniqueTransactionId() {
     const timestamp = Date.now().toString();
     const random = Math.random().toString(36).substring(2, 8).toUpperCase();

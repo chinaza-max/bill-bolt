@@ -417,6 +417,34 @@ export default class AuthenticationController {
     }
   }
 
+  // controllers/auth.controller.ts
+
+  async sendPinResetOtp(req, res, next) {
+    try {
+      await authService.handleSendPinResetOtp(req.body);
+      return res.status(200).json({
+        status: 200,
+        message: 'A reset link was sent successfully to your email',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // controllers/auth.controller.ts
+
+  async verifyPinResetOtp(req, res, next) {
+    try {
+      await authService.handleVerifyPinResetOtp(req.body);
+      return res.status(200).json({
+        status: 200,
+        message: 'Go back and login to the app and enter your new pin',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   filterObject(obj, keysToRemove) {
     return Object.keys(obj)
       .filter((key) => !keysToRemove.includes(key))
@@ -667,6 +695,19 @@ export default class AuthenticationController {
 
       res.sendFile(
         path.join(__dirname, '../../../public', 'sendPasswordLink.html')
+      );
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async verifyPinResetOtpPage(req, res, next) {
+    try {
+      console.log(__dirname);
+
+      res.sendFile(
+        path.join(__dirname, '../../../public', 'verifyPinResetOtpPage.html')
       );
     } catch (error) {
       console.log(error);

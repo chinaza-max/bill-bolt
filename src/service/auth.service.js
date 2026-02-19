@@ -10,6 +10,7 @@ import {
   Admin,
   Orders,
   MerchantAds,
+  PinReset,
 } from '../db/models/index.js';
 import serverConfig from '../config/server.js';
 import authUtil from '../utils/auth.util.js';
@@ -41,6 +42,7 @@ class AuthenticationService {
   AdminModel = Admin;
   OrdersModel = Orders;
   MerchantAdsModel = MerchantAds;
+  PinResetModel = PinReset;
   async loadGateWay(alternativeGateway) {
     const Setting = await this.SettingModel.findByPk(1);
     this.gateway = await loadActiveGateway(
@@ -328,9 +330,148 @@ class AuthenticationService {
     }
   }
 
+  // services/auth.service.ts
+
+  async handleSendPinResetOtp(data) {
+    const { emailOrPhone } =
+      await authUtil.validateHandleSendPinResetOtp.validateAsync(data);
+
+    let matchedUser;
+
+    try {
+      matchedUser = await this.UserModel.findOne({
+        where: {
+          [Op.or]: [{ emailAddress: emailOrPhone }, { tel: emailOrPhone }],
+          disableAccount: false,
+          isDeleted: false,
+        },
+      });
+    } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
+
+    if (!matchedUser) {
+      throw new NotFoundError(
+        'This email or phone does not correspond to any user'
+      );
+    }
+
+    try {
+      // ⏱ OTP expires in 5 minutes
+      const otpExpirationMillisecondsFromEpoch =
+        new Date().getTime() + 5 * 60 * 1000;
+
+      //const otp = this.generateOtp(); // 6-digit
+      const otp = Math.floor(Math.random() * 900000) + 100000;
+
+      const uniqueId = matchedUser.id;
+
+      const [pinReset] = await this.PinResetModel.findOrCreate({
+        where: { userId: uniqueId },
+        defaults: {
+          userId: uniqueId,
+          otp,
+          expiresIn: new Date(otpExpirationMillisecondsFromEpoch),
+        },
+      });
+
+      await pinReset.update({
+        otp,
+        expiresIn: new Date(otpExpirationMillisecondsFromEpoch),
+        attempts: 0,
+        isUsed: false,
+      });
+
+      const domain = serverConfig.DOMAIN;
+      const verifyApiEndpoint = domain + '/api/v1/auth/verifyPinResetOtp';
+      const resendRequestPinApiEndpoint =
+        domain + '/api/v1/auth/sendPinResetOtp';
+
+      await mailService.sendMail({
+        to: matchedUser.emailAddress,
+        subject: 'Reset PIN Link',
+        templateName: 'resetPinOtp',
+        variables: {
+          domain,
+          otp,
+          uniqueId,
+          email: matchedUser.emailAddress,
+          resendRequestPinApiEndpoint,
+          verifyApiEndpoint,
+        },
+      });
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleVerifyPinResetOtp(data) {
+    const { otp, userId } =
+      await authUtil.validateHandleVerifyPinResetOtp.validateAsync(data);
+
+    let pinResetRecord;
+
+    try {
+      pinResetRecord = await this.PinResetModel.findOne({
+        where: {
+          userId,
+          isDeleted: false,
+          otp,
+          isUsed: false,
+        },
+      });
+    } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
+
+    if (!pinResetRecord) {
+      throw new NotFoundError('Invalid or expired OTP');
+    }
+
+    // ⏱ Expiry check
+    if (new Date() > new Date(pinResetRecord.expiresIn)) {
+      throw new BadRequestError('OTP has expired');
+    }
+
+    // ✅ OTP verified → mark used
+    await pinResetRecord.destroy();
+
+    // 👤 Fetch user
+    let user;
+
+    try {
+      user = await this.UserModel.findOne({
+        where: {
+          id: userId,
+          isDeleted: false,
+        },
+      });
+    } catch (error) {
+      throw new SystemError(error.name, error.parent);
+    }
+
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+
+    /**
+     * 🔥 CLEAR PIN FIELD
+     * This makes the system behave exactly
+     * like PIN was never set
+     */
+    await user.update({
+      passCode: null,
+    });
+  }
+
   async handleVirtualAccountCollection(data) {
     const settingModelResult = await this.SettingModel.findByPk(1);
     if (!settingModelResult) throw new NotFoundError('No setting found');
+
+    console.log('3333');
+    console.log(data);
+    console.log('44444');
 
     try {
       if (settingModelResult.activeGateway === 'safeHaven.gateway') {
@@ -347,7 +488,7 @@ class AuthenticationService {
     const sessionId = data?.data?.sessionId;
     const transactionStatus = data?.data?.status;
     const transactionAmount = data?.data?.amount;
-    const transactionType = data?.type;
+    // const transactionType = data?.type;
 
     if (!sessionId || !transactionStatus || !transactionAmount) return;
 

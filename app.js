@@ -184,16 +184,14 @@ class Server {
       userService.makeMatch();
     });
 
-    cron.schedule('*/2 * * * *', async () => {
+    cron.schedule('*/2 * * * * *', async () => {
       this.checkTransaction();
     });
   }
   async checkTransaction() {
     const dummyPayload = {
       type: 'transfer',
-      data: {
-        // This object will be filled per transaction
-      },
+      data: {},
     };
 
     try {

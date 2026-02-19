@@ -73,6 +73,7 @@ class UserService extends NotificationServicePush {
     this.gateway = await loadActiveGateway(
       alternativeGateway || Setting.activeGateway
     );
+
     this.validFor = Setting.validFor;
     this.callbackUrl = Setting.callbackUrl;
   }
@@ -692,7 +693,7 @@ class UserService extends NotificationServicePush {
               pricePerThousand: parsedPricePerThousand,
             },
             accuracy: 10,
-            distance: match.distance,
+            distance: match.distance * 1000,
             numberOfOrder: OrdersModelResult,
           });
           console.log(`✅ Match added:`, merchant.id);
@@ -1302,13 +1303,14 @@ class UserService extends NotificationServicePush {
   }
 
   async handleGetUsers(data) {
-    const { type } = await userUtil.verifyHandleGetUsers.validateAsync(data);
+    const { type, page, limit } =
+      await userUtil.verifyHandleGetUsers.validateAsync(data);
 
     try {
-      // Define the base where condition
+      const offset = (page - 1) * limit;
+
       let whereCondition = {};
 
-      // For merchant type, we will include only users that have a MerchantProfile
       const includeConditions = [
         {
           model: Orders,
@@ -1323,11 +1325,12 @@ class UserService extends NotificationServicePush {
         {
           model: MerchantProfile,
           as: 'MerchantProfile',
-          required: type === 'merchant', // Only include users with MerchantProfile if type is merchant
+          required: type === 'merchant',
         },
       ];
 
-      // Count total users
+      /* ---------------- COUNTS ---------------- */
+
       const totalUsers = await this.UserModel.count({
         where: whereCondition,
         include:
@@ -1340,29 +1343,34 @@ class UserService extends NotificationServicePush {
                 },
               ]
             : [],
+        distinct: true,
       });
 
-      // Count active users
       const activeUsers = await this.UserModel.count({
-        where: { ...whereCondition, isOnline: true },
-        include:
-          type === 'merchant'
-            ? [
-                {
-                  model: MerchantProfile,
-                  as: 'MerchantProfile',
-                  required: true,
-                },
-              ]
-            : [],
+        where: {
+          ...whereCondition,
+          isOnline: true,
+        },
+        include: [
+          {
+            model: MerchantProfile,
+            as: 'MerchantProfile',
+            required: true,
+            where: {
+              accountStatus: 'active',
+              isDeleted: false,
+              disableAccount: false,
+            },
+          },
+        ],
+        distinct: true,
       });
 
-      // Count new users this month
       const newUsersThisMonth = await this.UserModel.count({
         where: {
           ...whereCondition,
           createdAt: {
-            [Op.gte]: new Date(new Date().setDate(1)), // First day of the current month
+            [Op.gte]: new Date(new Date().setDate(1)),
           },
         },
         include:
@@ -1375,11 +1383,16 @@ class UserService extends NotificationServicePush {
                 },
               ]
             : [],
+        distinct: true,
       });
 
-      // Fetch users with relationships
+      /* ---------------- PAGINATED FETCH ---------------- */
+
       const users = await this.UserModel.findAll({
         where: whereCondition,
+        limit,
+        offset,
+        order: [['createdAt', 'DESC']],
         attributes: [
           'id',
           'imageUrl',
@@ -1397,13 +1410,11 @@ class UserService extends NotificationServicePush {
           'updatedAt',
         ],
         include: includeConditions,
+        distinct: true,
       });
 
-      // Map user data
       const userData = users.map((user) => {
         const parsedWallet = this.safeParse(user.walletBalance);
-        console.log('Parsed wallet balance for user:', user.id, parsedWallet);
-        console.log(parsedWallet.current);
 
         return {
           id: user.id,
@@ -1421,7 +1432,7 @@ class UserService extends NotificationServicePush {
             (user.ClientOrder?.length || 0) + (user.MerchantOrder?.length || 0),
           dateJoined: user.createdAt,
           accountStatus: user.disableAccount ? 'Disabled' : 'Active',
-          merchantStatus: !!user.MerchantProfile, // true if MerchantProfile exists
+          merchantStatus: !!user.MerchantProfile,
           merchantAccountStatus: user?.MerchantProfile?.accountStatus || null,
           tel: user.tel,
           isOnline: user.isOnline,
@@ -1431,10 +1442,20 @@ class UserService extends NotificationServicePush {
         };
       });
 
+      /* ---------------- RESPONSE ---------------- */
+
       return {
-        totalUsers,
-        activeUsers,
-        newUsersThisMonth,
+        meta: {
+          page,
+          limit,
+          totalUsers,
+          totalPages: Math.ceil(totalUsers / limit),
+        },
+        stats: {
+          totalUsers,
+          activeUsers,
+          newUsersThisMonth,
+        },
         users: userData,
       };
     } catch (error) {
@@ -1669,9 +1690,12 @@ class UserService extends NotificationServicePush {
     }
   }
   async handleGetBank(data) {
-    const { userId } = await userUtil.verifyHandleGetBank.validateAsync(data);
+    // const { userId } = await userUtil.verifyHandleGetBank.validateAsync(data);
     try {
-      return {};
+      await this.loadGateWay('safeHaven.gateway');
+      const banks = await this.gateway.getBankList();
+
+      return banks;
     } catch (error) {
       console.error('Error fetching transactions with details:', error);
       throw new SystemError(error.name, error.parent);
@@ -1877,74 +1901,40 @@ class UserService extends NotificationServicePush {
     }
   }
   async handleSetWithdrawalBank(data) {
-    const { userId, ba, endDate } =
+    const { userId, settlementAccount, bankCode, bankName } =
       await userUtil.verifyHandleSetWithdrawalBank.validateAsync(data);
-    try {
-      // Define date filter if provided
-      const dateFilter =
-        startDate && endDate
-          ? {
-              createdAt: {
-                [Op.between]: [new Date(startDate), new Date(endDate)],
-              },
-            }
-          : {};
 
-      // Query transactions
-      const transactions = await Transaction.findAll({
-        where: {
-          isDeleted: false,
-          userId,
-          transactionType: 'order',
-          dateFilter,
-        },
-        limit: startDate && endDate ? undefined : 15, // Limit to 15 if no date range provided
-        include: [
-          {
-            model: this.OrdersModel,
-            as: 'OrderTransaction',
-            where: { isDeleted: false },
-            include: [
-              {
-                model: this.UserModel,
-                as: 'merchantOrder',
-                attributes: ['firstName', 'lastName', 'emailAddress', 'tel'],
-              },
-            ],
-          },
-        ],
-        order: [['createdAt', 'DESC']],
+    try {
+      // Find user
+      const user = await this.UserModel.findOne({
+        where: { id: userId, isDeleted: false },
       });
 
-      // Transform and return data
-      return transactions.map((transaction) => ({
-        id: transaction.id,
-        amount: transaction.amount,
-        paymentStatus: transaction.paymentStatus,
-        transactionType: transaction.transactionType,
-        orderDetails: transaction.Order
-          ? {
-              id: transaction.Order.id,
-              amountOrder: transaction.Order.amountOrder,
-              totalAmount: transaction.Order.totalAmount,
-              orderStatus: transaction.Order.orderStatus,
-            }
-          : null,
-        merchantDetails: transaction.Order?.Merchant
-          ? {
-              firstName: transaction.Order.merchantOrder.firstName,
-              lastName: transaction.Order.merchantOrder.lastName,
-              emailAddress: transaction.Order.merchantOrder.emailAddress,
-              tel: transaction.Order.merchantOrder.tel,
-              profile: transaction.Order.merchantOrder.MerchantProfile || null,
-            }
-          : null,
-      }));
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Update bank details
+      await user.update({
+        settlementAccount,
+        bankCode,
+        bankName,
+      });
+
+      return {
+        message: 'Withdrawal bank details updated successfully',
+        bankDetails: {
+          settlementAccount: user.settlementAccount,
+          bankCode: user.bankCode,
+          bankName: user.bankName,
+        },
+      };
     } catch (error) {
-      console.error('Error fetching transactions with details:', error);
-      throw new SystemError(error.name, error.parent);
+      console.error('Error updating withdrawal bank:', error);
+      throw new SystemError(error.message);
     }
   }
+
   async handleGetTransactionHistory(data) {
     const { userId, limit, startDate, endDate } =
       await userUtil.verifyHandleGetTransactionHistory.validateAsync(data);
@@ -2581,7 +2571,7 @@ class UserService extends NotificationServicePush {
 
     const settingModelResult = await this.SettingModel.findByPk(1);
     if (!settingModelResult) throw new NotFoundError('Setting not found');
-
+    await this.loadGateWay('safeHaven.gateway');
     try {
       if (settingModelResult.activeGateway === 'safeHaven.gateway') {
         if (type == 'fundWallet') {
@@ -2598,7 +2588,7 @@ class UserService extends NotificationServicePush {
             transactionFrom: 'external',
             sessionIdVirtualAcct,
           });
-
+          
           const generateVirtualAccountResult = {
             bankName: 'kuda',
             accountNumber: '393939939393',
@@ -2607,18 +2597,20 @@ class UserService extends NotificationServicePush {
             countDown: 60,
           };
 
-          return generateVirtualAccountResult;
-
-          /*
+          // return generateVirtualAccountResult;
+/*
           const generateVirtualAccountResult =
-            await this.gateway.generateVirtualAccount(
+            await this.gateway.createVirtualAccount(
               this.validFor,
+              'Fixed',
               amount,
               settingModelResult.callbackUrl,
               transactionModelResult.id
             );
+            */
+          // console.log(generateVirtualAccountResult);
 
-          return generateVirtualAccountResult;*/
+          return generateVirtualAccountResult;
         } else {
           const sessionIdVirtualAcct = `session${Date.now()}-${Math.floor(
             Math.random() * 100000
@@ -3381,7 +3373,7 @@ class UserService extends NotificationServicePush {
       setting.matchStartedAt = new Date();
       setting.save();
 
-      let distanceThreshold = setting.distanceThreshold || 10;
+      let distanceThreshold = setting.distanceThreshold || 10; //km
       console.log('🎯 Starting match process...');
       console.log(`📏 Base distance threshold: ${distanceThreshold} km`);
 
@@ -3424,6 +3416,7 @@ class UserService extends NotificationServicePush {
           },
         ],
       });
+
       console.log(`🏪 Total eligible merchants fetched: ${merchants.length}`);
       console.log('📋 Merchant details:');
       merchants.forEach((merchant) => {

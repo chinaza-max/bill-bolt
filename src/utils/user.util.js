@@ -166,17 +166,22 @@ class UserUtil {
   });
   verifyHandleSetWithdrawalBank = Joi.object({
     userId: Joi.number().integer().required(),
-    orderId: Joi.number().integer().required(),
-    type: Joi.string().required(),
+    settlementAccount: Joi.string().required(),
+    bankCode: Joi.string().required(),
+    bankName: Joi.string().required(),
   });
+
   verifyHandleGetBank = Joi.object({
     userId: Joi.number().integer().required(),
     orderId: Joi.number().integer().required(),
     type: Joi.string().required(),
   });
+
   verifyHandleGetUsers = Joi.object({
     userId: Joi.number().integer().required(),
     type: Joi.string().required(),
+    page: Joi.number().integer().min(1).default(1),
+    limit: Joi.number().integer().min(1).max(100).default(20),
   });
 
   verifyHandleGetUsersData = Joi.object({

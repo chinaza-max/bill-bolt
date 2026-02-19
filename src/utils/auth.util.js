@@ -51,6 +51,20 @@ class authUtil {
     resetPasswordKey: Joi.string().min(1).required(),
   });
 
+  // utils/auth.util.ts
+
+  validateHandleVerifyPinResetOtp = Joi.object({
+    otp: Joi.string().length(6).required(),
+    userId: Joi.number().required(),
+  });
+
+  validateHandleSendPinResetOtp = Joi.object({
+    emailOrPhone: Joi.string().trim().required().messages({
+      'string.empty': 'Email or phone is required',
+    }),
+    type: Joi.string().valid('user', 'admin').required(),
+  });
+
   /*
     verifyHandleUploadPicture= Joi.object({
       userId: Joi.number().required(),

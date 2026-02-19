@@ -655,14 +655,15 @@ export default class UserController {
 
       let my_bj = {
         ...data,
-        userId: req.user.id,
+        //userId: req.user.id,
       };
 
-      await userService.handleGetBank(my_bj);
+      const data2 = await userService.handleGetBank(my_bj);
 
       return res.status(200).json({
         status: 200,
         message: 'successfully.',
+        data: data2,
       });
     } catch (error) {
       console.log(error);
