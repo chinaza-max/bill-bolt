@@ -218,12 +218,6 @@ class Server {
 
         authService.handleVirtualAccountCollection(updatedPayload);
       }
-
-      console.log(
-        `[${new Date().toISOString()}] Processed ${
-          pendingTransactions.length
-        } pending transactions`
-      );
     } catch (error) {
       console.error('Error processing pending transactions:', error);
     }

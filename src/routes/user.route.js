@@ -16,6 +16,8 @@ class UserRoutes extends UserController {
       this.updateProfile
     );
 
+
+
     this.router.post(
       '/uploadImageGoogleDrive',
       uploadHandler.image.single('image'),
@@ -72,6 +74,11 @@ class UserRoutes extends UserController {
     this.router.get('/nameEnquiry', this.nameEnquiry);
     this.router.get('/transferMoney', this.transferMoney);
 
+    this.router.get(
+  '/bank-details',
+  this.getBankDetails
+);
+
     //MERCHANT API
     this.router.post('/signupMerchant', this.signupMerchant);
     this.router.get('/getMyAds', this.getMyAds);
@@ -80,6 +87,7 @@ class UserRoutes extends UserController {
     this.router.get('/getMyRangeLimit', this.getMyRangeLimit);
     this.router.get('/getOrderStatistic', this.getOrderStatistic);
     this.router.get('/getMerchantProfile', this.getMerchantProfile);
+    this.router.get('/hasMerchantAds', this.hasMerchantAds);
 
     //ADMIN API
     this.router.get('/dashBoardStatistic', this.dashBoardStatistic);

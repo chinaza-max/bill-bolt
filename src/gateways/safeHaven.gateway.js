@@ -451,6 +451,7 @@ class SafeHavenGateway extends BaseGateway {
           Accept: 'application/json',
         },
       });
+
       return response.data;
     } catch (error) {
       if (error.response?.status === 401) {

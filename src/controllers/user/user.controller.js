@@ -395,6 +395,29 @@ export default class UserController {
       next(error);
     }
   }
+
+  async hasMerchantAds(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleHasMerchantAds(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result, // true or false
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
   async getOrderStatistic(req, res, next) {
     try {
       const data = req.body;
@@ -609,6 +632,24 @@ export default class UserController {
     }
   }
 
+
+  async getBankDetails(req, res, next) {
+  try {
+    const userId = req.user.id;
+
+    const result = await userService.handleGetBankDetails(userId);
+
+    return res.status(200).json({
+      status: 200,
+      message: 'Bank details retrieved successfully',
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+
   async transferMoney(req, res, next) {
     try {
       const data = req.body;
@@ -631,13 +672,13 @@ export default class UserController {
   }
   async nameEnquiry(req, res, next) {
     try {
-      const data = req.body;
+      const data = req.query;
 
       let my_bj = {
         ...data,
         userId: req.user.id,
       };
-
+      console.log(my_bj);
       await userService.handleNameEnquiry(my_bj);
 
       return res.status(200).json({

@@ -1122,6 +1122,19 @@ class UserService extends NotificationServicePush {
       throw new SystemError(error.name, error.parent);
     }
   }
+
+  async handleHasMerchantAds(data) {
+    const { userId } = await userUtil.verifyHandleHasMerchantAds.validateAsync(
+      data
+    );
+
+    const ads = await this.MerchantAdsModel.findOne({
+      userId,
+    });
+
+    return !!ads; // returns true if exists, false if not
+  }
+
   async handleGetOrderStatistic(data) {
     const { userId } =
       await userUtil.verifyHandleGetOrderStatistic.validateAsync(data);
@@ -1153,9 +1166,14 @@ class UserService extends NotificationServicePush {
       const settingResult = await this.SettingModel.findByPk(1);
       let totalMerchantCharge = 0;
 
-      const priceData = this.convertToJson(
-        merchantAdsModelResult.pricePerThousand
-      );
+      let priceData;
+
+      if (merchantAdsModelResult) {
+        priceData = this.convertToJson(merchantAdsModelResult.pricePerThousand);
+      } else {
+        priceData = this.convertToJson(settingResult.pricePerThousand);
+      }
+
       const serviceCharge = this.convertToJson(settingResult.serviceCharge);
       const gatewayService = this.convertToJson(settingResult.gatewayService);
 
@@ -1600,6 +1618,43 @@ class UserService extends NotificationServicePush {
     }
   }
 
+
+  async handleGetBankDetails(userId) {
+  try {
+    const user = await this.UserModel.findByPk(userId, {
+      attributes: [
+        'settlementAccount',
+        'bankCode',
+        'bankName'
+      ]
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // If bank account not set
+    if (!user.settlementAccount || !user.bankCode) {
+      return {
+        hasBankDetails: false,
+        settlementAccount: null,
+        bankCode: null,
+        bankName: null
+      };
+    }
+
+    return {
+      hasBankDetails: true,
+      settlementAccount: user.settlementAccount,
+      bankCode: user.bankCode,
+      bankName: user.bankName
+    };
+
+  } catch (error) {
+    throw error;
+  }
+}
+
   async handleUpdateMerchantStatus(data) {
     const { userId, ...updateData } =
       await userUtil.verifyHandleUpdateMerchantStatus.validateAsync(data);
@@ -1681,6 +1736,9 @@ class UserService extends NotificationServicePush {
       await userUtil.verifyHandleNameEnquiry.validateAsync(data);
     if (!this.gateway) {
       await this.loadGateWay();
+      const name = await this.gateway.nameEnquiry(bankCode, accountNumber);
+
+      return name;
     }
     try {
       return {};
@@ -2303,7 +2361,7 @@ class UserService extends NotificationServicePush {
       );
     }
   }
-
+/*
   async handleGetChargeSummary(data) {
     const { amount, userId, userId2 } =
       await userUtil.verifyHandleGetChargeSummary.validateAsync(data);
@@ -2361,6 +2419,90 @@ class UserService extends NotificationServicePush {
       throw new SystemError(error.name, error.parent);
     }
   }
+  */
+
+  async handleGetChargeSummary(data) {
+  const { amount, userId, userId2 } =
+    await userUtil.verifyHandleGetChargeSummary.validateAsync(data);
+
+  console.log('[getChargeSummary] START', { amount, userId, userId2 });
+
+  try {
+    const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
+      where: { userId: userId2 },
+    });
+
+    console.log('[getChargeSummary] MerchantAdsModelResult', MerchantAdsModelResult?.dataValues ?? null);
+
+    if (!MerchantAdsModelResult)
+      throw new NotFoundError('Merchant ads not found, check if it has been created');
+
+    const settingModelResult = await this.SettingModel.findByPk(1);
+
+    console.log('[getChargeSummary] settingModelResult', settingModelResult?.dataValues ?? null);
+
+    if (!settingModelResult)
+      throw new NotFoundError('admin Setting not found check if admin setting has been created');
+
+    // ---- safe JSON parse helper ----
+    const safeParse = (value, fieldName) => {
+      if (value === null || value === undefined) {
+        console.warn(`[getChargeSummary] ${fieldName} is null/undefined`);
+        return null;
+      }
+      if (typeof value !== 'string') return value; // already parsed
+      try {
+        return JSON.parse(value);
+      } catch (e) {
+        console.error(`[getChargeSummary] Failed to parse ${fieldName}:`, value, e);
+        return null; // instead of silently returning broken string
+      }
+    };
+
+    const pricePerThousand = safeParse(MerchantAdsModelResult.pricePerThousand, 'pricePerThousand');
+    const serviceCharge    = safeParse(settingModelResult.serviceCharge, 'serviceCharge');
+    const gatewayService   = safeParse(settingModelResult.gatewayService, 'gatewayService');
+
+    console.log('[getChargeSummary] PARSED VALUES', {
+      pricePerThousand,
+      serviceCharge,
+      gatewayService,
+      amount,
+    });
+
+    // ---- guard against null values that would crash getdeliveryAmountSummary ----
+    if (pricePerThousand === null || pricePerThousand === undefined)
+      throw new NotFoundError('pricePerThousand is missing or invalid on MerchantAds');
+    if (serviceCharge === null || serviceCharge === undefined)
+      throw new NotFoundError('serviceCharge is missing or invalid on admin Setting');
+    if (gatewayService === null || gatewayService === undefined)
+      throw new NotFoundError('gatewayService is missing or invalid on admin Setting');
+
+    const getdeliveryAmountSummary = await this.getdeliveryAmountSummary(
+      pricePerThousand,
+      amount,
+      serviceCharge,
+      gatewayService
+    );
+
+    console.log('[getChargeSummary] RESULT', getdeliveryAmountSummary);
+
+    return getdeliveryAmountSummary;
+
+  } catch (error) {
+    console.error('[getChargeSummary] ERROR', {
+      name: error.name,
+      message: error.message,
+      parent: error.parent,
+      stack: error.stack,
+    });
+
+    // preserve NotFoundError instead of swallowing it into a generic SystemError
+    if (error.name === 'NotFoundError') throw error;
+
+    throw new SystemError(error.name, error.message); // use message not parent (parent is Sequelize-only)
+  }
+}
 
   async handleMakeOrderPayment(data) {
     const sequelize = this.UserModel.sequelize;
@@ -2588,7 +2730,7 @@ class UserService extends NotificationServicePush {
             transactionFrom: 'external',
             sessionIdVirtualAcct,
           });
-          
+
           const generateVirtualAccountResult = {
             bankName: 'kuda',
             accountNumber: '393939939393',
@@ -2598,7 +2740,7 @@ class UserService extends NotificationServicePush {
           };
 
           // return generateVirtualAccountResult;
-/*
+          /*
           const generateVirtualAccountResult =
             await this.gateway.createVirtualAccount(
               this.validFor,

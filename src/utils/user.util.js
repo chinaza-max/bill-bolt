@@ -189,8 +189,8 @@ class UserUtil {
   });
   verifyHandleNameEnquiry = Joi.object({
     userId: Joi.number().integer().required(),
-    orderId: Joi.number().integer().required(),
-    type: Joi.string().required(),
+    bankCode: Joi.number().required(),
+    accountNumber: Joi.string().required(),
   });
 
   verifyHandleManageBreakPoint = Joi.object({
@@ -303,6 +303,10 @@ class UserUtil {
     orderId: Joi.number().integer().required(),
     type: Joi.string().required(),
     reason: Joi.string().optional(),
+  });
+
+  verifyHandleHasMerchantAds = Joi.object({
+    userId: Joi.number().integer().required(),
   });
 
   verifyHandleverifyCompleteOrder = Joi.object({
