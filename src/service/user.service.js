@@ -4054,7 +4054,7 @@ class UserService extends NotificationServicePush {
       throw error;
     }
   }
-
+/*
   async getdeliveryAmountSummary(
     merchantads,
     amount,
@@ -4116,6 +4116,86 @@ class UserService extends NotificationServicePush {
       throw new Error('No valid charge found for the given amount');
     }
   }
+  */
+
+
+
+  async getdeliveryAmountSummary(
+  merchantads,
+  amount,
+  serviceCharge,
+  gatewayService
+) {
+  console.log('[getdeliveryAmountSummary] INPUT', { merchantads, amount, serviceCharge, gatewayService });
+
+  // Sort all arrays by amount ascending
+  merchantads.sort((a, b) => a.amount - b.amount);
+  serviceCharge.sort((a, b) => a.amount - b.amount);
+  gatewayService.sort((a, b) => a.amount - b.amount);
+
+  // Helper: find closest tier <= amount, fallback to lowest tier above amount
+  const findClosestTier = (tiers, amount, label) => {
+    let closest = null;
+
+    // First pass: find highest tier that is <= amount
+    for (let i = 0; i < tiers.length; i++) {
+      if (tiers[i].amount <= amount) {
+        closest = tiers[i];
+      } else {
+        break;
+      }
+    }
+
+    // Fallback: no tier was <= amount, use the lowest available tier
+    if (!closest) {
+      closest = tiers[0] ?? null;
+      console.warn(
+        `[getdeliveryAmountSummary] No ${label} tier found for amount ${amount}, falling back to lowest tier:`,
+        closest
+      );
+    }
+
+    return closest;
+  };
+
+  const closestMerchantAmount  = findClosestTier(merchantads,    amount, 'merchantads');
+  const closestServiceCharge   = findClosestTier(serviceCharge,  amount, 'serviceCharge');
+  const closestGatewayCharge   = findClosestTier(gatewayService, amount, 'gatewayService');
+
+  console.log('[getdeliveryAmountSummary] CLOSEST TIERS', {
+    closestMerchantAmount,
+    closestServiceCharge,
+    closestGatewayCharge,
+  });
+
+  if (closestMerchantAmount && closestServiceCharge && closestGatewayCharge) {
+    const totalAmountToPay =
+      Number(amount) +
+      Number(closestMerchantAmount.charge) +
+      Number(closestServiceCharge.charge) +
+      Number(closestGatewayCharge.charge);
+
+    const result = {
+      totalAmount:    totalAmountToPay,
+      merchantCharge: closestMerchantAmount.charge,
+      serviceCharge:  closestServiceCharge.charge,
+      gatewayCharge:  closestGatewayCharge.charge,
+      amountOrder:    Number(amount),
+    };
+
+    console.log('[getdeliveryAmountSummary] RESULT', result);
+    return result;
+  } else {
+    // This should only happen if one of the tier arrays is completely empty
+    console.error('[getdeliveryAmountSummary] Missing tiers entirely', {
+      closestMerchantAmount,
+      closestServiceCharge,
+      closestGatewayCharge,
+    });
+    throw new Error('No valid charge found for the given amount — one or more tier lists may be empty');
+  }
+}
+
 
   async getAmountOrderFromTotal(
     totalAmount,

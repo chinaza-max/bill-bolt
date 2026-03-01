@@ -22,7 +22,7 @@ class DB {
       port: Number(serverConfig.DB_PORT),
       database: serverConfig.DB_NAME,
       logQueryParameters: true,
-      
+      /*
       dialectOptions: {
         ssl: {
           ca: fs.readFileSync('./certs/aiven-ca.pem'),
