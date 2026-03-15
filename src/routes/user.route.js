@@ -16,8 +16,6 @@ class UserRoutes extends UserController {
       this.updateProfile
     );
 
-
-
     this.router.post(
       '/uploadImageGoogleDrive',
       uploadHandler.image.single('image'),
@@ -58,9 +56,9 @@ class UserRoutes extends UserController {
     this.router.post('/submitUserMessage', this.submitUserMessage);
     this.router.post('/updateToken', this.updateToken);
     this.router.get('/notification', this.getNotifications);
-    this.router.post('/notification/delete/:id', this.toggleDelete);
+    this.router.post('/notification/delete', this.toggleDelete);
     this.router.get('/notification/unread/count', this.getUnreadCount);
-    this.router.post('/notification/:id/read', this.markAsRead);
+    this.router.post('/notification/read', this.markAsRead);
 
     //Transaction api
     this.router.get('/getGeneralTransaction', this.getGeneralTransaction);
@@ -74,10 +72,7 @@ class UserRoutes extends UserController {
     this.router.get('/nameEnquiry', this.nameEnquiry);
     this.router.get('/transferMoney', this.transferMoney);
 
-    this.router.get(
-  '/bank-details',
-  this.getBankDetails
-);
+    this.router.get('/bank-details', this.getBankDetails);
 
     //MERCHANT API
     this.router.post('/signupMerchant', this.signupMerchant);

@@ -1,16 +1,18 @@
-import Notification from '../db/models/notification.js';
-
+import { Notification } from '../db/models/index.js';
 class NotificationService {
+  NotificationModel = Notification;
+
   /**
    * Add a new notification
    */
-  async addNotification({ userId, title, body, type, metaData }) {
+  async addNotification({ userId, title, body, type, metaData, sendto }) {
     return await Notification.create({
       userId,
       title,
       body,
       type,
       metaData,
+      sendto,
     });
   }
 
@@ -26,49 +28,53 @@ class NotificationService {
     await notification.save();
     return notification;
   }
-
   async toggleDelete(notificationId) {
     const notification = await Notification.findByPk(notificationId);
-    if (!notification) {
-      throw new Error('Notification not found');
-    }
 
     notification.isDeleted = !notification.isDeleted;
     await notification.save();
-
     return notification;
   }
 
   /**
    * Fetch notifications with pagination
    */
-  async fetchNotifications(userId, { page = 1, limit = 10 } = {}) {
-    const offset = (page - 1) * limit;
+  async fetchNotifications(userId, { page = 1, limit = 10 } = {}, user_type) {
+    try {
+      const offset = (page - 1) * limit;
 
-    const { rows, count } = await Notification.findAndCountAll({
-      where: { userId, isDeleted: false },
-      limit,
-      offset,
-      order: [['createdAt', 'DESC']],
-    });
-
-    return {
-      data: rows,
-      pagination: {
-        total: count,
-        page,
+      const { rows, count } = await Notification.findAndCountAll({
+        where: { userId, isDeleted: false, sendto: user_type },
         limit,
-        totalPages: Math.ceil(count / limit),
-      },
-    };
+        offset,
+        order: [['createdAt', 'DESC']],
+      });
+
+      return {
+        data: rows,
+        pagination: {
+          total: count,
+          page,
+          limit,
+          totalPages: Math.ceil(count / limit),
+        },
+      };
+    } catch (error) {
+      console.log(error);
+    }
   }
 
   /**
    * Count unread notifications
    */
-  async countUnreadNotifications(userId) {
+  async countUnreadNotifications(data) {
     return await Notification.count({
-      where: { userId, isDeleted: false, isRead: false },
+      where: {
+        userId: data.userId,
+        isDeleted: false,
+        isRead: false,
+        sendto: data.user_type,
+      },
     });
   }
 

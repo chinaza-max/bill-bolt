@@ -632,23 +632,21 @@ export default class UserController {
     }
   }
 
-
   async getBankDetails(req, res, next) {
-  try {
-    const userId = req.user.id;
+    try {
+      const userId = req.user.id;
 
-    const result = await userService.handleGetBankDetails(userId);
+      const result = await userService.handleGetBankDetails(userId);
 
-    return res.status(200).json({
-      status: 200,
-      message: 'Bank details retrieved successfully',
-      data: result
-    });
-  } catch (error) {
-    next(error);
+      return res.status(200).json({
+        status: 200,
+        message: 'Bank details retrieved successfully',
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
   }
-}
-
 
   async transferMoney(req, res, next) {
     try {
@@ -911,7 +909,7 @@ export default class UserController {
 
       return res.status(200).json({
         status: 200,
-        message: 'successfully.',
+        message: 'Notifications fetched successfully.',
         data: result,
       });
     } catch (error) {
@@ -922,15 +920,12 @@ export default class UserController {
 
   async toggleDelete(req, res, next) {
     try {
-      const { id } = req.params;
-      const notification = await userService.toggleDelete(id);
+      const { id } = req.body;
+      await userService.toggleDelete(id);
 
       return res.status(200).json({
         status: 200,
-        message: `Notification ${
-          notification.isDeleted ? 'deleted' : 'restored'
-        }`,
-        data: notification,
+        message: 'successful',
       });
     } catch (error) {
       console.error(error);
@@ -940,8 +935,14 @@ export default class UserController {
 
   async getUnreadCount(req, res, next) {
     try {
-      const userId = req.user.id; // assuming auth middleware sets req.user
-      const count = await userService.countUnreadNotifications(userId);
+      const data = req.query;
+
+      let my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      const count = await userService.countUnreadNotifications(my_bj);
 
       return res.status(200).json({
         status: 200,
@@ -956,7 +957,9 @@ export default class UserController {
 
   async markAsRead(req, res, next) {
     try {
-      const { id } = req.params;
+      const { id } = req.body;
+
+      console.log('Notification id:', id);
 
       const notification = await userService.markAsRead(id);
 

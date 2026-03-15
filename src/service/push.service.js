@@ -23,7 +23,6 @@ export default class NotificationServicePush extends NotificationService {
         stringifiedData[key] = String(data[key]);
       }
     }
-    //console.log('Notification data:', data);
     try {
       const message = {
         token: token,
@@ -33,7 +32,10 @@ export default class NotificationServicePush extends NotificationService {
           imageUrl:
             'https://res.cloudinary.com/dvznn9s4g/image/upload/v1744585559/icon_yelohe.png',
         },
-        data: stringifiedData,
+        data: {
+          ...stringifiedData,
+          event: data.type,
+        },
         android: {
           notification: {
             sound: 'default',
@@ -58,6 +60,7 @@ export default class NotificationServicePush extends NotificationService {
         body: notification.body,
         type: data.type || 'push',
         metaData: data,
+        sendto: data.sendto,
       });
       console.log('Notification sent successfully:', response);
       return { success: true, messageId: response };

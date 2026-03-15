@@ -1,5 +1,6 @@
 import Joi from 'joi';
 const dateFormat = /^\d{4}-\d{2}-\d{2}$/;
+import USER_TYPE from '../constants/userTypes.js'; // your user type constant: MERCHANT/CLIENT
 
 const breakPointSchema = Joi.array().items(
   Joi.object({
@@ -9,6 +10,22 @@ const breakPointSchema = Joi.array().items(
 );
 
 class UserUtil {
+  fetchNotifications = Joi.object().keys({
+    page: Joi.number().integer().min(1).optional().default(1),
+    limit: Joi.number().integer().min(1).max(100).optional().default(10),
+    userId: Joi.number().required().label('user Id'),
+    user_type: Joi.string()
+      .valid(...Object.values(USER_TYPE))
+      .optional(),
+  });
+
+  countUnreadNotifications = Joi.object().keys({
+    userId: Joi.number().required().label('user Id'),
+    user_type: Joi.string()
+      .valid(...Object.values(USER_TYPE))
+      .optional(),
+  });
+
   verifyHandleUpdatePin = Joi.object().keys({
     NIN: Joi.string().required(),
     role: Joi.string().valid('list', 'rent'),

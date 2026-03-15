@@ -22,7 +22,7 @@ class DB {
       port: Number(serverConfig.DB_PORT),
       database: serverConfig.DB_NAME,
       logQueryParameters: true,
-      /*
+
       dialectOptions: {
         ssl: {
           ca: fs.readFileSync('./certs/aiven-ca.pem'),
@@ -47,10 +47,24 @@ class DB {
     initModels(this.sequelize);
 
     if (serverConfig.NODE_ENV === 'development') {
-      //await this.sequelize.sync(); when u connect to a new database first time
+      // await this.sequelize.sync();
+      // Creates database tables if they do not exist.
+      // Does NOT modify existing tables. Safe for first connection to a new database.
 
-      //await this.sequelize.sync({ alter: true });
-      //await this.sequelize.sync({ force: true });
+      await this.sequelize.sync({ alter: true });
+      // Compares models with existing tables and automatically updates the schema.
+      // Adds or modifies columns to match models without dropping tables.
+      // Useful in development, but risky for production because it may change structure unexpectedly.
+
+      // await this.sequelize.sync({ force: true });
+      // Drops all existing tables and recreates them from models.
+      // This deletes ALL data in the tables.
+      // Only use for development or when resetting the database completely.
+
+      // await this.sequelize.sync({ logging: console.log });
+      // Shows the raw SQL queries Sequelize executes during sync.
+      // Useful for debugging database schema issues.
+
       //  await this.updateExistingTransactionIds();
       //  await this.updateEmptyDisplayNames();
       try {

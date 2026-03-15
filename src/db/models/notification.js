@@ -35,6 +35,10 @@ export function init(connection) {
         allowNull: false,
         defaultValue: false,
       },
+      sendto: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
       isDeleted: {
         type: DataTypes.BOOLEAN,
         allowNull: false,

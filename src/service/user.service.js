@@ -32,7 +32,8 @@ import path from 'path';
 import { customAlphabet } from 'nanoid';
 import { google } from 'googleapis';
 import { oAuth2Client } from '../auth/oauthClient.js';
-
+import event from '../constants/notificationEvents.js';
+import user_type from '../constants/userTypes.js';
 const ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const getNanoid = (length) => customAlphabet(ALPHABET, length);
 
@@ -396,55 +397,39 @@ class UserService extends NotificationServicePush {
     }
   }
 
-  async fetchNotifications(req, res, next) {
+  async fetchNotifications(data) {
     try {
-      const { page = 1, limit = 10 } = req.query;
+      const { page, limit, user_type, userId } =
+        await userUtil.fetchNotifications.validateAsync(data);
 
       const result = await this.notificationService.fetchNotifications(
-        req.user.id,
-        { page: parseInt(page), limit: parseInt(limit) }
+        userId,
+        { page: parseInt(page), limit: parseInt(limit) },
+        user_type
       );
 
-      return res.status(200).json({
-        status: 200,
-        message: 'Notifications fetched successfully',
-        data: result,
-      });
+      return result;
     } catch (error) {
-      console.error(error);
-      next(error);
+      console.log('sssjjsjkkdkdsjjsjsjjsjsj', error);
+      throw new SystemError(error?.name, error?.parent || error?.message);
     }
   }
 
-  async countUnreadNotifications(userId) {
-    return await this.notificationService.countUnreadNotifications(userId);
+  async countUnreadNotifications(data) {
+    await userUtil.countUnreadNotifications.validateAsync(data);
+
+    return await this.notificationService.countUnreadNotifications(data);
   }
 
   async toggleDelete(notificationId) {
-    const notification = await this.notificationService.toggleDelete(
-      notificationId
-    );
-    if (!notification) {
-      throw new Error('Notification not found');
-    }
-
-    notification.isDeleted = !notification.isDeleted;
-    await notification.save();
-
-    return notification;
+    await this.notificationService.toggleDelete(notificationId);
   }
 
-  async markAsRead(req, res, next) {
+  async markAsRead(id) {
     try {
-      const { id } = req.params;
-
       const notification = await this.notificationService.markAsRead(id);
 
-      return res.status(200).json({
-        status: 200,
-        message: 'Notification marked as read',
-        data: notification,
-      });
+      return notification;
     } catch (error) {
       console.error(error);
       next(error);
@@ -870,7 +855,7 @@ class UserService extends NotificationServicePush {
       userResult = await this.UserModel.findByPk(OrdersModelResult.clientId);
     }
 
-    console.log('➡️ Order Action:', { orderId, userId, type, reason });
+    // console.log('➡️ Order Action:', { orderId, userId, type, reason });
     if (type === 'cancel') {
       if (
         OrdersModelResult.orderStatus === 'inProgress' ||
@@ -889,12 +874,13 @@ class UserService extends NotificationServicePush {
               userResult.fcmToken,
               {
                 title: 'Order Cancelled ❌',
-                body: 'Your order was cancelled and refunded to your wallet.',
+                body: 'Your order was cancelled and your money refunded to your wallet.',
               },
               {
-                type: 'ORDER_CANCELLED',
+                type: event.ORDER_CANCELLED,
                 orderId: OrdersModelResult.id,
                 userId: userResult.id,
+                sendto: user_type.CLIENT,
               }
             );
           } catch (error) {
@@ -930,9 +916,10 @@ class UserService extends NotificationServicePush {
                 body: `Your order was rejected. Please try another merchant. The amount has been refunded to your wallet.`,
               },
               {
-                type: 'ORDER_REJECTED',
+                type: event.ORDER_REJECTED,
                 orderId: OrdersModelResult.id,
                 userId: userResult.id,
+                sendto: user_type.CLIENT,
               }
             );
           } catch (error) {
@@ -963,9 +950,11 @@ class UserService extends NotificationServicePush {
               body: 'Your order has been accepted and is now in progress.',
             },
             {
-              type: 'ORDER_ACCEPTED',
+              type: event.ORDER_ACCEPTED,
+
               orderId: OrdersModelResult.id,
               userId: userResult.id,
+              sendto: user_type.CLIENT,
             }
           );
         } catch (error) {
@@ -1618,42 +1607,36 @@ class UserService extends NotificationServicePush {
     }
   }
 
-
   async handleGetBankDetails(userId) {
-  try {
-    const user = await this.UserModel.findByPk(userId, {
-      attributes: [
-        'settlementAccount',
-        'bankCode',
-        'bankName'
-      ]
-    });
+    try {
+      const user = await this.UserModel.findByPk(userId, {
+        attributes: ['settlementAccount', 'bankCode', 'bankName'],
+      });
 
-    if (!user) {
-      throw new Error('User not found');
-    }
+      if (!user) {
+        throw new Error('User not found');
+      }
 
-    // If bank account not set
-    if (!user.settlementAccount || !user.bankCode) {
+      // If bank account not set
+      if (!user.settlementAccount || !user.bankCode) {
+        return {
+          hasBankDetails: false,
+          settlementAccount: null,
+          bankCode: null,
+          bankName: null,
+        };
+      }
+
       return {
-        hasBankDetails: false,
-        settlementAccount: null,
-        bankCode: null,
-        bankName: null
+        hasBankDetails: true,
+        settlementAccount: user.settlementAccount,
+        bankCode: user.bankCode,
+        bankName: user.bankName,
       };
+    } catch (error) {
+      throw error;
     }
-
-    return {
-      hasBankDetails: true,
-      settlementAccount: user.settlementAccount,
-      bankCode: user.bankCode,
-      bankName: user.bankName
-    };
-
-  } catch (error) {
-    throw error;
   }
-}
 
   async handleUpdateMerchantStatus(data) {
     const { userId, ...updateData } =
@@ -1686,12 +1669,13 @@ class UserService extends NotificationServicePush {
             UserModelResult.fcmToken, // Assuming `userResult` is the customer
             {
               title: 'Merchat account activated',
-              body: `Great news your merchant accout is now active login and set your price to start taking order near by.`,
+              body: `Great news your merchant account is now active login and set your price to start taking order near by.`,
             },
             {
-              type: 'ACTIVATED_MERCHANT_ACCOUNT',
+              type: event.ACTIVATED_MERCHANT_ACCOUNT,
               orderId: '', // Replace with your actual order object
               userId: userResult.id,
+              sendto: user_type.CLIENT,
             }
           );
         } catch (error) {
@@ -2321,9 +2305,10 @@ class UserService extends NotificationServicePush {
               body: 'Your order has been successfully completed.',
             },
             {
-              type: 'ORDER_COMPLETED',
+              type: event.ORDER_COMPLETED,
               orderId: orderResult.id,
               userId: userResult.id,
+              sendto: user_type.CLIENT,
             }
           );
         } catch (notifyErr) {
@@ -2333,15 +2318,17 @@ class UserService extends NotificationServicePush {
       if (userResult2?.fcmToken) {
         try {
           await this.sendToDevice(
-            userResult.fcmToken,
+            userResult2.fcmToken,
             {
               title: 'Order Completed ✅',
               body: 'Your order has been successfully completed.',
             },
             {
-              type: 'ORDER_COMPLETED',
+              type: event.ORDER_COMPLETED,
+
               orderId: orderResult.id,
-              userId: userResult.id,
+              userId: userResult2.id,
+              sendto: user_type.MERCHANT,
             }
           );
         } catch (notifyErr) {
@@ -2361,7 +2348,7 @@ class UserService extends NotificationServicePush {
       );
     }
   }
-/*
+  /*
   async handleGetChargeSummary(data) {
     const { amount, userId, userId2 } =
       await userUtil.verifyHandleGetChargeSummary.validateAsync(data);
@@ -2422,87 +2409,111 @@ class UserService extends NotificationServicePush {
   */
 
   async handleGetChargeSummary(data) {
-  const { amount, userId, userId2 } =
-    await userUtil.verifyHandleGetChargeSummary.validateAsync(data);
+    const { amount, userId, userId2 } =
+      await userUtil.verifyHandleGetChargeSummary.validateAsync(data);
 
-  console.log('[getChargeSummary] START', { amount, userId, userId2 });
+    //console.log('[getChargeSummary] START', { amount, userId, userId2 });
 
-  try {
-    const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
-      where: { userId: userId2 },
-    });
+    try {
+      const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
+        where: { userId: userId2 },
+      });
 
-    console.log('[getChargeSummary] MerchantAdsModelResult', MerchantAdsModelResult?.dataValues ?? null);
+      // console.log('[getChargeSummary] MerchantAdsModelResult', MerchantAdsModelResult?.dataValues ?? null);
 
-    if (!MerchantAdsModelResult)
-      throw new NotFoundError('Merchant ads not found, check if it has been created');
+      if (!MerchantAdsModelResult)
+        throw new NotFoundError(
+          'Merchant ads not found, check if it has been created'
+        );
 
-    const settingModelResult = await this.SettingModel.findByPk(1);
+      const settingModelResult = await this.SettingModel.findByPk(1);
 
-    console.log('[getChargeSummary] settingModelResult', settingModelResult?.dataValues ?? null);
+      //  console.log('[getChargeSummary] settingModelResult', settingModelResult?.dataValues ?? null);
 
-    if (!settingModelResult)
-      throw new NotFoundError('admin Setting not found check if admin setting has been created');
+      if (!settingModelResult)
+        throw new NotFoundError(
+          'admin Setting not found check if admin setting has been created'
+        );
 
-    // ---- safe JSON parse helper ----
-    const safeParse = (value, fieldName) => {
-      if (value === null || value === undefined) {
-        console.warn(`[getChargeSummary] ${fieldName} is null/undefined`);
-        return null;
-      }
-      if (typeof value !== 'string') return value; // already parsed
-      try {
-        return JSON.parse(value);
-      } catch (e) {
-        console.error(`[getChargeSummary] Failed to parse ${fieldName}:`, value, e);
-        return null; // instead of silently returning broken string
-      }
-    };
+      // ---- safe JSON parse helper ----
+      const safeParse = (value, fieldName) => {
+        if (value === null || value === undefined) {
+          // console.warn(`[getChargeSummary] ${fieldName} is null/undefined`);
+          return null;
+        }
+        if (typeof value !== 'string') return value; // already parsed
+        try {
+          return JSON.parse(value);
+        } catch (e) {
+          console.error(
+            `[getChargeSummary] Failed to parse ${fieldName}:`,
+            value,
+            e
+          );
+          return null; // instead of silently returning broken string
+        }
+      };
 
-    const pricePerThousand = safeParse(MerchantAdsModelResult.pricePerThousand, 'pricePerThousand');
-    const serviceCharge    = safeParse(settingModelResult.serviceCharge, 'serviceCharge');
-    const gatewayService   = safeParse(settingModelResult.gatewayService, 'gatewayService');
+      const pricePerThousand = safeParse(
+        MerchantAdsModelResult.pricePerThousand,
+        'pricePerThousand'
+      );
+      const serviceCharge = safeParse(
+        settingModelResult.serviceCharge,
+        'serviceCharge'
+      );
+      const gatewayService = safeParse(
+        settingModelResult.gatewayService,
+        'gatewayService'
+      );
 
-    console.log('[getChargeSummary] PARSED VALUES', {
+      /*  console.log('[getChargeSummary] PARSED VALUES', {
       pricePerThousand,
       serviceCharge,
       gatewayService,
       amount,
-    });
+    });*/
 
-    // ---- guard against null values that would crash getdeliveryAmountSummary ----
-    if (pricePerThousand === null || pricePerThousand === undefined)
-      throw new NotFoundError('pricePerThousand is missing or invalid on MerchantAds');
-    if (serviceCharge === null || serviceCharge === undefined)
-      throw new NotFoundError('serviceCharge is missing or invalid on admin Setting');
-    if (gatewayService === null || gatewayService === undefined)
-      throw new NotFoundError('gatewayService is missing or invalid on admin Setting');
+      // ---- guard against null values that would crash getdeliveryAmountSummary ----
+      if (pricePerThousand === null || pricePerThousand === undefined)
+        throw new NotFoundError(
+          'pricePerThousand is missing or invalid on MerchantAds'
+        );
+      if (serviceCharge === null || serviceCharge === undefined)
+        throw new NotFoundError(
+          'serviceCharge is missing or invalid on admin Setting'
+        );
+      if (gatewayService === null || gatewayService === undefined)
+        throw new NotFoundError(
+          'gatewayService is missing or invalid on admin Setting'
+        );
 
-    const getdeliveryAmountSummary = await this.getdeliveryAmountSummary(
-      pricePerThousand,
-      amount,
-      serviceCharge,
-      gatewayService
-    );
+      const getdeliveryAmountSummary = await this.getdeliveryAmountSummary(
+        pricePerThousand,
+        amount,
+        serviceCharge,
+        gatewayService
+      );
 
-    console.log('[getChargeSummary] RESULT', getdeliveryAmountSummary);
+      //  console.log('[getChargeSummary] RESULT', getdeliveryAmountSummary);
 
-    return getdeliveryAmountSummary;
-
-  } catch (error) {
+      return getdeliveryAmountSummary;
+    } catch (error) {
+      /*
     console.error('[getChargeSummary] ERROR', {
       name: error.name,
       message: error.message,
       parent: error.parent,
       stack: error.stack,
     });
+    */
 
-    // preserve NotFoundError instead of swallowing it into a generic SystemError
-    if (error.name === 'NotFoundError') throw error;
+      // preserve NotFoundError instead of swallowing it into a generic SystemError
+      if (error.name === 'NotFoundError') throw error;
 
-    throw new SystemError(error.name, error.message); // use message not parent (parent is Sequelize-only)
+      throw new SystemError(error.name, error.message); // use message not parent (parent is Sequelize-only)
+    }
   }
-}
 
   async handleMakeOrderPayment(data) {
     const sequelize = this.UserModel.sequelize;
@@ -2658,9 +2669,10 @@ class UserService extends NotificationServicePush {
             body: `You’ve received a new order from ${userResult.firstName}. Open the app to accept it.`,
           },
           {
-            type: 'NEW_ORDER',
+            type: event.NEW_ORDER,
             orderId: newOrder.orderId,
             userId: userResult.id,
+            sendto: user_type.MERCHANT,
           }
         );
       } catch (notificationError) {
@@ -2751,7 +2763,35 @@ class UserService extends NotificationServicePush {
             );
             */
           // console.log(generateVirtualAccountResult);
+          // -----------------------------
+          // SEND NOTIFICATION
+          // -----------------------------
+          const userResult = await this.UserModel.findByPk(userId);
 
+          if (userResult?.fcmToken) {
+            try {
+              await this.sendToDevice(
+                userResult.fcmToken,
+                {
+                  title: 'Wallet Funding Started 💰',
+                  body: `Transfer ₦${amount} to the provided account to fund your wallet.`,
+                },
+                {
+                  type: event.GENERATE_ACCOUNT_VIRTUAL,
+                  userId: userResult.id,
+                  transactionId: transactionModelResult.id,
+                  amount,
+                  bankName: generateVirtualAccountResult.bankName,
+                  accountNumber: generateVirtualAccountResult.accountNumber,
+                  accountName: generateVirtualAccountResult.accountName,
+                  sessionId: sessionIdVirtualAcct,
+                  sendto: user_type.CLIENT,
+                }
+              );
+            } catch (error) {
+              console.error('Notification failed (fundWallet):', error);
+            }
+          }
           return generateVirtualAccountResult;
         } else {
           const sessionIdVirtualAcct = `session${Date.now()}-${Math.floor(
@@ -2774,6 +2814,35 @@ class UserService extends NotificationServicePush {
             merchantId: userId2,
             sessionIdVirtualAcct,
           });
+          // -----------------------------
+          // SEND NOTIFICATION
+          // -----------------------------
+          const userResult = await this.UserModel.findByPk(userId);
+
+          if (userResult?.fcmToken) {
+            try {
+              await this.sendToDevice(
+                userResult.fcmToken,
+                {
+                  title: 'Complete Your Payment 🧾',
+                  body: `Transfer ₦${amount} to the provided account to complete your order.`,
+                },
+                {
+                  type: event.ORDER_PAYMENT,
+                  transactionId: transactionModelResult.id,
+                  merchantId: userId2,
+                  amount,
+                  bankName: generateVirtualAccountResult.bankName,
+                  accountNumber: generateVirtualAccountResult.accountNumber,
+                  accountName: generateVirtualAccountResult.accountName,
+                  sessionId: sessionIdVirtualAcct,
+                  sendto: user_type.CLIENT,
+                }
+              );
+            } catch (error) {
+              console.error('Notification failed (order payment):', error);
+            }
+          }
 
           return generateVirtualAccountResult;
           /*const generateVirtualAccountResult =
@@ -3508,7 +3577,6 @@ class UserService extends NotificationServicePush {
           { isMatchRunning: false, matchStartedAt: null },
           { where: { id: 1 } }
         );
-        console.log('🧹 Reset stuck match state.');
       }
 
       setting.isMatchRunning = true;
@@ -3516,8 +3584,6 @@ class UserService extends NotificationServicePush {
       setting.save();
 
       let distanceThreshold = setting.distanceThreshold || 10; //km
-      console.log('🎯 Starting match process...');
-      console.log(`📏 Base distance threshold: ${distanceThreshold} km`);
 
       // Fetch users
       const users = await this.UserModel.findAll({
@@ -3559,18 +3625,6 @@ class UserService extends NotificationServicePush {
         ],
       });
 
-      console.log(`🏪 Total eligible merchants fetched: ${merchants.length}`);
-      console.log('📋 Merchant details:');
-      merchants.forEach((merchant) => {
-        console.log(
-          `  - ID: ${merchant.id}, Name: ${merchant.firstName} ${merchant.lastName}, ` +
-            `Lat: ${merchant.lat}, Lng: ${merchant.lng}, ` +
-            `Delivery Range: ${
-              merchant.MerchantProfile?.deliveryRange || 'N/A'
-            } km`
-        );
-      });
-
       const userMatchesMap = new Map();
 
       // Pre-fetch existing matches
@@ -3586,9 +3640,9 @@ class UserService extends NotificationServicePush {
       // Process each user
       for (const user of users) {
         console.log(
-          `\n🔍 Processing User ID: ${user.id} (${user.firstName} ${user.lastName})`
+          `\n🔍 Processing CLIENT ID: ${user.id} (${user.firstName} ${user.lastName})`
         );
-        console.log(`  📍 User location: Lat=${user.lat}, Lng=${user.lng}`);
+        console.log(`  📍 CLIENT location: Lat=${user.lat}, Lng=${user.lng}`);
         console.log(`  ✅ isEmailValid: ${user.isEmailValid}`);
 
         const userMatches = [];
@@ -3612,6 +3666,10 @@ class UserService extends NotificationServicePush {
             skippedReasons.sameUser++;
             continue;
           }
+
+          console.log(
+            `  📍 MERCHANT location: Lat=${merchant.lat}, Lng=${merchant.lng}`
+          );
 
           // Skip if merchant has no location
           if (!merchant.lat || !merchant.lng) {
@@ -3638,6 +3696,15 @@ class UserService extends NotificationServicePush {
           );
 
           console.log(
+            '=========================================================================================='
+          );
+          console.log(
+            '====                                                                                 ===='
+          );
+          console.log(
+            '====                                                                                 ===='
+          );
+          console.log(
             `    🏪 Merchant ${merchant.id} (${merchant.firstName} ${merchant.lastName}):`
           );
           console.log(
@@ -3649,6 +3716,16 @@ class UserService extends NotificationServicePush {
             `       ${
               distance <= currentThreshold ? '✅ MATCHED' : '❌ OUT OF RANGE'
             }`
+          );
+
+          console.log(
+            '====                                                                                 ===='
+          );
+          console.log(
+            '====                                                                                 ===='
+          );
+          console.log(
+            '=========================================================================================='
           );
 
           if (distance <= currentThreshold) {
@@ -4054,7 +4131,7 @@ class UserService extends NotificationServicePush {
       throw error;
     }
   }
-/*
+  /*
   async getdeliveryAmountSummary(
     merchantads,
     amount,
@@ -4118,84 +4195,100 @@ class UserService extends NotificationServicePush {
   }
   */
 
-
-
   async getdeliveryAmountSummary(
-  merchantads,
-  amount,
-  serviceCharge,
-  gatewayService
-) {
-  console.log('[getdeliveryAmountSummary] INPUT', { merchantads, amount, serviceCharge, gatewayService });
+    merchantads,
+    amount,
+    serviceCharge,
+    gatewayService
+  ) {
+    console.log('[getdeliveryAmountSummary] INPUT', {
+      merchantads,
+      amount,
+      serviceCharge,
+      gatewayService,
+    });
 
-  // Sort all arrays by amount ascending
-  merchantads.sort((a, b) => a.amount - b.amount);
-  serviceCharge.sort((a, b) => a.amount - b.amount);
-  gatewayService.sort((a, b) => a.amount - b.amount);
+    // Sort all arrays by amount ascending
+    merchantads.sort((a, b) => a.amount - b.amount);
+    serviceCharge.sort((a, b) => a.amount - b.amount);
+    gatewayService.sort((a, b) => a.amount - b.amount);
 
-  // Helper: find closest tier <= amount, fallback to lowest tier above amount
-  const findClosestTier = (tiers, amount, label) => {
-    let closest = null;
+    // Helper: find closest tier <= amount, fallback to lowest tier above amount
+    const findClosestTier = (tiers, amount, label) => {
+      let closest = null;
 
-    // First pass: find highest tier that is <= amount
-    for (let i = 0; i < tiers.length; i++) {
-      if (tiers[i].amount <= amount) {
-        closest = tiers[i];
-      } else {
-        break;
+      // First pass: find highest tier that is <= amount
+      for (let i = 0; i < tiers.length; i++) {
+        if (tiers[i].amount <= amount) {
+          closest = tiers[i];
+        } else {
+          break;
+        }
       }
-    }
 
-    // Fallback: no tier was <= amount, use the lowest available tier
-    if (!closest) {
-      closest = tiers[0] ?? null;
-      console.warn(
-        `[getdeliveryAmountSummary] No ${label} tier found for amount ${amount}, falling back to lowest tier:`,
-        closest
-      );
-    }
+      // Fallback: no tier was <= amount, use the lowest available tier
+      if (!closest) {
+        closest = tiers[0] ?? null;
+        console.warn(
+          `[getdeliveryAmountSummary] No ${label} tier found for amount ${amount}, falling back to lowest tier:`,
+          closest
+        );
+      }
 
-    return closest;
-  };
-
-  const closestMerchantAmount  = findClosestTier(merchantads,    amount, 'merchantads');
-  const closestServiceCharge   = findClosestTier(serviceCharge,  amount, 'serviceCharge');
-  const closestGatewayCharge   = findClosestTier(gatewayService, amount, 'gatewayService');
-
-  console.log('[getdeliveryAmountSummary] CLOSEST TIERS', {
-    closestMerchantAmount,
-    closestServiceCharge,
-    closestGatewayCharge,
-  });
-
-  if (closestMerchantAmount && closestServiceCharge && closestGatewayCharge) {
-    const totalAmountToPay =
-      Number(amount) +
-      Number(closestMerchantAmount.charge) +
-      Number(closestServiceCharge.charge) +
-      Number(closestGatewayCharge.charge);
-
-    const result = {
-      totalAmount:    totalAmountToPay,
-      merchantCharge: closestMerchantAmount.charge,
-      serviceCharge:  closestServiceCharge.charge,
-      gatewayCharge:  closestGatewayCharge.charge,
-      amountOrder:    Number(amount),
+      return closest;
     };
 
-    console.log('[getdeliveryAmountSummary] RESULT', result);
-    return result;
-  } else {
-    // This should only happen if one of the tier arrays is completely empty
-    console.error('[getdeliveryAmountSummary] Missing tiers entirely', {
+    const closestMerchantAmount = findClosestTier(
+      merchantads,
+      amount,
+      'merchantads'
+    );
+    const closestServiceCharge = findClosestTier(
+      serviceCharge,
+      amount,
+      'serviceCharge'
+    );
+    const closestGatewayCharge = findClosestTier(
+      gatewayService,
+      amount,
+      'gatewayService'
+    );
+
+    console.log('[getdeliveryAmountSummary] CLOSEST TIERS', {
       closestMerchantAmount,
       closestServiceCharge,
       closestGatewayCharge,
     });
-    throw new Error('No valid charge found for the given amount — one or more tier lists may be empty');
-  }
-}
 
+    if (closestMerchantAmount && closestServiceCharge && closestGatewayCharge) {
+      const totalAmountToPay =
+        Number(amount) +
+        Number(closestMerchantAmount.charge) +
+        Number(closestServiceCharge.charge) +
+        Number(closestGatewayCharge.charge);
+
+      const result = {
+        totalAmount: totalAmountToPay,
+        merchantCharge: closestMerchantAmount.charge,
+        serviceCharge: closestServiceCharge.charge,
+        gatewayCharge: closestGatewayCharge.charge,
+        amountOrder: Number(amount),
+      };
+
+      console.log('[getdeliveryAmountSummary] RESULT', result);
+      return result;
+    } else {
+      // This should only happen if one of the tier arrays is completely empty
+      console.error('[getdeliveryAmountSummary] Missing tiers entirely', {
+        closestMerchantAmount,
+        closestServiceCharge,
+        closestGatewayCharge,
+      });
+      throw new Error(
+        'No valid charge found for the given amount — one or more tier lists may be empty'
+      );
+    }
+  }
 
   async getAmountOrderFromTotal(
     totalAmount,
@@ -4423,9 +4516,10 @@ class UserService extends NotificationServicePush {
           body: `Your order was rejected. Please try another merchant. The amount has been refunded to your wallet.`,
         },
         {
-          type: 'ORDER_REJECTED',
+          type: event.ORDER_REJECTED,
           orderId: OrdersModelResult.id,
           userId: userResult.id,
+          sendto: user_type.CLIENT,
         }
       );
     } catch (error) {
