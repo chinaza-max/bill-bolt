@@ -34,6 +34,8 @@ import { google } from 'googleapis';
 import { oAuth2Client } from '../auth/oauthClient.js';
 import event from '../constants/notificationEvents.js';
 import user_type from '../constants/userTypes.js';
+import pkg from 'agora-token';
+const { RtcTokenBuilder, RtcRole } = pkg;
 const ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const getNanoid = (length) => customAlphabet(ALPHABET, length);
 
@@ -433,6 +435,37 @@ class UserService extends NotificationServicePush {
     } catch (error) {
       console.error(error);
       next(error);
+    }
+  }
+
+  async handleGenerateAgoraToken(data) {
+    const { channelName, uid } =
+      await userUtil.verifyGenerateAgoraToken.validateAsync(data);
+
+    try {
+      const role = RtcRole.PUBLISHER;
+
+      const expiry = Math.floor(Date.now() / 1000) + 3600; // 1 hour
+
+      const token = RtcTokenBuilder.buildTokenWithUid(
+        process.env.AGORA_APP_ID,
+        process.env.AGORA_APP_CERTIFICATE,
+        channelName,
+        uid || 0,
+        role,
+        expiry
+      );
+
+      return {
+        token,
+        appId: process.env.AGORA_APP_ID,
+        channelName,
+        uid: uid || 0,
+        expiresIn: 3600,
+      };
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.message);
     }
   }
 

@@ -155,7 +155,11 @@ class UserUtil {
     userId: Joi.number().integer().required(),
     accountStatus: Joi.string().valid('active', 'notActive').required(),
   });
-
+  verifyGenerateAgoraToken = Joi.object({
+    channelName: Joi.string().required(),
+    uid: Joi.number().integer().optional(),
+    userId: Joi.number().optional(),
+  });
   verifyHandleGetProfileInformation = Joi.object({
     userId: Joi.number().integer().required(),
   });

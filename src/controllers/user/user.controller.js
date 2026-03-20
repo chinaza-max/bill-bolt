@@ -955,6 +955,28 @@ export default class UserController {
     }
   }
 
+  async generateAgoraToken(req, res, next) {
+    try {
+      const data = req.query;
+
+      const payload = {
+        ...data,
+        userId: req.user?.id || null, // optional if auth exists
+      };
+
+      const result = await userService.handleGenerateAgoraToken(payload);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'Token generated successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
   async markAsRead(req, res, next) {
     try {
       const { id } = req.body;

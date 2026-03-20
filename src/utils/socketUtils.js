@@ -121,6 +121,39 @@ export const configureSocket = (io) => {
       });
     });
 
+    // ── Caller initiates a call ─────────────────────────────────────────────────
+    socket.on('initiateCall', (data) => {
+      const { orderId, callerId, callerName, callerAvatar, receiverId } = data;
+      const room = `order_${orderId}`;
+
+      console.log(`Call initiated by ${callerId} in order ${orderId}`);
+      console.log(`Call details ${callerName} in callerAvatar ${callerAvatar}`);
+
+      // Broadcast "incomingCall" to EVERYONE else in the order room
+      // (the other party — merchant or client)
+      socket.to(room).emit('incomingCall', {
+        orderId,
+        callerId,
+        callerName,
+        callerAvatar,
+      });
+    });
+
+    // ── Either party ends the call ──────────────────────────────────────────────
+    socket.on('callEnded', ({ orderId, userId }) => {
+      const room = `order_${orderId}`;
+      console.log(`Call ended by ${userId} in order ${orderId}`);
+      // Notify the other party so their modal closes
+      socket.to(room).emit('callEnded', { orderId, userId });
+    });
+
+    // ── Receiver declines the call ──────────────────────────────────────────────
+    socket.on('callDeclined', ({ orderId, callerId, declinedBy }) => {
+      const room = `order_${orderId}`;
+      console.log(`Call declined in order ${orderId}`);
+      // Notify the caller so their modal closes
+      socket.to(room).emit('callDeclined', { orderId, callerId, declinedBy });
+    });
     socket.on('disconnect', () => {
       console.log(`User disconnected: ${socket.id}`);
 
