@@ -396,6 +396,23 @@ export default class UserController {
     }
   }
 
+  async getPendingOrders(req, res, next) {
+    try {
+      const result = await userService.handleGetPendingOrders({
+        userId: req.user.id,
+      });
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
   async hasMerchantAds(req, res, next) {
     try {
       const data = req.body;
@@ -601,6 +618,165 @@ export default class UserController {
       return res.status(200).json({
         status: 200,
         message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async getUserProfile(req, res, next) {
+    try {
+      const my_bj = { userId: req.user.id };
+
+      const result = await userService.handleGetUserProfile(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async getUserOrders(req, res, next) {
+    try {
+      const my_bj = {
+        ...req.query,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleGetUserOrders(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async getUserTransactions(req, res, next) {
+    try {
+      const my_bj = {
+        ...req.query,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleGetUserTransactions(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async toggleUserAccount(req, res, next) {
+    try {
+      const my_bj = {
+        ...req.body,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleToggleUserAccount(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: `User ${result.status} successfully.`,
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async toggleWithdrawal(req, res, next) {
+    try {
+      const my_bj = {
+        ...req.body,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleToggleWithdrawal(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: `Withdrawal ${
+          result.canWithdraw ? 'enabled' : 'disabled'
+        } successfully.`,
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async submitNoMerchantFound(req, res, next) {
+    try {
+      const my_bj = {
+        ...req.body,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleSubmitNoMerchantFound(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'Report submitted successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async getComplaints(req, res, next) {
+    try {
+      const my_bj = {
+        ...req.query,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleGetComplaints(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async deleteUserAccount(req, res, next) {
+    try {
+      const my_bj = {
+        ...req.body,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleDeleteUserAccount(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'User account deleted successfully.',
         data: result,
       });
     } catch (error) {

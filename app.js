@@ -16,6 +16,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { configureSocket } from './src/utils/socketUtils.js';
 import userService from './src/service/user.service.js';
 import authService from './src/service/auth.service.js';
+import bcrypt from 'bcrypt';
 
 import http from 'http';
 
@@ -104,13 +105,18 @@ class Server {
       });
     }
 
+    const hashedPassword = await bcrypt.hash(
+      serverConfig.ADMIN_PASSWORD,
+      Number(serverConfig.SALT_ROUNDS)
+    );
+
     await Admin.findOrCreate({
-      where: { emailAddress: 'admin3@gmail.com' },
+      where: { emailAddress: serverConfig.ADMIN_EMAIL },
       defaults: {
         firstName: 'Admin',
         lastName: 'Admin',
         isEmailValid: true,
-        password: serverConfig.ADMIN_PASSWORD, // Ensure this password is securely hashed
+        password: hashedPassword, // Ensure this password is securely hashed
         image:
           'https://res.cloudinary.com/dvznn9s4g/image/upload/v1740438988/avatar_phzyrn.jpg',
         role: 'admin',

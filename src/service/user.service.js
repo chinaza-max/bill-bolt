@@ -61,6 +61,8 @@ class UserService extends NotificationServicePush {
   ComplaintModel = Complaint;
   NinOtpModel = NinOtp;
   AdminModel = Admin;
+  #lastGeoRequestTime = 0;
+  #GEO_RATE_LIMIT_MS = 1500;
 
   constructor() {
     super();
@@ -80,6 +82,16 @@ class UserService extends NotificationServicePush {
     this.validFor = Setting.validFor;
     this.callbackUrl = Setting.callbackUrl;
   }
+
+  async #waitGeoRateLimit() {
+    const elapsed = Date.now() - this.#lastGeoRequestTime;
+    if (elapsed < this.#GEO_RATE_LIMIT_MS) {
+      await new Promise((r) =>
+        setTimeout(r, this.#GEO_RATE_LIMIT_MS - elapsed)
+      );
+    }
+  }
+
   async handleUpdatePin(data, file) {
     let { userId, role, image, ...updateData } =
       await userUtil.verifyHandleUpdatePin.validateAsync(data);
@@ -1157,6 +1169,67 @@ class UserService extends NotificationServicePush {
     return !!ads; // returns true if exists, false if not
   }
 
+  async handleGetPendingOrders(data) {
+    const { userId } =
+      await userUtil.verifyHandleGetPendingOrders.validateAsync(data);
+
+    try {
+      const orders = await this.OrdersModel.findAll({
+        where: {
+          merchantId: userId,
+          orderStatus: 'pending',
+          isDeleted: false,
+        },
+        order: [['createdAt', 'DESC']],
+        include: [
+          {
+            model: this.UserModel,
+            as: 'OrderClient',
+            attributes: [
+              'id',
+              'firstName',
+              'lastName',
+              'imageUrl',
+              'tel',
+              'lat',
+              'lng',
+            ],
+          },
+        ],
+      });
+
+      const formatted = orders.map((order) => ({
+        id: order.id,
+        orderId: order.orderId,
+        amountOrder: order.amountOrder,
+        totalAmount: order.totalAmount,
+        distance: order.distance,
+        note: order.note,
+        createdAt: order.createdAt,
+        client: order.OrderClient
+          ? {
+              id: order.OrderClient.id,
+              name: `${order.OrderClient.firstName} ${order.OrderClient.lastName}`,
+              image: order.OrderClient.imageUrl || null,
+              tel: order.OrderClient.tel || null,
+              coordinates: {
+                lat: order.OrderClient.lat,
+                lng: order.OrderClient.lng,
+              },
+            }
+          : null,
+      }));
+
+      return {
+        total: orders.length,
+        orders: formatted,
+      };
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
   async handleGetOrderStatistic(data) {
     const { userId } =
       await userUtil.verifyHandleGetOrderStatistic.validateAsync(data);
@@ -1342,6 +1415,56 @@ class UserService extends NotificationServicePush {
     }
   }
 
+  async getLocationName(lat, lng) {
+    try {
+      await this.#waitGeoRateLimit();
+
+      const response = await axios.get(serverConfig.REVERSE_GEOCODING, {
+        params: { lat, lon: lng, format: 'json' },
+        headers: {
+          'User-Agent': 'billbolt/1.0 (https://merch-cash-link.lovable.app)',
+          Referer: 'https://merch-cash-link.lovable.app',
+        },
+        timeout: 3000,
+      });
+
+      this.#lastGeoRequestTime = Date.now();
+
+      const addr = response.data?.address;
+      if (!addr) return null;
+
+      return (
+        addr.state ||
+        addr.state_district ||
+        addr.county ||
+        addr.region ||
+        addr.country ||
+        null
+      );
+
+      /**  {
+      id: "uuid-789",
+      avatar: null,
+      email: "nocoords@gmail.com",
+      name: "Emeka Obi",
+      walletBalance: 0,
+      orders: 0,
+      dateJoined: "2025-03-01T08:00:00.000Z",
+      accountStatus: "Active",
+      merchantStatus: false,
+      merchantAccountStatus: null,
+      tel: "+2348011111111",
+      isOnline: false,
+      lat: null,
+      lng: null,
+      location: null,             // ⛔ no lat/lng so skipped geocoding
+      updatedAt: "2025-03-01T08:00:00.000Z",
+    }, */
+    } catch {
+      return null;
+    }
+  }
+  /*
   async handleGetUsers(data) {
     const { type, page, limit } =
       await userUtil.verifyHandleGetUsers.validateAsync(data);
@@ -1369,7 +1492,6 @@ class UserService extends NotificationServicePush {
         },
       ];
 
-      /* ---------------- COUNTS ---------------- */
 
       const totalUsers = await this.UserModel.count({
         where: whereCondition,
@@ -1426,7 +1548,6 @@ class UserService extends NotificationServicePush {
         distinct: true,
       });
 
-      /* ---------------- PAGINATED FETCH ---------------- */
 
       const users = await this.UserModel.findAll({
         where: whereCondition,
@@ -1481,6 +1602,187 @@ class UserService extends NotificationServicePush {
           updatedAt: user.updatedAt,
         };
       });
+
+
+      return {
+        meta: {
+          page,
+          limit,
+          totalUsers,
+          totalPages: Math.ceil(totalUsers / limit),
+        },
+        stats: {
+          totalUsers,
+          activeUsers,
+          newUsersThisMonth,
+        },
+        users: userData,
+      };
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+  */
+
+  async handleGetUsers(data) {
+    const {
+      type,
+      page,
+      limit,
+      search,
+      accountStatus,
+      isOnline,
+      merchantActivated,
+      country,
+    } = await userUtil.verifyHandleGetUsers.validateAsync(data);
+
+    try {
+      const offset = (page - 1) * limit;
+
+      let whereCondition = {};
+
+      if (search) {
+        whereCondition[Op.or] = [
+          { firstName: { [Op.like]: `%${search}%` } },
+          { lastName: { [Op.like]: `%${search}%` } },
+          { emailAddress: { [Op.like]: `%${search}%` } },
+          { tel: { [Op.like]: `%${search}%` } },
+        ];
+      }
+
+      if (accountStatus === 'Disabled') whereCondition.disableAccount = true;
+      if (accountStatus === 'Active') whereCondition.disableAccount = false;
+      if (isOnline != null) whereCondition.isOnline = isOnline;
+      if (merchantActivated != null)
+        whereCondition.merchantActivated = merchantActivated;
+      if (country) whereCondition.country = { [Op.like]: `%${country}%` };
+
+      const includeConditions = [
+        { model: Orders, as: 'ClientOrder', required: false },
+        { model: Orders, as: 'MerchantOrder', required: false },
+        {
+          model: MerchantProfile,
+          as: 'MerchantProfile',
+          required: type === 'merchant',
+        },
+      ];
+
+      const totalUsers = await this.UserModel.count({
+        where: whereCondition,
+        include:
+          type === 'merchant'
+            ? [
+                {
+                  model: MerchantProfile,
+                  as: 'MerchantProfile',
+                  required: true,
+                },
+              ]
+            : [],
+        distinct: true,
+      });
+
+      const activeUsers = await this.UserModel.count({
+        where: { ...whereCondition, isOnline: true },
+        include: [
+          {
+            model: MerchantProfile,
+            as: 'MerchantProfile',
+            required: true,
+            where: {
+              accountStatus: 'active',
+              isDeleted: false,
+              disableAccount: false,
+            },
+          },
+        ],
+        distinct: true,
+      });
+
+      const newUsersThisMonth = await this.UserModel.count({
+        where: {
+          ...whereCondition,
+          createdAt: { [Op.gte]: new Date(new Date().setDate(1)) },
+        },
+        include:
+          type === 'merchant'
+            ? [
+                {
+                  model: MerchantProfile,
+                  as: 'MerchantProfile',
+                  required: true,
+                },
+              ]
+            : [],
+        distinct: true,
+      });
+
+      /* ---------------- PAGINATED FETCH ---------------- */
+
+      const users = await this.UserModel.findAll({
+        where: whereCondition,
+        limit,
+        offset,
+        order: [['createdAt', 'DESC']],
+        attributes: [
+          'id',
+          'imageUrl',
+          'emailAddress',
+          'firstName',
+          'lastName',
+          'walletBalance',
+          'createdAt',
+          'disableAccount',
+          'merchantActivated',
+          'tel',
+          'isOnline',
+          'lat',
+          'lng',
+          'updatedAt',
+        ],
+        include: includeConditions,
+        distinct: true,
+      });
+
+      /* ---------------- BUILD RESPONSE (sequential for rate limit) ---------------- */
+
+      const userData = [];
+
+      for (const user of users) {
+        const parsedWallet = this.safeParse(user.walletBalance);
+
+        const locationName =
+          user.lat && user.lng
+            ? await this.getLocationName(user.lat, user.lng)
+            : null;
+
+        userData.push({
+          id: user.id,
+          avatar:
+            type === 'merchant' && user.MerchantProfile
+              ? user.MerchantProfile.imageUrl
+              : user.imageUrl,
+          email: user.emailAddress,
+          name:
+            type === 'merchant' && user.MerchantProfile
+              ? `${user.firstName} ${user.lastName} (${user.MerchantProfile.displayName})`
+              : `${user.firstName} ${user.lastName}`,
+          walletBalance: parsedWallet.current,
+          orders:
+            (user.ClientOrder?.length || 0) + (user.MerchantOrder?.length || 0),
+          dateJoined: user.createdAt,
+          accountStatus: user.disableAccount ? 'Disabled' : 'Active',
+          merchantStatus: !!user.MerchantProfile,
+          merchantAccountStatus: user?.MerchantProfile?.accountStatus || null,
+          tel: user.tel,
+          isOnline: user.isOnline,
+          lat: user.lat,
+          lng: user.lng,
+          location: locationName,
+          updatedAt: user.updatedAt,
+        });
+      }
 
       /* ---------------- RESPONSE ---------------- */
 
@@ -1636,6 +1938,488 @@ class UserService extends NotificationServicePush {
       return { user: userData, orders };
     } catch (error) {
       console.error('Error fetching user data:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleGetUserProfile(data) {
+    const { userId } = await userUtil.verifyHandleGetUserProfile.validateAsync(
+      data
+    );
+
+    try {
+      const user = await this.UserModel.findOne({
+        where: { id: userId, isDeleted: false },
+        attributes: {
+          exclude: ['password', 'refreshToken', 'passCode', 'fcmToken'],
+        },
+        include: [
+          {
+            model: MerchantProfile,
+            as: 'MerchantProfile',
+            required: false,
+            attributes: [
+              'displayName',
+              'imageUrl',
+              'accountTier',
+              'accountStatus',
+              'deliveryRange',
+            ],
+          },
+        ],
+      });
+
+      if (!user) throw new NotFoundError('User not found');
+
+      return user;
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleToggleUserAccount(data) {
+    const { targetUserId, action } =
+      await userUtil.verifyHandleToggleUserAccount.validateAsync(data);
+
+    try {
+      const user = await this.UserModel.findOne({
+        where: { id: targetUserId, isDeleted: false },
+      });
+
+      if (!user) throw new NotFoundError('User not found');
+
+      const isSuspending = action === 'suspend';
+
+      await user.update({ disableAccount: isSuspending });
+
+      // Send email notification
+      try {
+        await mailService.sendMail({
+          to: user.emailAddress,
+          subject: isSuspending
+            ? 'Your account has been suspended'
+            : 'Your account has been activated',
+          templateName: isSuspending ? 'accountSuspended' : 'accountActivated',
+          variables: {
+            firstName: user.firstName,
+          },
+        });
+      } catch (mailError) {
+        console.error('Email notification failed:', mailError);
+        // non-blocking — don't throw
+      }
+
+      // Send push notification
+      if (user.fcmToken) {
+        try {
+          await this.sendToDevice(
+            user.fcmToken,
+            {
+              title: isSuspending
+                ? 'Account Suspended ❌'
+                : 'Account Activated ✅',
+              body: isSuspending
+                ? 'Your account has been suspended. Contact support for help.'
+                : 'Your account has been reactivated. Welcome back!',
+            },
+            {
+              type: isSuspending ? 'ACCOUNT_SUSPENDED' : 'ACCOUNT_ACTIVATED',
+              userId: user.id,
+            }
+          );
+        } catch (pushError) {
+          console.error('Push notification failed:', pushError);
+        }
+      }
+
+      return {
+        userId: user.id,
+        disableAccount: isSuspending,
+        status: isSuspending ? 'suspended' : 'activated',
+      };
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleToggleWithdrawal(data) {
+    const { targetUserId, allow } =
+      await userUtil.verifyHandleToggleWithdrawal.validateAsync(data);
+
+    try {
+      const user = await this.UserModel.findOne({
+        where: { id: targetUserId, isDeleted: false },
+      });
+
+      if (!user) throw new NotFoundError('User not found');
+
+      await user.update({ canWithdraw: allow });
+
+      // Send email
+      try {
+        await mailService.sendMail({
+          to: user.emailAddress,
+          subject: allow
+            ? 'Withdrawal enabled on your account'
+            : 'Withdrawal disabled on your account',
+          templateName: allow ? 'withdrawalEnabled' : 'withdrawalDisabled',
+          variables: {
+            firstName: user.firstName,
+          },
+        });
+      } catch (mailError) {
+        console.error('Email notification failed:', mailError);
+      }
+
+      // Send push
+      if (user.fcmToken) {
+        try {
+          await this.sendToDevice(
+            user.fcmToken,
+            {
+              title: allow ? 'Withdrawal Enabled ✅' : 'Withdrawal Disabled ❌',
+              body: allow
+                ? 'You can now withdraw funds from your wallet.'
+                : 'Withdrawals have been disabled on your account.',
+            },
+            {
+              type: allow ? 'WITHDRAWAL_ENABLED' : 'WITHDRAWAL_DISABLED',
+              userId: user.id,
+            }
+          );
+        } catch (pushError) {
+          console.error('Push notification failed:', pushError);
+        }
+      }
+
+      return {
+        userId: user.id,
+        canWithdraw: allow,
+      };
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleSubmitNoMerchantFound(data) {
+    const { userId, message, orderId } =
+      await userUtil.verifyHandleSubmitNoMerchantFound.validateAsync(data);
+
+    try {
+      const user = await this.UserModel.findOne({
+        where: { id: userId, isDeleted: false },
+      });
+
+      if (!user) throw new NotFoundError('User not found');
+
+      const complaint = await this.ComplaintModel.create({
+        userId,
+        orderId: orderId || null,
+        complaintType: 'service',
+        title: 'No Merchant Found',
+        complaintReason: message,
+        status: 'open',
+        view: 'unseen',
+      });
+
+      return { complaintId: complaint.id };
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleGetComplaints(data) {
+    const { page, limit, search, status, view, complaintType } =
+      await userUtil.verifyHandleGetComplaints.validateAsync(data);
+
+    try {
+      const offset = (page - 1) * limit;
+
+      const whereCondition = { isDeleted: false };
+
+      if (status) whereCondition.status = status;
+      if (view) whereCondition.view = view;
+      if (complaintType) whereCondition.complaintType = complaintType;
+
+      // search by title or reason
+      if (search) {
+        whereCondition[Op.or] = [
+          { title: { [Op.like]: `%${search}%` } },
+          { complaintReason: { [Op.like]: `%${search}%` } },
+        ];
+      }
+
+      const { count, rows: complaints } =
+        await this.ComplaintModel.findAndCountAll({
+          where: whereCondition,
+          limit,
+          offset,
+          order: [['createdAt', 'DESC']],
+          include: [
+            {
+              model: this.UserModel,
+              as: 'ComplaintUser',
+              attributes: [
+                'id',
+                'firstName',
+                'lastName',
+                'emailAddress',
+                'imageUrl',
+                'tel',
+              ],
+            },
+          ],
+        });
+
+      const formatted = complaints.map((c) => ({
+        id: c.id,
+        title: c.title,
+        complaintType: c.complaintType,
+        complaintReason: c.complaintReason,
+        status: c.status,
+        view: c.view,
+        orderId: c.orderId || null,
+        createdAt: c.createdAt,
+        user: c.ComplaintUser
+          ? {
+              id: c.ComplaintUser.id,
+              name: `${c.ComplaintUser.firstName} ${c.ComplaintUser.lastName}`,
+              email: c.ComplaintUser.emailAddress,
+              image: c.ComplaintUser.imageUrl,
+              tel: c.ComplaintUser.tel,
+            }
+          : null,
+      }));
+
+      return {
+        meta: {
+          page,
+          limit,
+          total: count,
+          totalPages: Math.ceil(count / limit),
+          unseen: await this.ComplaintModel.count({
+            where: { isDeleted: false, view: 'unseen' },
+          }),
+        },
+        complaints: formatted,
+      };
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleDeleteUserAccount(data) {
+    const { targetUserId } =
+      await userUtil.verifyHandleDeleteUserAccount.validateAsync(data);
+
+    try {
+      const user = await this.UserModel.findOne({
+        where: { id: targetUserId, isDeleted: false },
+      });
+
+      if (!user) throw new NotFoundError('User not found');
+
+      // Soft delete
+      await user.update({
+        isDeleted: true,
+        disableAccount: true,
+        emailAddress: `deleted_${Date.now()}_${user.emailAddress}`, // free up email
+      });
+
+      // Send final email
+      try {
+        await mailService.sendMail({
+          to: user.emailAddress,
+          subject: 'Your account has been deleted',
+          templateName: 'accountDeleted',
+          variables: {
+            firstName: user.firstName,
+          },
+        });
+      } catch (mailError) {
+        console.error('Email notification failed:', mailError);
+      }
+
+      return { userId: targetUserId, deleted: true };
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleGetUserOrders(data) {
+    const { userId, page, limit, status, userType } =
+      await userUtil.verifyHandleGetUserOrders.validateAsync(data);
+
+    try {
+      const offset = (page - 1) * limit;
+
+      const whereCondition = {
+        isDeleted: false,
+        // ✅ filter by clientId or merchantId based on userType
+        ...(userType === 'merchant'
+          ? { merchantId: userId }
+          : { clientId: userId }),
+      };
+
+      if (status) whereCondition.orderStatus = status;
+
+      const { count, rows: orders } = await this.OrdersModel.findAndCountAll({
+        where: whereCondition,
+        limit,
+        offset,
+        order: [['createdAt', 'DESC']],
+        include: [
+          {
+            model: this.UserModel,
+            as: 'OrderMerchant',
+            attributes: ['id', 'firstName', 'lastName'],
+            include: [
+              {
+                model: MerchantProfile,
+                as: 'MerchantProfile',
+                attributes: ['displayName', 'imageUrl'],
+                required: false,
+              },
+            ],
+          },
+          {
+            model: this.UserModel,
+            as: 'OrderClient',
+            attributes: ['id', 'firstName', 'lastName', 'imageUrl'],
+          },
+        ],
+      });
+
+      const formatted = orders.map((order) => ({
+        id: order.id,
+        orderId: order.orderId,
+        orderStatus: order.orderStatus,
+        moneyStatus: order.moneyStatus,
+        amountOrder: order.amountOrder,
+        totalAmount: order.totalAmount,
+        distance: order.distance,
+        rating: order.rating,
+        hasIssues: order.hasIssues,
+        note: order.note,
+        startTime: order.startTime,
+        endTime: order.endTime,
+        createdAt: order.createdAt,
+        // show merchant info when fetching as client, client info when fetching as merchant
+        counterparty:
+          userType === 'merchant'
+            ? {
+                id: order.OrderClient?.id,
+                name: `${order.OrderClient?.firstName} ${order.OrderClient?.lastName}`,
+                image: order.OrderClient?.imageUrl || null,
+              }
+            : {
+                id: order.OrderMerchant?.id,
+                name:
+                  order.OrderMerchant?.MerchantProfile?.displayName ||
+                  `${order.OrderMerchant?.firstName} ${order.OrderMerchant?.lastName}`,
+                image: order.OrderMerchant?.MerchantProfile?.imageUrl || null,
+              },
+      }));
+
+      return {
+        meta: {
+          page,
+          limit,
+          total: count,
+          totalPages: Math.ceil(count / limit),
+        },
+        userType,
+        orders: formatted,
+      };
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+  async handleGetUserTransactions(data) {
+    const { userId, page, limit, type, startDate, endDate } =
+      await userUtil.verifyHandleGetUserTransactions.validateAsync(data);
+
+    try {
+      const offset = (page - 1) * limit;
+
+      const whereCondition = {
+        userId,
+        isDeleted: false,
+      };
+
+      if (type) whereCondition.transactionType = type;
+
+      if (startDate && endDate) {
+        whereCondition.createdAt = {
+          [Op.between]: [new Date(startDate), new Date(endDate)],
+        };
+      }
+
+      const { count, rows: transactions } =
+        await this.TransactionModel.findAndCountAll({
+          where: whereCondition,
+          limit,
+          offset,
+          order: [['createdAt', 'DESC']],
+        });
+
+      const formatted = transactions.map((txn) => {
+        let title, initials, direction;
+
+        switch (txn.transactionType) {
+          case 'order':
+            title = 'Order Payment';
+            initials = 'OP';
+            direction = 'outgoing';
+            break;
+          case 'withdrawal':
+            title = 'Withdrawal';
+            initials = 'WD';
+            direction = 'outgoing';
+            break;
+          case 'fundWallet':
+            title = 'Wallet Funding';
+            initials = 'WF';
+            direction = 'incoming';
+            break;
+          default:
+            title = 'Transaction';
+            initials = 'TX';
+            direction = 'unknown';
+        }
+
+        return {
+          id: txn.id,
+          transactionId: txn.transactionId,
+          title,
+          initials,
+          direction,
+          amount: txn.amount,
+          paymentStatus: txn.paymentStatus,
+          transactionType: txn.transactionType,
+          date: this.formatDate(txn.createdAt),
+          createdAt: txn.createdAt,
+        };
+      });
+
+      return {
+        meta: {
+          page,
+          limit,
+          total: count,
+          totalPages: Math.ceil(count / limit),
+        },
+        transactions: formatted,
+      };
+    } catch (error) {
+      console.log(error);
       throw new SystemError(error.name, error.parent);
     }
   }

@@ -74,6 +74,7 @@ class UserRoutes extends UserController {
     this.router.get('/transferMoney', this.transferMoney);
 
     this.router.get('/bank-details', this.getBankDetails);
+    this.router.post('/noMerchantFound', this.submitNoMerchantFound);
 
     //MERCHANT API
     this.router.post('/signupMerchant', this.signupMerchant);
@@ -84,6 +85,7 @@ class UserRoutes extends UserController {
     this.router.get('/getOrderStatistic', this.getOrderStatistic);
     this.router.get('/getMerchantProfile', this.getMerchantProfile);
     this.router.get('/hasMerchantAds', this.hasMerchantAds);
+    this.router.get('/merchant/pendingOrders', this.getPendingOrders);
 
     //ADMIN API
     this.router.get('/dashBoardStatistic', this.dashBoardStatistic);
@@ -99,8 +101,17 @@ class UserRoutes extends UserController {
     this.router.get('/getadmins', this.getAdmins);
     this.router.post('/updateAdmin', this.updateAdmin);
     this.router.post('/deleteAdmin', this.deleteAdmin);
-
+    this.router.get('/profile', this.getUserProfile);
+    this.router.get('/orders', this.getUserOrders);
+    this.router.get('/transactions', this.getUserTransactions);
+    // ADMIN USER MANAGEMENT
+    this.router.post('/toggleUserAccount', this.toggleUserAccount);
+    this.router.post('/toggleWithdrawal', this.toggleWithdrawal);
+    this.router.post('/deleteUserAccount', this.deleteUserAccount);
     this.router.get('/whoIAm', this.whoIAm);
+
+    //COMPLAINTS
+    this.router.get('/getComplaints', this.getComplaints);
   }
 }
 

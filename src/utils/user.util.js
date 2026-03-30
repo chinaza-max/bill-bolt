@@ -203,6 +203,14 @@ class UserUtil {
     type: Joi.string().required(),
     page: Joi.number().integer().min(1).default(1),
     limit: Joi.number().integer().min(1).max(100).default(20),
+    search: Joi.string().allow('', null).optional(), // name, email, tel
+    accountStatus: Joi.string()
+      .valid('Active', 'Disabled')
+      .allow('', null)
+      .optional(),
+    isOnline: Joi.boolean().allow(null).optional(),
+    merchantActivated: Joi.boolean().allow(null).optional(),
+    country: Joi.string().allow('', null).optional(),
   });
 
   verifyHandleGetUsersData = Joi.object({
@@ -287,6 +295,72 @@ class UserUtil {
     privilege: Joi.string().valid('admin', 'superAdmin').required(),
   });
 
+  verifyHandleGetUserProfile = Joi.object({
+    userId: Joi.number().integer().required(),
+  });
+
+  verifyHandleGetUserOrders = Joi.object({
+    userId: Joi.number().integer().required(),
+    page: Joi.number().integer().min(1).default(1),
+    limit: Joi.number().integer().min(1).max(100).default(20),
+    status: Joi.string()
+      .valid('pending', 'inProgress', 'completed', 'cancelled', 'rejected')
+      .allow('', null)
+      .optional(),
+    userType: Joi.string().valid('client', 'merchant').default('client'),
+  });
+
+  verifyHandleToggleUserAccount = Joi.object({
+    userId: Joi.number().integer().required(), // admin
+    targetUserId: Joi.number().integer().required(), // user being acted on
+    action: Joi.string().valid('activate', 'suspend').required(),
+  });
+
+  verifyHandleToggleWithdrawal = Joi.object({
+    userId: Joi.number().integer().required(),
+    targetUserId: Joi.number().integer().required(),
+    allow: Joi.boolean().required(),
+  });
+
+  verifyHandleSubmitNoMerchantFound = Joi.object({
+    userId: Joi.number().integer().required(),
+    message: Joi.string().min(5).max(500).required(),
+    orderId: Joi.number().integer().allow(null).optional(),
+  });
+
+  verifyHandleGetComplaints = Joi.object({
+    userId: Joi.number().integer().required(),
+    page: Joi.number().integer().min(1).default(1),
+    limit: Joi.number().integer().min(1).max(100).default(20),
+    search: Joi.string().allow('', null).optional(),
+    status: Joi.string()
+      .valid('open', 'inProgress', 'resolved', 'dismissed')
+      .allow('', null)
+      .optional(),
+    view: Joi.string().valid('seen', 'unseen').allow('', null).optional(),
+    complaintType: Joi.string()
+      .valid('transaction', 'user', 'service', 'noMerchantFound')
+      .allow('', null)
+      .optional(),
+  });
+
+  verifyHandleDeleteUserAccount = Joi.object({
+    userId: Joi.number().integer().required(),
+    targetUserId: Joi.number().integer().required(),
+  });
+
+  verifyHandleGetUserTransactions = Joi.object({
+    userId: Joi.number().integer().required(),
+    page: Joi.number().integer().min(1).default(1),
+    limit: Joi.number().integer().min(1).max(100).default(20),
+    type: Joi.string()
+      .valid('order', 'fundWallet', 'withdrawal')
+      .allow('', null)
+      .optional(),
+    startDate: Joi.date().allow(null).optional(),
+    endDate: Joi.date().allow(null).optional(),
+  });
+
   verifyHandleUpdateMerchantStatus = Joi.object({
     userId: Joi.number().integer().required(),
     accountStatus: Joi.string()
@@ -327,6 +401,10 @@ class UserUtil {
   });
 
   verifyHandleHasMerchantAds = Joi.object({
+    userId: Joi.number().integer().required(),
+  });
+
+  verifyHandleGetPendingOrders = Joi.object({
     userId: Joi.number().integer().required(),
   });
 
