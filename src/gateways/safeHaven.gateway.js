@@ -440,9 +440,16 @@ class SafeHavenGateway extends BaseGateway {
     await this.ensureToken();
 
     const url = `${this.apiUrl}/transfers/name-enquiry`;
-    const data = { bankCode, accountNumber };
+    const data = {
+      bankCode: String(bankCode),
+      accountNumber: String(accountNumber),
+    };
 
     try {
+      console.log('data', data);
+      console.log('this.clientId', this.clientId);
+      console.log('this.accessToken', this.accessToken);
+
       const response = await axios.post(url, data, {
         headers: {
           Authorization: `Bearer ${this.accessToken}`,
@@ -451,6 +458,8 @@ class SafeHavenGateway extends BaseGateway {
           Accept: 'application/json',
         },
       });
+
+      console.log('response.data', response.data);
 
       return response.data;
     } catch (error) {

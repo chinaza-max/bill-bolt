@@ -27,6 +27,12 @@ class UserRoutes extends UserController {
       uploadHandler.image.single('image'),
       this.updateMerchantProfile
     );
+
+    this.router.post(
+      '/uploadNIN',
+      uploadHandler.image.single('ninImage'),
+      this.uploadNinImage
+    );
     this.router.post('/updatePin', this.updatePin);
     this.router.post('/verifyNIN', this.verifyNIN);
     this.router.post('/initiateNINVerify', this.initiateNINVerify);
@@ -104,6 +110,13 @@ class UserRoutes extends UserController {
     this.router.get('/profile', this.getUserProfile);
     this.router.get('/orders', this.getUserOrders);
     this.router.get('/transactions', this.getUserTransactions);
+    this.router.post('/toggleVerification', this.toggleVerification);
+    this.router.get('/getVerificationSettings', this.getVerificationSettings);
+    this.router.patch(
+      '/updateVerificationSettings',
+      this.updateVerificationSettings
+    );
+
     // ADMIN USER MANAGEMENT
     this.router.post('/toggleUserAccount', this.toggleUserAccount);
     this.router.post('/toggleWithdrawal', this.toggleWithdrawal);

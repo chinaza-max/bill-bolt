@@ -16,6 +16,11 @@ export function init(connection) {
         defaultValue:
           'https://res.cloudinary.com/dvznn9s4g/image/upload/v1740438988/avatar_phzyrn.jpg',
       },
+      imageUrlUpdated: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
       emailAddress: {
         type: DataTypes.STRING,
         allowNull: false,
@@ -34,6 +39,10 @@ export function init(connection) {
         allowNull: true,
       },
       bankName: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      accountName: {
         type: DataTypes.STRING,
         allowNull: true,
       },
@@ -143,6 +152,15 @@ export function init(connection) {
       fcmToken: {
         type: DataTypes.TEXT,
         allowNull: true,
+      },
+      ninImage: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      isninImageVerified: {
+        type: DataTypes.BOOLEAN,
+        allowNull: true,
+        defaultValue: false,
       },
       walletBalance: {
         type: DataTypes.JSON,

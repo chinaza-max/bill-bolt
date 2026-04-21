@@ -101,6 +101,44 @@ class UserService extends NotificationServicePush {
     }
   }
 
+  async handleUploadNinImage(data, file) {
+    let { userId } = await userUtil.verifyHandleUploadNinImage.validateAsync(
+      data
+    );
+
+    try {
+      let ninImageUrl = '';
+
+      if (file) {
+        const { path: filePath, originalname, mimetype } = file;
+
+        const uploadResult = await this.uploadToDrive(
+          filePath,
+          originalname,
+          mimetype
+        );
+
+        ninImageUrl = uploadResult.webViewLink;
+      }
+
+      const UserModelResult = await this.UserModel.findByPk(userId);
+
+      if (!UserModelResult) {
+        throw new NotFoundError('User not found');
+      }
+
+      if (file) {
+        await UserModelResult.update({
+          ninImage: ninImageUrl,
+          isninImageVerified: true,
+        });
+      }
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
   async handleUpdateMerchantProfile(data, file) {
     let { userId, role, ...updateData } =
       await userUtil.verifyHandleUpdateMerchantProfile.validateAsync(data);
@@ -182,11 +220,14 @@ class UserService extends NotificationServicePush {
 
     try {
       let imageUrl = '';
+      let imageUrlUpdated = false;
       if (file) {
         const { path: filePath, originalname, mimetype } = file;
         const data = await this.uploadToDrive(filePath, originalname, mimetype);
 
         imageUrl = data.webViewLink;
+        imageUrlUpdated = true;
+
         /*
         if (serverConfig.NODE_ENV == 'production') {
           imageUrl = serverConfig.DOMAIN + file.path.replace('/home', '');
@@ -198,10 +239,11 @@ class UserService extends NotificationServicePush {
       const UserModelResult = await this.UserModel.findByPk(userId);
 
       if (file) {
-        await UserModelResult.update(
-          { image: imageUrl, ...updateData }
-          //{ where: { id: userId } }
-        );
+        await UserModelResult.update({
+          imageUrl: imageUrl,
+          ...updateData,
+          imageUrlUpdated,
+        });
       } else {
         await UserModelResult.update(updateData /*{ where: { id: userId } }*/);
       }
@@ -503,8 +545,13 @@ class UserService extends NotificationServicePush {
   }
 
   async handleSubmitUserMessage(data) {
-    const { userId, title, message, complaintType } =
-      await userUtil.verifyHandleSubmitUserMessage.validateAsync(data);
+    const {
+      userId,
+      title,
+      message,
+      complaintType,
+      orderId = null, // optional default
+    } = await userUtil.verifyHandleSubmitUserMessage.validateAsync(data);
 
     try {
       await this.ComplaintModel.create({
@@ -512,6 +559,7 @@ class UserService extends NotificationServicePush {
         complaintReason: message,
         title: title,
         complaintType,
+        orderId,
       });
     } catch (error) {
       console.log(error);
@@ -1340,6 +1388,90 @@ class UserService extends NotificationServicePush {
       return userResult;
     } catch (error) {
       console.error('Error fetching transactions with details:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleToggleVerification(data) {
+    const { userId, field, value } =
+      await userUtil.verifyHandleToggleVerification.validateAsync(data);
+
+    const allowedFields = [
+      'isDisplayNameMerchantSet',
+      'isFaceVerified',
+      'isninImageVerified',
+      'isNinVerified',
+    ];
+
+    if (!allowedFields.includes(field)) {
+      throw new BadRequestError('Invalid field provided');
+    }
+
+    console.log('➡️ Toggling Verification:', { userId, field, value });
+    const user = await this.UserModel.findByPk(userId);
+
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+    try {
+      await user.update({
+        [field]: value,
+      });
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleGetVerificationSettings() {
+    try {
+      const setting = await this.SettingModel.findOne({
+        where: { isDeleted: false },
+        attributes: [
+          'ninVerificationEnabled',
+          'ninImageUploadEnabled',
+          'nameVerificationEnabled',
+          'faceVerificationEnabled',
+        ],
+      });
+
+      if (!setting)
+        throw new SystemError('NotFoundError', 'Settings not found');
+
+      return {
+        ninVerificationEnabled: setting.ninVerificationEnabled,
+        ninImageUploadEnabled: setting.ninImageUploadEnabled,
+        nameVerificationEnabled: setting.nameVerificationEnabled,
+        faceVerificationEnabled: setting.faceVerificationEnabled,
+      };
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleUpdateVerificationSettings(data) {
+    const validated =
+      await userUtil.verifyHandleUpdateVerificationSettings.validateAsync(data);
+
+    try {
+      const setting = await this.SettingModel.findOne({
+        where: { isDeleted: false },
+      });
+
+      if (!setting)
+        throw new SystemError('NotFoundError', 'Settings not found');
+
+      await setting.update(validated);
+
+      return {
+        ninVerificationEnabled: setting.ninVerificationEnabled,
+        ninImageUploadEnabled: setting.ninImageUploadEnabled,
+        nameVerificationEnabled: setting.nameVerificationEnabled,
+        faceVerificationEnabled: setting.faceVerificationEnabled,
+      };
+    } catch (error) {
+      console.log(error);
       throw new SystemError(error.name, error.parent);
     }
   }
@@ -2427,7 +2559,12 @@ class UserService extends NotificationServicePush {
   async handleGetBankDetails(userId) {
     try {
       const user = await this.UserModel.findByPk(userId, {
-        attributes: ['settlementAccount', 'bankCode', 'bankName'],
+        attributes: [
+          'settlementAccount',
+          'bankCode',
+          'bankName',
+          'accountName',
+        ],
       });
 
       if (!user) {
@@ -2441,6 +2578,7 @@ class UserService extends NotificationServicePush {
           settlementAccount: null,
           bankCode: null,
           bankName: null,
+          accountName: null,
         };
       }
 
@@ -2449,6 +2587,7 @@ class UserService extends NotificationServicePush {
         settlementAccount: user.settlementAccount,
         bankCode: user.bankCode,
         bankName: user.bankName,
+        accountName: user.accountName,
       };
     } catch (error) {
       throw error;
@@ -2535,14 +2674,16 @@ class UserService extends NotificationServicePush {
   async handleNameEnquiry(data) {
     const { userId, bankCode, accountNumber } =
       await userUtil.verifyHandleNameEnquiry.validateAsync(data);
-    if (!this.gateway) {
-      await this.loadGateWay();
+
+    await this.loadGateWay();
+    try {
+      //console.log('this.gateway');
+      //console.log(this.gateway);
+      //console.log('this.gateway');
+
       const name = await this.gateway.nameEnquiry(bankCode, accountNumber);
 
       return name;
-    }
-    try {
-      return {};
     } catch (error) {
       console.error('Error fetching transactions with details:', error);
       throw new SystemError(error.name, error.parent);
@@ -2760,24 +2901,25 @@ class UserService extends NotificationServicePush {
     }
   }
   async handleSetWithdrawalBank(data) {
-    const { userId, settlementAccount, bankCode, bankName } =
+    const { userId, settlementAccount, bankCode, bankName, accountName } =
       await userUtil.verifyHandleSetWithdrawalBank.validateAsync(data);
 
+    const user = await this.UserModel.findOne({
+      where: { id: userId, isDeleted: false },
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
     try {
       // Find user
-      const user = await this.UserModel.findOne({
-        where: { id: userId, isDeleted: false },
-      });
-
-      if (!user) {
-        throw new Error('User not found');
-      }
 
       // Update bank details
       await user.update({
         settlementAccount,
         bankCode,
         bankName,
+        accountName,
       });
 
       return {
@@ -3559,17 +3701,17 @@ class UserService extends NotificationServicePush {
             transactionFrom: 'external',
             sessionIdVirtualAcct,
           });
-
+          /*
           const generateVirtualAccountResult = {
             bankName: 'kuda',
-            accountNumber: '393939939393',
+            accountNumber: '1111111111111',
             accountName: 'chinaza ogbonna',
             sessionId: sessionIdVirtualAcct,
             countDown: 60,
           };
-
+*/
           // return generateVirtualAccountResult;
-          /*
+
           const generateVirtualAccountResult =
             await this.gateway.createVirtualAccount(
               this.validFor,
@@ -3578,7 +3720,7 @@ class UserService extends NotificationServicePush {
               settingModelResult.callbackUrl,
               transactionModelResult.id
             );
-            */
+
           // console.log(generateVirtualAccountResult);
           // -----------------------------
           // SEND NOTIFICATION

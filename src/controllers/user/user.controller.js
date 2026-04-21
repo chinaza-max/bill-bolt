@@ -74,6 +74,28 @@ export default class UserController {
     }
   }
 
+  async uploadNinImage(req, res) {
+    try {
+      const data = {
+        ...req.body,
+        userId: req.user.id,
+      };
+
+      await userService.handleUploadNinImage(data, req.file);
+
+      return res.status(200).json({
+        success: true,
+        message: 'NIN uploaded successfully',
+      });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({
+        success: false,
+        message: error.message,
+      });
+    }
+  }
+
   async updatePin(req, res, next) {
     try {
       const data = req.body;
@@ -523,6 +545,58 @@ export default class UserController {
     }
   }
 
+  async toggleVerification(req, res, next) {
+    try {
+      const data = req.body;
+
+      let my_bj = {
+        ...data,
+      };
+
+      await userService.handleToggleVerification(my_bj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async getVerificationSettings(req, res, next) {
+    try {
+      const result = await userService.handleGetVerificationSettings();
+
+      return res.status(200).json({
+        status: 200,
+        message: 'successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async updateVerificationSettings(req, res, next) {
+    try {
+      const result = await userService.handleUpdateVerificationSettings(
+        req.body
+      );
+
+      return res.status(200).json({
+        status: 200,
+        message: 'Verification settings updated successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
   async updateAdmin(req, res, next) {
     try {
       const data = req.body;
@@ -628,7 +702,7 @@ export default class UserController {
 
   async getUserProfile(req, res, next) {
     try {
-      const my_bj = { userId: req.user.id };
+      const my_bj = { userId: req.query.userId };
 
       const result = await userService.handleGetUserProfile(my_bj);
 
@@ -852,12 +926,12 @@ export default class UserController {
         ...data,
         userId: req.user.id,
       };
-      console.log(my_bj);
-      await userService.handleNameEnquiry(my_bj);
+      const data2 = await userService.handleNameEnquiry(my_bj);
 
       return res.status(200).json({
         status: 200,
         message: 'successfully.',
+        data: data2,
       });
     } catch (error) {
       console.log(error);

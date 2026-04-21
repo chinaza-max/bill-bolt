@@ -10,16 +10,19 @@ export function init(connection) {
         primaryKey: true,
         autoIncrement: true,
       },
+
       distanceThreshold: {
         type: DataTypes.INTEGER,
         allowNull: false,
         defaultValue: 10,
       },
+
       validFor: {
         type: DataTypes.INTEGER,
         allowNull: false,
         defaultValue: 900,
       },
+
       walletBalance: {
         type: DataTypes.JSON,
         allowNull: false,
@@ -28,69 +31,107 @@ export function init(connection) {
           current: 0,
         },
       },
+
       callbackUrl: {
         type: DataTypes.STRING,
         allowNull: false,
-        defaultValue: 'https/',
+        defaultValue: 'https://',
       },
+
       maxOrderPerMerchant: {
         type: DataTypes.INTEGER,
         allowNull: false,
         defaultValue: 5,
       },
+
       tiers: {
         type: DataTypes.JSON,
         allowNull: false,
       },
+
       gateWayEnvironment: {
         type: DataTypes.ENUM('sandBox', 'live'),
         allowNull: false,
         defaultValue: 'sandBox',
       },
+
       activeGateway: {
         type: DataTypes.STRING,
         allowNull: false,
         defaultValue: 'safeHaven.gateway',
       },
+
       isMatchRunning: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
       },
+
       defaultAds: {
         type: DataTypes.JSON,
         allowNull: true,
       },
+
       gatewayService: {
         type: DataTypes.JSON,
         allowNull: true,
       },
+
       serviceCharge: {
         type: DataTypes.JSON,
         allowNull: true,
       },
+
       gatewayList: {
         type: DataTypes.JSON,
         allowNull: true,
       },
+
       breakPoint: {
         type: DataTypes.JSON,
         allowNull: true,
       },
+
+      // ✅ VERIFICATION TOGGLES
+      ninVerificationEnabled: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+      },
+
+      ninImageUploadEnabled: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+      },
+
+      nameVerificationEnabled: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+      },
+
+      faceVerificationEnabled: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+      },
+
       isDeleted: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
       },
-      matchStartedAt:{
+
+      matchStartedAt: {
         type: DataTypes.DATE,
-        allowNull: true, 
-      }
+        allowNull: true,
+      },
     },
     {
-      tableName: 'Setting', // The table name
+      tableName: 'Setting',
       sequelize: connection,
-      timestamps: true, // Adds createdAt and updatedAt fields
+      timestamps: true,
       underscored: false,
     }
   );

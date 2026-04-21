@@ -32,6 +32,10 @@ class UserUtil {
     userId: Joi.number().integer().required(),
   });
 
+  verifyHandleUploadNinImage = Joi.object().keys({
+    userId: Joi.number().integer().required(),
+  });
+
   verifyHandleUpdateMerchantProfile = Joi.object().keys({
     userId: Joi.number().required().label('user Id'),
     displayName: Joi.string().optional().label('Display Name'),
@@ -190,6 +194,7 @@ class UserUtil {
     settlementAccount: Joi.string().required(),
     bankCode: Joi.string().required(),
     bankName: Joi.string().required(),
+    accountName: Joi.string().required(),
   });
 
   verifyHandleGetBank = Joi.object({
@@ -250,6 +255,7 @@ class UserUtil {
     message: Joi.string().required(),
     title: Joi.string().required(),
     complaintType: Joi.string().required(),
+    orderId: Joi.number().integer().optional(),
   });
 
   verifyHandleUpdateComplainStatus = Joi.object({
@@ -284,6 +290,19 @@ class UserUtil {
     firstName: Joi.string().required(),
     lastName: Joi.string().required(),
     privilege: Joi.string().valid('admin', 'superAdmin').required(),
+  });
+
+  verifyHandleToggleVerification = Joi.object({
+    userId: Joi.number().required(),
+    field: Joi.string()
+      .valid(
+        'isDisplayNameMerchantSet',
+        'isFaceVerified',
+        'isninImageVerified',
+        'isNinVerified'
+      )
+      .required(),
+    value: Joi.boolean().required(),
   });
 
   verifyHandleCreateAdmin = Joi.object({
@@ -434,6 +453,13 @@ class UserUtil {
     type: Joi.string().required(),
     userType: Joi.string().valid('client', 'merchant').required(),
   });
+
+  verifyHandleUpdateVerificationSettings = Joi.object({
+    ninVerificationEnabled: Joi.boolean().optional(),
+    ninImageUploadEnabled: Joi.boolean().optional(),
+    nameVerificationEnabled: Joi.boolean().optional(),
+    faceVerificationEnabled: Joi.boolean().optional(),
+  }).min(1);
 }
 
 export default new UserUtil();
