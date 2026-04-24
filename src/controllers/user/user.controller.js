@@ -839,6 +839,52 @@ export default class UserController {
     }
   }
 
+  async initiateWithdrawal(req, res, next) {
+    try {
+      const data = {
+        userId: req.user.id,
+        amount: req.body.amount,
+      };
+
+      const result = await userService.handleInitiateWithdrawal(data);
+
+      return res.status(200).json({
+        status: 200,
+        message: result.message,
+        data: {
+          csrfToken: result.csrfToken,
+          withdrawalToken: result.withdrawalToken,
+          expiresInMinutes: result.expiresInMinutes,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async verifyWithdrawalOtp(req, res, next) {
+    try {
+      const data = {
+        userId: req.user.id, // from your auth middleware
+        otp: req.body.otp,
+        csrfToken: req.body.csrfToken,
+        withdrawalToken: req.body.withdrawalToken,
+      };
+
+      const result = await userService.handleVerifyWithdrawalOtp(data);
+
+      return res.status(200).json({
+        status: 200,
+        message: result.message,
+        data: {
+          reference: result.reference,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async deleteUserAccount(req, res, next) {
     try {
       const my_bj = {

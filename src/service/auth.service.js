@@ -469,39 +469,46 @@ class AuthenticationService {
     const settingModelResult = await this.SettingModel.findByPk(1);
     if (!settingModelResult) throw new NotFoundError('No setting found');
 
-    console.log('3333');
-    console.log(data);
-    console.log('44444');
-
     try {
       if (settingModelResult.activeGateway === 'safeHaven.gateway') {
-        if (data.type === 'transfer') {
-          this.updateTransactionSaveHaven(data);
-        }
+        // if (data.type === 'transfer') {
+        this.updateTransactionSaveHaven(data);
+        //   }
       }
     } catch (error) {
       console.log(error);
     }
   }
 
+  /*
   async updateTransactionSaveHaven(data) {
     const sessionId = data?.data?.sessionId;
     const transactionStatus = data?.data?.status;
     const transactionAmount = data?.data?.amount;
     // const transactionType = data?.type;
+    await this.loadGateWay('safeHaven.gateway');
 
-    if (!sessionId || !transactionStatus || !transactionAmount) return;
+    //if (!sessionId || !transactionStatus || !transactionAmount) return;
+
+
 
     const transaction = await this.TransactionModel.findOne({
       where: { sessionIdVirtualAcct: sessionId },
     });
 
+
+
+
     if (!transaction) return;
 
-    if (!this.gateway) {
-      await this.loadGateWay();
-    }
+    await this.gateway.getVirtualAccountTransactions(
+      transaction.virtualAccountId
+    );
 
+
+    //if (!this.gateway) {
+    //}
+    transaction.paymentGateStatus = transactionStatus;
     if (transactionStatus !== 'Completed') return;
 
     transaction.paymentStatus = 'successful';
@@ -523,6 +530,212 @@ class AuthenticationService {
       }
     } else if (type === 'fundwallet') {
       await this.updateWallet(transactionAmount, userId);
+    }
+  }
+  */
+
+  async updateTransactionSaveHaven(data) {
+    const sessionId = data?.data?.sessionId;
+    const transactionStatus = data?.data?.status;
+    const transactionAmount = data?.data?.amount;
+
+    await this.loadGateWay('safeHaven.gateway');
+
+    const transaction = await this.TransactionModel.findOne({
+      where: { sessionIdVirtualAcct: sessionId },
+    });
+
+    if (!transaction) return;
+
+    // Hit SafeHaven back to get full transaction details
+    const gatewayResponse = await this.gateway.getVirtualAccountTransactions(
+      transaction.virtualAccountId
+    );
+
+    // Map full gateway response onto the transaction record
+    const txnData = gatewayResponse?.data ?? data?.data;
+
+    transaction.paymentGateStatus = transactionStatus;
+
+    // Always persist gateway metadata regardless of status
+    transaction.gatewayMeta = {
+      sessionId: txnData?.sessionId,
+      nameEnquiryReference: txnData?.nameEnquiryReference,
+      provider: txnData?.provider,
+      providerChannel: txnData?.providerChannel,
+      providerChannelCode: txnData?.providerChannelCode,
+      destinationInstitutionCode: txnData?.destinationInstitutionCode,
+      responseCode: txnData?.responseCode,
+      responseMessage: txnData?.responseMessage,
+    };
+
+    transaction.debitParty = {
+      name: txnData?.debitAccountName,
+      accountNumber: txnData?.debitAccountNumber,
+      bankVerificationNumber: txnData?.debitBankVerificationNumber,
+      kycLevel: txnData?.debitKYCLevel,
+    };
+
+    transaction.creditParty = {
+      name: txnData?.creditAccountName,
+      accountNumber: txnData?.creditAccountNumber,
+      bankVerificationNumber: txnData?.creditBankVerificationNumber,
+      kycLevel: txnData?.creditKYCLevel,
+    };
+
+    transaction.charges = {
+      fees: txnData?.fees,
+      vat: txnData?.vat,
+      stampDuty: txnData?.stampDuty,
+    };
+
+    transaction.narration = txnData?.narration ?? transaction.narration;
+    transaction.transactionLocation = txnData?.transactionLocation;
+    transaction.isReversed = txnData?.isReversed ?? false;
+    transaction.reversalReference = txnData?.reversalReference || null;
+    transaction.declinedAt = txnData?.declinedAt || null;
+
+    if (transactionStatus !== 'Completed') {
+      await transaction.save();
+      return;
+    }
+
+    transaction.paymentStatus = 'successful';
+    await transaction.save();
+
+    const { transactionType: type, orderAmount, userId } = transaction;
+
+    if (type === 'order') {
+      if (orderAmount === transactionAmount) {
+        await this._handleOrder(transaction, transactionAmount);
+      } else {
+        await this.updateWallet(transactionAmount, userId);
+      }
+    } else if (type === 'fundwallet') {
+      await this.updateWallet(transactionAmount, userId);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // STEP 3: Webhook — SafeHaven calls this on status change
+  // ─────────────────────────────────────────────────────────────
+  async handleWithdrawalWebhookSaveheaven(data) {
+    const sessionId = data?.data?.sessionId;
+    const status = data?.data?.status;
+    const isReversed = data?.data?.isReversed ?? false;
+
+    if (!sessionId) {
+      console.warn('[withdrawalWebhook] Missing sessionId in payload');
+      return;
+    }
+
+    const transaction = await this.TransactionModel.findOne({
+      where: {
+        withdrawalSessionId: sessionId,
+        transactionType: 'widthdrawal', // match the typo in your ENUM until you migrate
+      },
+    });
+
+    if (!transaction) {
+      console.warn(
+        `[withdrawalWebhook] No transaction found for sessionId: ${sessionId}`
+      );
+      return;
+    }
+
+    if (
+      transaction.paymentStatus === 'successful' ||
+      transaction.paymentStatus === 'reversed'
+    ) {
+      console.log(`[withdrawalWebhook] Already processed: ${transaction.id}`);
+      return;
+    }
+
+    // Save metadata regardless of outcome
+    this._applyGatewayMeta(transaction, data);
+
+    const isSuccess = status === 'Completed' && !isReversed;
+    const isReverse = isReversed === true; // covers Completed+reversed, or any status+reversed
+    const isFailure =
+      status === 'Failed' || status === 'Declined' || status === 'Reversed';
+
+    if (isSuccess) {
+      transaction.paymentStatus = 'successful';
+      await transaction.save();
+      await this._notifyUser(transaction, 'success');
+    } else if (isReverse || isFailure) {
+      transaction.paymentStatus = isReverse ? 'reversed' : 'failed';
+      await transaction.save();
+
+      try {
+        await this.updateWallet(transaction.userId, transaction.amount);
+        await this._notifyUser(transaction, isReverse ? 'reversed' : 'failed');
+      } catch (refundError) {
+        console.error(
+          `[withdrawalWebhook] CRITICAL: Refund failed — txId: ${transaction.id}, ` +
+            `userId: ${transaction.userId}, amount: ${transaction.amount}`,
+          refundError
+        );
+        // TODO: push to a dead-letter queue or alert your on-call system here
+      }
+    } else {
+      // Created, Processing, or any unknown intermediate status
+      transaction.paymentStatus = 'pending';
+      await transaction.save();
+      console.log(
+        `[withdrawalWebhook] Intermediate status "${status}" for txId: ${transaction.id}`
+      );
+    }
+  }
+
+  async debitWallet(userId, amount) {
+    const t = await db.sequelize.transaction();
+
+    const user = await this.UserModel.findByPk(userId, {
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!user) {
+      await t.rollback();
+      throw new NotFoundError('User not found');
+    }
+    try {
+      let wallet = user.walletBalance;
+
+      if (typeof wallet === 'string') {
+        try {
+          wallet = JSON.parse(wallet);
+        } catch (e) {
+          wallet = { previous: 0, current: 0 };
+        }
+      }
+
+      if (!wallet || typeof wallet !== 'object') {
+        wallet = { previous: 0, current: 0 };
+      }
+
+      const currentBalance = parseFloat(wallet.current ?? 0);
+
+      if (currentBalance < amount) {
+        await t.rollback();
+        throw new BadRequestError('Insufficient wallet balance');
+      }
+
+      const updatedWallet = {
+        previous: currentBalance,
+        current: currentBalance - parseFloat(amount),
+      };
+
+      await user.update({ walletBalance: updatedWallet }, { transaction: t });
+
+      await t.commit();
+
+      return updatedWallet;
+    } catch (err) {
+      await t.rollback();
+      console.error('Failed to debit wallet:', err);
+      throw err;
     }
   }
 

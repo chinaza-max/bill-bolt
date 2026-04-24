@@ -460,6 +460,18 @@ class UserUtil {
     nameVerificationEnabled: Joi.boolean().optional(),
     faceVerificationEnabled: Joi.boolean().optional(),
   }).min(1);
+
+  verifyHandleInitiateWithdrawal = Joi.object({
+    userId: Joi.number().required(),
+    amount: Joi.number().positive().min(100).required(),
+  });
+
+  verifyHandleVerifyWithdrawalOtp = Joi.object({
+    userId: Joi.number().required(),
+    otp: Joi.number().required(),
+    csrfToken: Joi.string().required(),
+    withdrawalToken: Joi.string().required(),
+  });
 }
 
 export default new UserUtil();

@@ -195,3 +195,4 @@ export function init(connection) {
 }
 
 export default User;
+//https://claude.ai/chat/7eb40846-b979-4f5f-9535-883e50041661

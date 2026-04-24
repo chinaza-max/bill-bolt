@@ -715,6 +715,41 @@ export default class AuthenticationController {
     }
   }
 
+  async withdrawalWebhook(req, res, next) {
+    try {
+      const data = req.body;
+
+      // Basic payload structure validation
+      if (!data?.data?.sessionId) {
+        return res.status(400).json({
+          status: 400,
+          message: 'Invalid webhook payload',
+        });
+      }
+
+      // Only process transfer events — ignore others
+      if (data?.eventType !== 'account.debit') {
+        return res.status(200).json({
+          status: 200,
+          message: 'Event type ignored',
+        });
+      }
+
+      // Respond immediately — process async to avoid SafeHaven timeout
+      res.status(200).json({
+        status: 200,
+        message: 'Webhook received',
+      });
+
+      // Process after response sent
+      authService.handleWithdrawalWebhookSaveheaven(data).catch((err) => {
+        console.error('[withdrawalWebhook] Processing error:', err);
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async virtualAccountCollection(req, res, next) {
     try {
       const data = req.body;

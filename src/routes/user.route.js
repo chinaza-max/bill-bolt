@@ -81,6 +81,8 @@ class UserRoutes extends UserController {
 
     this.router.get('/bank-details', this.getBankDetails);
     this.router.post('/noMerchantFound', this.submitNoMerchantFound);
+    this.router.post('/initiateWithdrawal', this.initiateWithdrawal);
+    this.router.post('/verifyWithdrawalOtp', this.verifyWithdrawalOtp);
 
     //MERCHANT API
     this.router.post('/signupMerchant', this.signupMerchant);
