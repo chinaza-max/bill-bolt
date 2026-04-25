@@ -42,6 +42,10 @@ export function init(connection) {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      nameEnquiryReference: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
       accountName: {
         type: DataTypes.STRING,
         allowNull: true,
@@ -169,6 +173,11 @@ export function init(connection) {
           previous: 0,
           current: 0,
         },
+      },
+      canWithdraw: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
       },
       notificationId: {
         type: DataTypes.TEXT,

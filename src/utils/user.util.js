@@ -195,6 +195,7 @@ class UserUtil {
     bankCode: Joi.string().required(),
     bankName: Joi.string().required(),
     accountName: Joi.string().required(),
+    sessionId: Joi.string().required(),
   });
 
   verifyHandleGetBank = Joi.object({

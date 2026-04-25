@@ -15,7 +15,6 @@ export function init(connection) {
         allowNull: false,
       },
       type: {
-        // ✅ Added 'withdrawal' to the ENUM
         type: DataTypes.ENUM('NIN', 'withdrawal'),
         allowNull: false,
       },
@@ -64,8 +63,6 @@ export function init(connection) {
 
       indexes: [
         {
-          // ✅ Updated unique index to include type
-          // so NIN and withdrawal records don't conflict
           unique: true,
           fields: ['userId', 'validateFor', 'type'],
         },

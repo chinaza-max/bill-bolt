@@ -191,7 +191,7 @@ class Server {
     });
 
     cron.schedule('*/10 * * * * *', async () => {
-      this.checkTransaction();
+      //this.checkTransaction();
     });
   }
   async checkTransaction() {

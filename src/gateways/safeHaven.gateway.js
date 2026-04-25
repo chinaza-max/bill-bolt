@@ -145,11 +145,6 @@ class SafeHavenGateway extends BaseGateway {
       callbackUrl,
       externalReference,
     };
-    console.log('data');
-    console.log(this.clientId);
-    console.log(serverConfig.SAVE_HEAVEN_CLIENTID);
-
-    console.log('data');
 
     try {
       const response = await axios.post(url, data, {
@@ -489,6 +484,10 @@ class SafeHavenGateway extends BaseGateway {
       narration: payload.narration || '',
       paymentReference: payload.paymentReference || '',
     };
+
+    console.log('api call');
+    console.log(data);
+    console.log('api call');
 
     try {
       const response = await axios.post(url, data, {

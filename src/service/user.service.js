@@ -35,7 +35,7 @@ import { oAuth2Client } from '../auth/oauthClient.js';
 import event from '../constants/notificationEvents.js';
 import user_type from '../constants/userTypes.js';
 import pkg from 'agora-token';
-import authService from './auth.service.js';
+//import authService from './auth.service.js';
 const { RtcTokenBuilder, RtcRole } = pkg;
 const ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const getNanoid = (length) => customAlphabet(ALPHABET, length);
@@ -72,7 +72,7 @@ class UserService extends NotificationServicePush {
     this.validFor;
     this.callbackUrl;
     this.notificationService = new NotificationService();
-    this.authService = authService;
+    // this.authServiceClass = authService;
     // this.getRouteSummary(-74.044502, 40.689247, -73.98513, 40.758896);
   }
   async loadGateWay(alternativeGateway) {
@@ -2347,6 +2347,15 @@ class UserService extends NotificationServicePush {
     }
   }
 
+  maskAccountNumber(accountNumber) {
+    if (!accountNumber) return '';
+
+    const visibleDigits = 4; // show last 4 digits
+    const maskedLength = accountNumber.length - visibleDigits;
+
+    return '*'.repeat(maskedLength) + accountNumber.slice(-visibleDigits);
+  }
+
   // ─────────────────────────────────────────────────────────────
   // STEP 1: Initiate withdrawal — validate, send OTP, return tokens
   // ─────────────────────────────────────────────────────────────
@@ -2374,7 +2383,12 @@ class UserService extends NotificationServicePush {
     }
 
     // 3. Check user has a saved bank account — pick from user record directly
-    if (!user.settlementAccount || !user.bankCode || !user.accountName) {
+    if (
+      !user.settlementAccount ||
+      !user.bankCode ||
+      !user.accountName ||
+      !user.nameEnquiryReference
+    ) {
       throw new BadRequestError(
         'Please set up your withdrawal bank account before withdrawing'
       );
@@ -2405,6 +2419,7 @@ class UserService extends NotificationServicePush {
         accountNumber: user.settlementAccount,
         accountName: user.accountName,
         bankName: user.bankName,
+        nameEnquiryReference: user.nameEnquiryReference,
       };
 
       // 7. Upsert into NinOtp table with type: 'withdrawal'
@@ -2443,11 +2458,11 @@ class UserService extends NotificationServicePush {
         subject: 'Withdrawal OTP - Action Required',
         templateName: 'withdrawalOtp',
         variables: {
-          firstName: user.firstName,
+          firstName: this.maskAccountNumber(user.firstName),
           otp,
           amount,
-          accountNumber: user.settlementAccount,
-          accountName: user.accountName,
+          accountNumber: this.maskAccountNumber(user.settlementAccount),
+          accountName: this.maskAccountNumber(user.accountName),
           bankName: user.bankName,
         },
       });
@@ -2488,41 +2503,53 @@ class UserService extends NotificationServicePush {
         userId,
         isUsed: false,
         isDeleted: false,
+        type: 'withdrawal',
       },
     });
 
     if (!record) {
+      console.log(
+        '[verifyOtp] ❌ Step 1 FAILED: No record found for userId:',
+        userId
+      );
       throw new NotFoundError(
         'No pending withdrawal found. Please initiate a new withdrawal'
       );
     }
 
-    // 2. Check expiry first
-    if (new Date() > new Date(record.expiresIn)) {
+    // 2. Check expiry
+    const now = new Date();
+    const expiry = new Date(record.expiresIn);
+
+    if (now > expiry) {
       throw new BadRequestError(
         'OTP has expired. Please initiate a new withdrawal'
       );
     }
 
-    // 3. Validate CSRF token — prevents cross-site request forgery
     if (record.csrfToken !== csrfToken) {
       throw new BadRequestError('Security validation failed. Please try again');
     }
 
-    // 4. Validate withdrawal token — ensures same withdrawal session
     if (record.withdrawalToken !== withdrawalToken) {
       throw new BadRequestError('Invalid withdrawal session. Please try again');
     }
 
     // 5. Validate OTP
-    if (record.otp !== otp) {
+    const storedOtp = Number(record.verificationCode);
+    const receivedOtp = Number(otp);
+
+    if (storedOtp !== receivedOtp) {
+      console.log('[verifyOtp] ❌ Step 5 FAILED: OTP mismatch');
       throw new BadRequestError('Invalid OTP. Please check your email');
     }
 
-    // 6. Mark as used immediately — prevents replay attacks
+    // 6. Mark as used
     await record.update({ isUsed: true });
+    console.log('[verifyOtp] ✅ Step 6 PASSED: Record marked as used');
 
-    // 7. Re-fetch user with fresh data
+    // 7. Re-fetch user
+    console.log('[verifyOtp] Step 7: Fetching user userId:', userId);
     const user = await this.UserModel.findOne({
       where: {
         id: userId,
@@ -2532,58 +2559,99 @@ class UserService extends NotificationServicePush {
       },
     });
 
-    if (!user) throw new NotFoundError('User not found or account is disabled');
+    if (!user) {
+      console.log(
+        '[verifyOtp] ❌ Step 7 FAILED: User not found or disabled for userId:',
+        userId
+      );
+      throw new NotFoundError('User not found or account is disabled');
+    }
 
-    // 8. Re-check canWithdraw in case admin disabled it between initiation and verification
+    // 8. Check canWithdraw
     if (!user.canWithdraw) {
+      console.log('[verifyOtp] ❌ Step 8 FAILED: canWithdraw is false');
       throw new BadRequestError(
         'Withdrawals have been disabled on your account. Please contact support'
       );
     }
+    console.log('[verifyOtp] ✅ Step 8 PASSED: canWithdraw is true');
 
-    // 9. Get secure server-side payload — client cannot have changed these values
+    // 9. Parse pending payload
+    console.log('[verifyOtp] Step 9: Parsing pendingPayload...');
+    const pendingPayload =
+      typeof record.pendingPayload === 'string'
+        ? JSON.parse(record.pendingPayload)
+        : record.pendingPayload;
+
     const {
       amount,
       bankCode,
       accountNumber,
       nameEnquiryReference,
       accountName,
-    } = record.pendingPayload;
+    } = pendingPayload;
+    console.log('[verifyOtp] ✅ Step 9 PASSED: Payload parsed:', {
+      amount,
+      bankCode,
+      accountNumber,
+      nameEnquiryReference,
+      accountName,
+    });
 
-    // 10. Re-check balance with fresh user data
+    // 10. Check balance
+    console.log('[verifyOtp] Step 10: Checking wallet balance...');
     const wallet = this.convertToJson(user.walletBalance) || { current: 0 };
     const currentBalance = parseFloat(wallet.current ?? 0);
 
     if (currentBalance < amount) {
+      console.log('[verifyOtp] ❌ Step 10 FAILED: Insufficient balance');
       throw new BadRequestError(
         `Insufficient balance. Available: ₦${currentBalance}`
       );
     }
+    console.log('[verifyOtp] ✅ Step 10 PASSED: Balance sufficient');
 
-    // 11. Debit wallet — locked transaction to prevent race conditions
-    await this.authService.debitWallet(userId, amount);
+    // 11. Debit wallet
+    console.log(
+      '[verifyOtp] Step 11: Debiting wallet — userId:',
+      userId,
+      'amount:',
+      amount
+    );
+    await authService.debitWallet(userId, amount);
+    console.log('[verifyOtp] ✅ Step 11 PASSED: Wallet debited');
 
-    // 12. Create withdrawal transaction record
-    const paymentReference = this.generateOrderId('WD', 12);
+    // 12. Create transaction record  ← FIX: store the result so we can update it later
+    const paymentReference = this.generateOrderId('NG_TX', 10);
 
     const transactionResult = await this.TransactionModel.create({
       userId,
       amount,
-      transactionId: this.generateOrderId('NG_TX', 10),
+      transactionId: paymentReference,
       transactionType: 'withdrawal',
       paymentStatus: 'pending',
       transactionFrom: 'wallet',
+    });
+
+    // 13. Load gateway
+    await this.loadGateWay('safeHaven.gateway');
+
+    // 14. Initiate transfer
+    console.log('[verifyOtp] Step 14: Initiating transfer with payload:', {
+      nameEnquiryReference,
+      debitAccountNumber: serverConfig.SAVE_HEAVEN_ACCOUNT_NUMBER,
+      beneficiaryBankCode: bankCode,
+      beneficiaryAccountNumber: accountNumber,
+      amount,
       paymentReference,
     });
 
-    // 13. Load SafeHaven gateway
-    await this.loadGateWay('safeHaven.gateway');
-
     let transferResponse;
+
     try {
       transferResponse = await this.gateway.initiateTransfer({
         nameEnquiryReference,
-        debitAccountNumber: user.settlementAccount,
+        debitAccountNumber: serverConfig.SAVE_HEAVEN_ACCOUNT_NUMBER,
         beneficiaryBankCode: bankCode,
         beneficiaryAccountNumber: accountNumber,
         amount,
@@ -2591,39 +2659,99 @@ class UserService extends NotificationServicePush {
         narration: `Withdrawal - ${user.firstName} ${user.lastName}`,
         paymentReference,
       });
-    } catch (transferError) {
-      // 14. Transfer initiation failed — reverse wallet debit immediately
-      console.error(
-        'Transfer initiation failed, reversing wallet debit:',
-        transferError
+
+      console.log(
+        '[verifyOtp] Step 14: Raw transfer response:',
+        JSON.stringify(transferResponse)
       );
 
-      await this.updateWallet(userId, amount);
+      // ← FIX: Safe Haven can return 400/error codes inside a 200 HTTP response.
+      //         Treat anything other than responseCode "00" as a failure.
+      const isSuccess =
+        transferResponse?.responseCode === '00' ||
+        transferResponse?.data?.responseCode === '00';
 
+      if (!isSuccess) {
+        const responseCode =
+          transferResponse?.responseCode ||
+          transferResponse?.data?.responseCode;
+        const safeHavenMessage =
+          transferResponse?.message || transferResponse?.data?.responseMessage;
+
+        console.error(
+          `[verifyOtp] ❌ Step 14 FAILED: Safe Haven rejected transfer — code: ${responseCode}, message: ${safeHavenMessage}`
+        );
+
+        // Reverse wallet debit
+        console.log(
+          '[verifyOtp] Reversing wallet debit for userId:',
+          userId,
+          'amount:',
+          amount
+        );
+        await this.updateWallet(userId, amount);
+        await transactionResult.update({ paymentStatus: 'failed' });
+        console.log(
+          '[verifyOtp] Wallet reversed and transaction marked failed'
+        );
+
+        // Do NOT leak gateway error to user — this is a company-side issue
+        throw new BadRequestError(
+          'We were unable to process your withdrawal at this time. Please contact our support team for assistance '
+        );
+      }
+
+      console.log(
+        '[verifyOtp] ✅ Step 14 PASSED: Transfer initiated successfully'
+      );
+    } catch (transferError) {
+      // Only handle errors not already thrown above
+      if (transferError instanceof BadRequestError) throw transferError;
+
+      console.error(
+        '[verifyOtp] ❌ Step 14 FAILED: Transfer initiation error:',
+        transferError
+      );
+      console.log(
+        '[verifyOtp] Reversing wallet debit for userId:',
+        userId,
+        'amount:',
+        amount
+      );
+      await this.updateWallet(userId, amount);
       await transactionResult.update({ paymentStatus: 'failed' });
+      console.log('[verifyOtp] Wallet reversed and transaction marked failed');
 
       throw new SystemError(
         'TransferFailed',
-        'Could not process your withdrawal. Your balance has been restored. Please try again'
+        'We were unable to dispense your withdrawal at this time. Please reach out to our support team and quote reference: ' +
+          paymentReference
       );
     }
 
-    // 15. Save gateway session ID for webhook matching
+    // 15. Save gateway session
+    console.log('[verifyOtp] Step 15: Saving gateway session...');
     const gatewaySessionId = transferResponse?.data?.sessionId;
 
-    await transactionResult.update({
-      withdrawalSessionId: gatewaySessionId,
-      gatewayMeta: {
-        sessionId: gatewaySessionId,
-        provider: transferResponse?.data?.provider,
-        providerChannel: transferResponse?.data?.providerChannel,
-        providerChannelCode: transferResponse?.data?.providerChannelCode,
-        status: transferResponse?.data?.status,
-        paymentReference: transferResponse?.data?.paymentReference,
-      },
-    });
+    try {
+      await transactionResult.update({
+        withdrawalSessionId: gatewaySessionId,
+        gatewayMeta: {
+          sessionId: gatewaySessionId,
+          provider: transferResponse?.data?.provider,
+          providerChannel: transferResponse?.data?.providerChannel,
+          providerChannelCode: transferResponse?.data?.providerChannelCode,
+          status: transferResponse?.data?.status,
+          transactionId: transferResponse?.data?.paymentReference,
+        },
+      });
+    } catch (error) {
+      console.log(error);
+    }
+    console.log('[verifyOtp] ✅ Step 15 PASSED: Gateway session saved');
 
     // 16. Push notification
+    console.log('[verifyOtp] Step 16: Sending push notification...');
     if (user.fcmToken) {
       try {
         await this.sendToDevice(
@@ -2639,12 +2767,15 @@ class UserService extends NotificationServicePush {
             reference: paymentReference,
           }
         );
+        console.log('[verifyOtp] ✅ Step 16 PASSED: Push notification sent');
       } catch (notifyErr) {
         console.error(
-          'Push notification failed (withdrawal initiated):',
+          '[verifyOtp] ⚠️ Step 16 WARNING: Push notification failed (non-fatal):',
           notifyErr
         );
       }
+    } else {
+      console.log('[verifyOtp] ⚠️ Step 16 SKIPPED: No fcmToken on user');
     }
 
     return {
@@ -3263,8 +3394,14 @@ class UserService extends NotificationServicePush {
     }
   }
   async handleSetWithdrawalBank(data) {
-    const { userId, settlementAccount, bankCode, bankName, accountName } =
-      await userUtil.verifyHandleSetWithdrawalBank.validateAsync(data);
+    const {
+      userId,
+      settlementAccount,
+      bankCode,
+      bankName,
+      accountName,
+      sessionId,
+    } = await userUtil.verifyHandleSetWithdrawalBank.validateAsync(data);
 
     const user = await this.UserModel.findOne({
       where: { id: userId, isDeleted: false },
@@ -3282,6 +3419,7 @@ class UserService extends NotificationServicePush {
         bankCode,
         bankName,
         accountName,
+        nameEnquiryReference: sessionId,
       });
 
       return {

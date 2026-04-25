@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta content="text/html; charset=utf-8" http-equiv="Content-Type" />
+    <title>Withdrawal OTP</title>
+    <meta name="description" content="Withdrawal OTP Email Template." />
+    <style type="text/css">
+      a:hover {
+        text-decoration: underline !important;
+      }
+
+      #myLogo {
+        background-image: url('https://res.cloudinary.com/dvznn9s4g/image/upload/v1744585559/icon_yelohe.png');
+        background-size: contain;
+        background-repeat: no-repeat;
+        width: 100px;
+        height: 100px;
+        border-radius: 20px;
+        background-color: #fff;
+        background-position: center;
+        background-size: 70px 70px;
+        margin: 0 auto;
+      }
+
+      .otp-box {
+        display: inline-block;
+        background: #f7f8fc;
+        border: 2px dashed #fec810;
+        border-radius: 12px;
+        padding: 16px 40px;
+        margin: 28px 0 10px;
+      }
+
+      .otp-code {
+        font-size: 36px;
+        font-weight: 700;
+        letter-spacing: 10px;
+        color: #1e1e2d;
+        font-family: 'Rubik', monospace, sans-serif;
+        margin: 0;
+      }
+
+      .detail-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 14px;
+        color: #455056;
+      }
+    </style>
+  </head>
+
+  <body
+    marginheight="0"
+    topmargin="0"
+    marginwidth="0"
+    style="margin: 0px; background-color: #92a3f9"
+    leftmargin="0"
+  >
+    <!--100% body table-->
+    <table
+      cellspacing="0"
+      border="0"
+      cellpadding="0"
+      width="100%"
+      bgcolor="#f2f3f8"
+      style="
+        @import url(https://fonts.googleapis.com/css?family=Rubik:300,400,500,700|Open+Sans:300,400,600,700);
+        font-family: 'Open Sans', sans-serif;
+      "
+    >
+      <tr>
+        <td>
+          <table
+            style="background-color: #f2f3f8; max-width: 670px; margin: 0 auto"
+            width="100%"
+            border="0"
+            align="center"
+            cellpadding="0"
+            cellspacing="0"
+          >
+            <!-- Top spacer -->
+            <tr>
+              <td style="height: 80px">&nbsp;</td>
+            </tr>
+
+            <!-- Logo -->
+            <tr>
+              <td style="text-align: center">
+                <a
+                  href="https://www.fidopoint.com"
+                  title="FidoPoint"
+                  target="_blank"
+                >
+                  <div id="myLogo"></div>
+                </a>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="height: 20px">&nbsp;</td>
+            </tr>
+
+            <!-- Card -->
+            <tr>
+              <td>
+                <table
+                  width="95%"
+                  border="0"
+                  align="center"
+                  cellpadding="0"
+                  cellspacing="0"
+                  style="
+                    max-width: 670px;
+                    background: #fff;
+                    border-radius: 3px;
+                    text-align: center;
+                    -webkit-box-shadow: 0 6px 18px 0 rgba(0, 0, 0, 0.06);
+                    -moz-box-shadow: 0 6px 18px 0 rgba(0, 0, 0, 0.06);
+                    box-shadow: 0 6px 18px 0 rgba(0, 0, 0, 0.06);
+                  "
+                >
+                  <tr>
+                    <td style="height: 40px">&nbsp;</td>
+                  </tr>
+
+                  <!-- Header -->
+                  <tr>
+                    <td style="padding: 0 35px">
+                      <!-- Warning icon (inline SVG, no external deps) -->
+                      <div style="margin-bottom: 12px">
+                        <svg
+                          width="48"
+                          height="48"
+                          viewBox="0 0 48 48"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <circle cx="24" cy="24" r="24" fill="#FFF8E1" />
+                          <path
+                            d="M24 14L38 36H10L24 14Z"
+                            fill="#FEC810"
+                            stroke="#FEC810"
+                            stroke-width="1"
+                            stroke-linejoin="round"
+                          />
+                          <rect
+                            x="22.5"
+                            y="22"
+                            width="3"
+                            height="8"
+                            rx="1.5"
+                            fill="#1e1e2d"
+                          />
+                          <circle cx="24" cy="33" r="1.5" fill="#1e1e2d" />
+                        </svg>
+                      </div>
+
+                      <h1
+                        style="
+                          color: #1e1e2d;
+                          font-weight: 500;
+                          margin: 0;
+                          font-size: 28px;
+                          font-family: 'Rubik', sans-serif;
+                        "
+                      >
+                        Withdrawal OTP
+                      </h1>
+
+                      <span
+                        style="
+                          display: inline-block;
+                          vertical-align: middle;
+                          margin: 20px 0 20px;
+                          border-bottom: 1px solid #cecece;
+                          width: 100px;
+                        "
+                      ></span>
+
+                      <p
+                        style="
+                          color: #455056;
+                          font-size: 15px;
+                          line-height: 24px;
+                          margin: 0;
+                        "
+                      >
+                        Hi <strong>{{firstName}}</strong>, you have initiated a
+                        withdrawal request. Use the OTP below to authorise this
+                        transaction.
+                      </p>
+
+                      <!-- OTP Display -->
+                      <div class="otp-box">
+                        <p class="otp-code">{{otp}}</p>
+                      </div>
+
+                      <p
+                        style="
+                          color: #455056;
+                          font-size: 13px;
+                          line-height: 20px;
+                          margin: 4px 0 24px;
+                        "
+                      >
+                        <i
+                          >This OTP is valid for <strong>10 minutes</strong>. Do
+                          not share it with anyone.</i
+                        >
+                      </p>
+
+                      <!-- Transaction Details -->
+                      <table
+                        width="100%"
+                        border="0"
+                        cellpadding="0"
+                        cellspacing="0"
+                        style="
+                          background: #f7f8fc;
+                          border-radius: 8px;
+                          padding: 0;
+                          text-align: left;
+                          margin-bottom: 24px;
+                        "
+                      >
+                        <tr>
+                          <td
+                            colspan="2"
+                            style="
+                              padding: 14px 20px 4px;
+                              font-size: 12px;
+                              text-transform: uppercase;
+                              letter-spacing: 1px;
+                              color: #999;
+                              font-weight: 600;
+                            "
+                          >
+                            Transaction Details
+                          </td>
+                        </tr>
+                        <tr>
+                          <td
+                            style="
+                              padding: 8px 20px;
+                              font-size: 14px;
+                              color: #888;
+                              width: 45%;
+                            "
+                          >
+                            Amount
+                          </td>
+                          <td
+                            style="
+                              padding: 8px 20px;
+                              font-size: 14px;
+                              color: #1e1e2d;
+                              font-weight: 600;
+                              text-align: right;
+                            "
+                          >
+                            ₦{{amount}}
+                          </td>
+                        </tr>
+                        <tr style="border-top: 1px solid #eee">
+                          <td
+                            style="
+                              padding: 8px 20px;
+                              font-size: 14px;
+                              color: #888;
+                            "
+                          >
+                            Account Number
+                          </td>
+                          <td
+                            style="
+                              padding: 8px 20px;
+                              font-size: 14px;
+                              color: #1e1e2d;
+                              font-weight: 600;
+                              text-align: right;
+                            "
+                          >
+                            {{accountNumber}}
+                          </td>
+                        </tr>
+                        <tr style="border-top: 1px solid #eee">
+                          <td
+                            style="
+                              padding: 8px 20px;
+                              font-size: 14px;
+                              color: #888;
+                            "
+                          >
+                            Account Name
+                          </td>
+                          <td
+                            style="
+                              padding: 8px 20px;
+                              font-size: 14px;
+                              color: #1e1e2d;
+                              font-weight: 600;
+                              text-align: right;
+                            "
+                          >
+                            {{accountName}}
+                          </td>
+                        </tr>
+                        <tr style="border-top: 1px solid #eee">
+                          <td
+                            style="
+                              padding: 8px 20px 14px;
+                              font-size: 14px;
+                              color: #888;
+                            "
+                          >
+                            Bank
+                          </td>
+                          <td
+                            style="
+                              padding: 8px 20px 14px;
+                              font-size: 14px;
+                              color: #1e1e2d;
+                              font-weight: 600;
+                              text-align: right;
+                            "
+                          >
+                            {{bankName}}
+                          </td>
+                        </tr>
+                      </table>
+
+                      <!-- Security notice -->
+                      <p
+                        style="
+                          color: #999;
+                          font-size: 13px;
+                          line-height: 20px;
+                          margin: 0 0 8px;
+                        "
+                      >
+                        If you did not initiate this withdrawal, please ignore
+                        this email and contact our support team immediately. Do
+                        <strong>not</strong> share this OTP with anyone.
+                      </p>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td style="height: 40px">&nbsp;</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="height: 20px">&nbsp;</td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td style="text-align: center">
+                <p
+                  style="
+                    font-size: 14px;
+                    color: rgba(69, 80, 86, 0.74);
+                    line-height: 18px;
+                    margin: 0;
+                  "
+                >
+                  &copy; <strong>www.fidopoint.com</strong>
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="height: 80px">&nbsp;</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+    <!--/100% body table-->
+  </body>
+</html>

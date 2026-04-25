@@ -687,9 +687,9 @@ class AuthenticationService {
       );
     }
   }
-
   async debitWallet(userId, amount) {
-    const t = await db.sequelize.transaction();
+    // ❌ const t = await db.sequelize.transaction();
+    const t = await this.UserModel.sequelize.transaction(); // ✅ same pattern as updateWallet
 
     const user = await this.UserModel.findByPk(userId, {
       transaction: t,
@@ -700,6 +700,7 @@ class AuthenticationService {
       await t.rollback();
       throw new NotFoundError('User not found');
     }
+
     try {
       let wallet = user.walletBalance;
 
@@ -728,7 +729,6 @@ class AuthenticationService {
       };
 
       await user.update({ walletBalance: updatedWallet }, { transaction: t });
-
       await t.commit();
 
       return updatedWallet;
