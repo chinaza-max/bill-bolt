@@ -13,6 +13,13 @@ class DB {
   }
 
   async connectDB() {
+    console.log(serverConfig.NODE_ENV);
+    console.log(serverConfig.NODE_ENV);
+    console.log(serverConfig.NODE_ENV);
+    console.log(serverConfig.NODE_ENV);
+    console.log(serverConfig.NODE_ENV);
+    console.log(serverConfig.NODE_ENV);
+
     if (serverConfig.NODE_ENV === 'development') {
       const options = {
         // logging: console.log,
@@ -109,8 +116,9 @@ class DB {
         serverConfig.DB_PASSWORD,
         options
       );
-      await this.sequelize.sync({ force: true });
+      //await this.sequelize.sync({ force: true });
       initModels(this.sequelize);
+      await this.sequelize.sync({ force: true }); // ⚠️ deletes all data
 
       // await this.sequelize.sync({ force: true });
     }
