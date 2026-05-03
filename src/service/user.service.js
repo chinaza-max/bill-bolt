@@ -1212,9 +1212,18 @@ class UserService extends NotificationServicePush {
       data
     );
 
+    console.log('userId', userId);
+    console.log('userId', userId);
+    console.log('userId', userId);
+    console.log('userId', userId);
+    console.log('userId', userId);
+    console.log('userId', userId);
+    console.log('userId', userId);
+
     const ads = await this.MerchantAdsModel.findOne({
-      userId,
+      where: { userId },
     });
+    console.log('ads', ads);
 
     return !!ads; // returns true if exists, false if not
   }
@@ -2622,7 +2631,7 @@ class UserService extends NotificationServicePush {
     console.log('[verifyOtp] ✅ Step 11 PASSED: Wallet debited');
 
     // 12. Create transaction record  ← FIX: store the result so we can update it later
-    const paymentReference = this.generateOrderId('NG_TX', 10);
+    const paymentReference = authService.generateOrderId('NG_TX', 10);
 
     const transactionResult = await this.TransactionModel.create({
       userId,
@@ -4078,7 +4087,7 @@ class UserService extends NotificationServicePush {
       const transactionResult = await this.TransactionModel.create(
         {
           userId,
-          transactionId: this.generateOrderId('NG_TX', 10),
+          transactionId: authService.generateOrderId('NG_TX', 10),
           merchantId: userId2,
           orderAmount: amountOrder,
           amount,
@@ -4090,7 +4099,7 @@ class UserService extends NotificationServicePush {
       );
 
       // 7. Create Order
-      const orderID = this.generateOrderId('NG', 10);
+      const orderID = authService.generateOrderId('NG', 10);
       newOrder = await this.OrdersModel.create(
         {
           orderStatus: 'pending',
@@ -4146,40 +4155,35 @@ class UserService extends NotificationServicePush {
     };
   }
 
-  generateOrderId(prefix, totalLength) {
-    const sanitizedPrefix = prefix.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const randomLength = totalLength - sanitizedPrefix.length;
-
-    if (randomLength <= 0) {
-      throw new Error('Total length must be greater than prefix length.');
-    }
-
-    const nanoid = getNanoid(randomLength);
-    const id = `${sanitizedPrefix}${nanoid()}`;
-    return id;
-  }
-
   async handleConfirmTransfer(data) {
-    const { userId, amount, sessionId } =
+    const { transactionId } =
       await userUtil.verifyHandleConfirmTransfer.validateAsync(data);
-    try {
-      const TransactionModelResult = await this.TransactionModel.findOne({
-        where: { sessionId },
-      });
-      if (!TransactionModelResult)
-        throw new NotFoundError('Transaction not found');
+    // try {
+    const TransactionModelResult = await this.TransactionModel.findOne({
+      where: { transactionId },
+    });
+    if (!TransactionModelResult)
+      throw new NotFoundError('Transaction not found');
+
+    if (TransactionModelResult.paymentStatus === 'successful') {
+      return;
+    }
+    throw new BadRequestError('Payment not yet confirmed'); // or whatever your error class is
+
+    /*      
       const OrderModelResult = await this.OrdersModel.findOne({
         where: { id: TransactionModelResult.orderId },
       });
+
       if (!OrderModelResult) throw new NotFoundError('Order not found');
-      await OrderModelResult.update({ orderStatus: 'completed' });
-    } catch (error) {
-      throw new SystemError(error.name, error.parent);
-    }
+     await OrderModelResult.update({ orderStatus: 'completed' });  */
+    // } catch (error) {
+    // throw new SystemError(error.name, error.parent);
+    //}
   }
 
   async handleGenerateAccountVirtual(data) {
-    const { amount, userId, userId2, type } =
+    const { amount, userId, userId2, type, orderAmount } =
       await userUtil.verifyHandleGenerateAccountVirtual.validateAsync(data);
 
     const settingModelResult = await this.SettingModel.findByPk(1);
@@ -4192,10 +4196,11 @@ class UserService extends NotificationServicePush {
             Math.random() * 100000
           )}`;
 
+          const transactionId = authService.generateOrderId('NG_TX', 10);
           const transactionModelResult = await this.TransactionModel.create({
             userId,
             amount,
-            transactionId: this.generateOrderId('NG_TX', 10),
+            transactionId: transactionId,
             transactionType: 'fundWallet',
             paymentStatus: 'pending',
             transactionFrom: 'external',
@@ -4218,15 +4223,12 @@ class UserService extends NotificationServicePush {
               'Fixed',
               amount,
               settingModelResult.callbackUrl,
-              transactionModelResult.id
+              transactionId
             );
-
-          console.log('generateVirtualAccountResult');
-          console.log(generateVirtualAccountResult);
-          console.log('generateVirtualAccountResult');
 
           transactionModelResult.virtualAccountId =
             generateVirtualAccountResult.id;
+
           // console.log(generateVirtualAccountResult);
           // -----------------------------
           // SEND NOTIFICATION
@@ -4244,7 +4246,7 @@ class UserService extends NotificationServicePush {
                 {
                   type: event.GENERATE_ACCOUNT_VIRTUAL,
                   userId: userResult.id,
-                  transactionId: transactionModelResult.id,
+                  transactionId: transactionId,
                   amount,
                   bankName: generateVirtualAccountResult.bankName,
                   accountNumber: generateVirtualAccountResult.accountNumber,
@@ -4257,29 +4259,47 @@ class UserService extends NotificationServicePush {
               console.error('Notification failed (fundWallet):', error);
             }
           }
-
-          return generateVirtualAccountResult;
+          transactionModelResult.save();
+          return { ...generateVirtualAccountResult, transactionId };
         } else {
           const sessionIdVirtualAcct = `session${Date.now()}-${Math.floor(
             Math.random() * 100000
           )}`;
+
+          /*
           const generateVirtualAccountResult = {
             bankName: 'kuda',
             accountNumber: '393939939393',
             accountName: 'chinaza ogbonna',
             sessionId: sessionIdVirtualAcct,
           };
+          */
 
-          await this.TransactionModel.create({
+          const transactionId = authService.generateOrderId('NG_TX', 10);
+
+          const generateVirtualAccountResult =
+            await this.gateway.createVirtualAccount(
+              this.validFor,
+              'Fixed',
+              amount,
+              settingModelResult.callbackUrl,
+              transactionId
+            );
+
+          const transactionModelResult = await this.TransactionModel.create({
             userId,
             amount,
-            transactionId: this.generateOrderId('NG_TX', 10),
+            transactionId: transactionId,
             transactionType: 'order',
             paymentStatus: 'pending',
             transactionFrom: 'external',
             merchantId: userId2,
             sessionIdVirtualAcct,
+            orderAmount,
           });
+
+          transactionModelResult.virtualAccountId =
+            generateVirtualAccountResult.id;
           // -----------------------------
           // SEND NOTIFICATION
           // -----------------------------
@@ -4303,6 +4323,7 @@ class UserService extends NotificationServicePush {
                   accountName: generateVirtualAccountResult.accountName,
                   sessionId: sessionIdVirtualAcct,
                   sendto: user_type.CLIENT,
+                  userId: userResult.id,
                 }
               );
             } catch (error) {
@@ -4310,7 +4331,10 @@ class UserService extends NotificationServicePush {
             }
           }
 
-          return generateVirtualAccountResult;
+          // return generateVirtualAccountResult;
+
+          return { ...generateVirtualAccountResult, transactionId };
+
           /*const generateVirtualAccountResult =
             await this.gateway.generateVirtualAccount(
               this.validFor,
@@ -5898,7 +5922,7 @@ class UserService extends NotificationServicePush {
         {
           userId,
           amount,
-          transactionId: this.generateOrderId('NG_TX', 10),
+          transactionId: authService.generateOrderId('NG_TX', 10),
           transactionType: 'fundWallet',
           paymentStatus: 'successful',
           transactionFrom: 'wallet',

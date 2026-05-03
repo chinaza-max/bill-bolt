@@ -127,8 +127,8 @@ class Server {
 
   initializeMiddlewaresAndRoutes() {
     let corsOptions;
-    if (this.mode == 'production') {
-      const allowedOrigins = ['http://example.com']; // Add your allowed origin(s) here
+    if (this.mode == 'development') {
+      const allowedOrigins = ['http://localhost:3001', 'http://localhost:8080']; // Add your allowed origin(s) here
 
       corsOptions = {
         origin: function (origin, callback) {
@@ -167,27 +167,10 @@ class Server {
       },
     });
     configureSocket(io);
-    /* io.on('connection', (socket) => {
-      console.log(`User connected: ${socket.id}`);
-
-      socket.on('joinRoom', async ({ roomId }) => {
-        socket.join(roomId);
-        console.log(`User joined room: room-${roomId}`);
-      });
-
-      socket.on('message', async ({ roomId, senderType, content }) => {
-        const message = await Service.saveMessage(roomId, senderType, content);
-        io.to(`${roomId}`).emit('message', message);
-      });
-
-      socket.on('disconnect', () => {
-        console.log(`User disconnected: ${socket.id}`);
-      });
-    });*/
   }
   loadCronJobs() {
     cron.schedule('*/10  * * * * *', async () => {
-      userService.makeMatch();
+      // userService.makeMatch();
     });
 
     cron.schedule('*/10 * * * * *', async () => {

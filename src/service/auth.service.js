@@ -30,7 +30,11 @@ import {
   NotFoundError,
 } from '../errors/index.js';
 import { Op } from 'sequelize';
+import { customAlphabet } from 'nanoid';
+
 const drive = google.drive({ version: 'v3', auth: oAuth2Client });
+const ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const getNanoid = (length) => customAlphabet(ALPHABET, length);
 
 class AuthenticationService {
   UserModel = User;
@@ -467,7 +471,6 @@ class AuthenticationService {
 
   async handleVirtualAccountCollection(data) {
     const settingModelResult = await this.SettingModel.findByPk(1);
-    if (!settingModelResult) throw new NotFoundError('No setting found');
 
     try {
       if (settingModelResult.activeGateway === 'safeHaven.gateway') {
@@ -535,29 +538,32 @@ class AuthenticationService {
   */
 
   async updateTransactionSaveHaven(data) {
-    const sessionId = data?.data?.sessionId;
     const transactionStatus = data?.data?.status;
     const transactionAmount = data?.data?.amount;
+    const externalReference = data?.data?.externalReference;
+    const virtualAccount = data?.data?.virtualAccount;
 
     await this.loadGateWay('safeHaven.gateway');
 
     const transaction = await this.TransactionModel.findOne({
-      where: { sessionIdVirtualAcct: sessionId },
+      where: {
+        transactionId: externalReference,
+      },
     });
 
-    if (!transaction) return;
+    if (!transaction) {
+      return;
+    }
 
-    // Hit SafeHaven back to get full transaction details
+    // ✅ Pass only the ID or externalReference, not the whole object
     const gatewayResponse = await this.gateway.getVirtualAccountTransactions(
-      transaction.virtualAccountId
+      virtualAccount
     );
 
-    // Map full gateway response onto the transaction record
-    const txnData = gatewayResponse?.data ?? data?.data;
+    const txnData = gatewayResponse?.data;
 
     transaction.paymentGateStatus = transactionStatus;
 
-    // Always persist gateway metadata regardless of status
     transaction.gatewayMeta = {
       sessionId: txnData?.sessionId,
       nameEnquiryReference: txnData?.nameEnquiryReference,
@@ -584,17 +590,18 @@ class AuthenticationService {
     };
 
     transaction.charges = {
-      fees: txnData?.fees,
-      vat: txnData?.vat,
-      stampDuty: txnData?.stampDuty,
+      fees: txnData?.fees ?? 0,
+      vat: txnData?.vat ?? 0,
+      stampDuty: txnData?.stampDuty ?? 0,
     };
 
     transaction.narration = txnData?.narration ?? transaction.narration;
-    transaction.transactionLocation = txnData?.transactionLocation;
+    transaction.transactionLocation = txnData?.transactionLocation ?? null;
     transaction.isReversed = txnData?.isReversed ?? false;
     transaction.reversalReference = txnData?.reversalReference || null;
     transaction.declinedAt = txnData?.declinedAt || null;
 
+    console.log('we got here 1');
     if (transactionStatus !== 'Completed') {
       await transaction.save();
       return;
@@ -603,10 +610,10 @@ class AuthenticationService {
     transaction.paymentStatus = 'successful';
     await transaction.save();
 
-    const { transactionType: type, orderAmount, userId } = transaction;
+    const { transactionType: type, amount, userId } = transaction;
 
     if (type === 'order') {
-      if (orderAmount === transactionAmount) {
+      if (amount === transactionAmount) {
         await this._handleOrder(transaction, transactionAmount);
       } else {
         await this.updateWallet(transactionAmount, userId);
@@ -623,6 +630,7 @@ class AuthenticationService {
     const sessionId = data?.data?.sessionId;
     const status = data?.data?.status;
     const isReversed = data?.data?.isReversed ?? false;
+    const paymentReference = data?.data?.paymentReference;
 
     if (!sessionId) {
       console.warn('[withdrawalWebhook] Missing sessionId in payload');
@@ -631,8 +639,8 @@ class AuthenticationService {
 
     const transaction = await this.TransactionModel.findOne({
       where: {
-        withdrawalSessionId: sessionId,
-        transactionType: 'widthdrawal', // match the typo in your ENUM until you migrate
+        transactionId: paymentReference,
+        transactionType: 'withdrawal', // match the typo in your ENUM until you migrate
       },
     });
 
@@ -652,9 +660,9 @@ class AuthenticationService {
     }
 
     // Save metadata regardless of outcome
-    this._applyGatewayMeta(transaction, data);
+    //this._applyGatewayMeta(transaction, data);
 
-    const isSuccess = status === 'Completed' && !isReversed;
+    const isSuccess = status === 'Created' && !isReversed;
     const isReverse = isReversed === true; // covers Completed+reversed, or any status+reversed
     const isFailure =
       status === 'Failed' || status === 'Declined' || status === 'Reversed';
@@ -662,14 +670,14 @@ class AuthenticationService {
     if (isSuccess) {
       transaction.paymentStatus = 'successful';
       await transaction.save();
-      await this._notifyUser(transaction, 'success');
+      // await this._notifyUser(transaction, 'success');
     } else if (isReverse || isFailure) {
       transaction.paymentStatus = isReverse ? 'reversed' : 'failed';
       await transaction.save();
 
       try {
         await this.updateWallet(transaction.userId, transaction.amount);
-        await this._notifyUser(transaction, isReverse ? 'reversed' : 'failed');
+        // await this._notifyUser(transaction, isReverse ? 'reversed' : 'failed');
       } catch (refundError) {
         console.error(
           `[withdrawalWebhook] CRITICAL: Refund failed — txId: ${transaction.id}, ` +
@@ -687,6 +695,20 @@ class AuthenticationService {
       );
     }
   }
+
+  async transactioncheck(data) {
+    await this.loadGateWay('safeHaven.gateway');
+
+    const gatewayResponse = await this.gateway.getVirtualAccountTransactions(
+      data.virtualAccountId
+    );
+
+    console.log('gatewayResponse');
+    console.log(gatewayResponse);
+    console.log('gatewayResponse');
+    return gatewayResponse;
+  }
+
   async debitWallet(userId, amount) {
     // ❌ const t = await db.sequelize.transaction();
     const t = await this.UserModel.sequelize.transaction(); // ✅ same pattern as updateWallet
@@ -723,10 +745,18 @@ class AuthenticationService {
         throw new BadRequestError('Insufficient wallet balance');
       }
 
+      console.log('wallet');
+      console.log(wallet);
+      console.log('wallet');
+
       const updatedWallet = {
         previous: currentBalance,
         current: currentBalance - parseFloat(amount),
       };
+
+      console.log('updatedWallet');
+      console.log(updatedWallet);
+      console.log('updatedWallet');
 
       await user.update({ walletBalance: updatedWallet }, { transaction: t });
       await t.commit();
@@ -739,30 +769,54 @@ class AuthenticationService {
     }
   }
 
-  async _handleOrder(transaction, transactionAmount) {
+  async _handleOrder(transaction) {
+    console.log('Handling order for transaction:', transaction);
     const merchant = await this.MerchantAdsModel.findOne({
       where: { UserId: transaction.merchantId },
     });
 
     const settings = await this.SettingModel.findByPk(1);
-
-    const amountSummary = this.getdeliveryAmountSummary(
-      merchant.pricePerThousand,
-      transaction.orderAmount,
+    let pricePerThousand = this.safeParse(merchant.pricePerThousand);
+    const serviceCharge = this.safeParse(
       settings.serviceCharge,
-      settings.gatewayService
+      'serviceCharge'
     );
 
+    const gatewayService = this.safeParse(
+      settings.gatewayService,
+      'gatewayService'
+    );
+    const amountSummary = await this.getdeliveryAmountSummary(
+      pricePerThousand,
+      transaction.orderAmount,
+      serviceCharge,
+      gatewayService
+    );
+
+    console.log('Amount summary:', amountSummary);
     await this.createOrder({
       transactionId: transaction.id,
       userId: transaction.userId,
       merchantId: transaction.merchantId,
-      amountOrder: amountSummary.amountOrder,
+      amountOrder: amountSummary.orderAmount,
       totalAmount: amountSummary.totalAmount,
       qrCodeHash: this.generateQrCodeHash(),
     });
   }
 
+  safeParse(input) {
+    if (typeof input === 'string') {
+      try {
+        return JSON.parse(input);
+      } catch (e) {
+        console.error('Failed to parse:', e);
+        return {};
+      }
+    }
+
+    console.log(input);
+    return input || {};
+  }
   generateQrCodeHash() {
     return crypto.randomBytes(16).toString('hex'); // 32-character hex string
   }
@@ -924,31 +978,73 @@ class AuthenticationService {
     }
   }
 
-  async createOrder(transactionId, userId, merchantId) {
+  async createOrder({
+    transactionId,
+    userId,
+    merchantId,
+    amountOrder,
+    totalAmount,
+    qrCodeHash,
+  }) {
     try {
       const merchantProfile = await this.UserModel.findOne({
-        where: {
-          id: merchantId,
-        },
+        where: { id: merchantId },
       });
       const user = await this.UserModel.findOne({
-        where: {
-          id: userId,
-        },
+        where: { id: userId },
       });
 
       if (!merchantProfile || !user) throw new NotFoundError('No user found');
 
-      const order = await this.OrdersModel.create({
+      // Check if an order with this transactionId already exists
+      const existingOrder = await this.OrdersModel.findOne({
+        where: { transactionId },
+      });
+
+      if (existingOrder)
+        throw new ConflictError(
+          'Order with this transaction ID already exists'
+        );
+
+      const orderID = this.generateOrderId('NG', 10);
+      console.log(
+        'Creating order with ID:',
+        userId,
+        orderID,
+        merchantId,
+        qrCodeHash,
+        amountOrder,
+        totalAmount,
+        transactionId
+      );
+
+      await this.OrdersModel.create({
         clientId: userId,
+        orderId: orderID,
         merchantId: merchantId,
         orderStatus: 'pending',
         moneyStatus: 'received',
+        qrCodeHash,
+        amountOrder,
+        totalAmount,
+        transactionId,
       });
     } catch (error) {
       console.log(error);
       throw new SystemError(error.name, error.parent);
     }
+  }
+  generateOrderId(prefix, totalLength) {
+    const sanitizedPrefix = prefix.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const randomLength = totalLength - sanitizedPrefix.length;
+
+    if (randomLength <= 0) {
+      throw new Error('Total length must be greater than prefix length.');
+    }
+
+    const nanoid = getNanoid(randomLength);
+    const id = `${sanitizedPrefix}${nanoid()}`;
+    return id;
   }
 
   async handleRefreshAccessToken(req) {

@@ -134,6 +134,7 @@ class UserUtil {
       then: Joi.number().integer().required(),
       otherwise: Joi.number().integer().allow(null),
     }),
+    orderAmount: Joi.number().integer().min(0).optional(),
   });
 
   verifyHandleGetGeneralTransactionHistory = Joi.object({
@@ -472,6 +473,11 @@ class UserUtil {
     otp: Joi.number().required(),
     csrfToken: Joi.string().required(),
     withdrawalToken: Joi.string().required(),
+  });
+
+  verifyHandleConfirmTransfer = Joi.object({
+    userId: Joi.number().required(),
+    transactionId: Joi.string().required(),
   });
 }
 

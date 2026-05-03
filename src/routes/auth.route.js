@@ -51,7 +51,8 @@ class AuthRoutes extends AuthController {
       '/virtualAccountCollection',
       this.virtualAccountCollection
     );
-    this.router.post('/withdrawalWebhook', this.withdrawalWebhook);
+    this.router.post('/generalWebhook', this.generalWebhook);
+    this.router.get('/testchecktransaction', this.testchecktransaction);
 
     this.router.get('/ping', (req, res) => {
       res.status(200).json({ message: 'Pong!' });

@@ -155,9 +155,6 @@ class SafeHavenGateway extends BaseGateway {
           accept: 'application/json',
         },
       });
-      console.log('response.data');
-      console.log(response);
-      console.log('response.data');
 
       return response.data;
     } catch (error) {

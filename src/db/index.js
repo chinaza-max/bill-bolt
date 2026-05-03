@@ -5,7 +5,7 @@ import {
   Transaction,
   MerchantProfile,
 } from './models/index.js';
-import fs from 'fs';
+//import { seed } from './models/merchantAds.js';
 
 class DB {
   constructor() {
@@ -13,16 +13,17 @@ class DB {
   }
 
   async connectDB() {
-    const options = {
-      // logging: console.log,
-      dialect: 'mysql',
-      host: serverConfig.DB_HOST,
-      username: serverConfig.DB_USERNAME,
-      password: serverConfig.DB_PASSWORD,
-      port: Number(serverConfig.DB_PORT),
-      database: serverConfig.DB_NAME,
-      logQueryParameters: true,
-      /*
+    if (serverConfig.NODE_ENV === 'development') {
+      const options = {
+        // logging: console.log,
+        dialect: 'mysql',
+        host: serverConfig.DB_HOST,
+        username: serverConfig.DB_USERNAME,
+        password: serverConfig.DB_PASSWORD,
+        port: Number(serverConfig.DB_PORT),
+        database: serverConfig.DB_NAME,
+        logQueryParameters: true,
+        /*
       dialectOptions: {
         ssl: {
           ca: fs.readFileSync('./certs/aiven-ca.pem'),
@@ -35,18 +36,17 @@ class DB {
         acquire: 30000, // The maximum time, in milliseconds, that pool will try to get a connection before throwing an error
         idle: 10000, // The maximum time, in milliseconds, that a connection can be idle before being released
       },*/
-    };
+      };
 
-    this.sequelize = new Sequelize(
-      serverConfig.DB_NAME,
-      serverConfig.DB_USERNAME,
-      serverConfig.DB_PASSWORD,
-      options
-    );
+      this.sequelize = new Sequelize(
+        serverConfig.DB_NAME,
+        serverConfig.DB_USERNAME,
+        serverConfig.DB_PASSWORD,
+        options
+      );
 
-    initModels(this.sequelize);
-
-    if (serverConfig.NODE_ENV === 'development') {
+      initModels(this.sequelize);
+      // await seed();
       // await this.sequelize.sync();
       // Creates database tables if they do not exist.
       // Does NOT modify existing tables. Safe for first connection to a new database.
@@ -80,6 +80,38 @@ class DB {
           console.error('Error updating column name:', error);
         }
       }
+    } else if (serverConfig.NODE_ENV === 'production') {
+      const options = {
+        // logging: console.log,
+        dialect: 'mysql',
+        host: serverConfig.DB_HOST,
+        username: serverConfig.DB_USERNAME,
+        password: serverConfig.DB_PASSWORD,
+        port: Number(serverConfig.DB_PORT),
+        database: serverConfig.DB_NAME,
+        logQueryParameters: true,
+        dialectOptions: {
+          ssl: {
+            ca: fs.readFileSync('./certs/aiven-ca.pem'),
+            rejectUnauthorized: true,
+          },
+        },
+        /*  pool: {
+              max: 4, // Maximum number of connections in the poo
+              min: 0, // Minimum number of connections in  the pool
+              acquire: 30000, // The maximum time, in milliseconds, that pool will try to get a connection before throwing an error
+              idle: 10000, // The maximum time, in milliseconds, that a connection can be idle before being released
+            },*/
+      };
+
+      this.sequelize = new Sequelize(
+        serverConfig.DB_NAME,
+        serverConfig.DB_USERNAME,
+        serverConfig.DB_PASSWORD,
+        options
+      );
+
+      initModels(this.sequelize);
     }
 
     /*S   try {

@@ -17,12 +17,45 @@ export default class NotificationServicePush extends NotificationService {
       throw new Error('Notification payload must include title and body');
     }
 
+    // Stringify all incoming data fields
     const stringifiedData = {};
     for (const key in data) {
       if (data.hasOwnProperty(key)) {
-        stringifiedData[key] = String(data[key]);
+        const value = data[key];
+        // Convert to string, but skip null/undefined to avoid "undefined" strings
+        stringifiedData[key] = value != null ? String(value) : '';
       }
     }
+
+    // ✅ FIX: also stringify `event` the same safe way
+    const eventValue = data.type != null ? String(data.type) : '';
+
+    const finalData = {
+      ...stringifiedData,
+      event: eventValue,
+    };
+
+    // 🪵 LOG: inspect everything before sending
+    console.log('📤 [sendToDevice] token:', token);
+    console.log('📤 [sendToDevice] notification:', notification);
+    console.log('📤 [sendToDevice] raw data:', data);
+    console.log('📤 [sendToDevice] stringifiedData:', stringifiedData);
+    console.log(
+      '📤 [sendToDevice] finalData (what Firebase will receive):',
+      finalData
+    );
+
+    // 🔍 Extra safety: confirm every value in finalData is a string
+    for (const [key, value] of Object.entries(finalData)) {
+      if (typeof value !== 'string') {
+        console.error(
+          `❌ [sendToDevice] Non-string value detected → key: "${key}", value:`,
+          value,
+          `type: ${typeof value}`
+        );
+      }
+    }
+
     try {
       const message = {
         token: token,
@@ -32,10 +65,7 @@ export default class NotificationServicePush extends NotificationService {
           imageUrl:
             'https://res.cloudinary.com/dvznn9s4g/image/upload/v1744585559/icon_yelohe.png',
         },
-        data: {
-          ...stringifiedData,
-          event: data.type,
-        },
+        data: finalData,
         android: {
           notification: {
             sound: 'default',
@@ -52,6 +82,11 @@ export default class NotificationServicePush extends NotificationService {
         },
       };
 
+      console.log(
+        '📨 [sendToDevice] Final message object:',
+        JSON.stringify(message, null, 2)
+      );
+
       const response = await admin.messaging().send(message);
 
       await this.addNotification({
@@ -62,10 +97,11 @@ export default class NotificationServicePush extends NotificationService {
         metaData: data,
         sendto: data.sendto,
       });
-      console.log('Notification sent successfully:', response);
+
+      console.log('✅ Notification sent successfully:', response);
       return { success: true, messageId: response };
     } catch (error) {
-      console.error('Error sending notification:', error);
+      console.error('❌ Error sending notification:', error);
       throw new Error(`Failed to send notification: ${error.message}`);
     }
   }

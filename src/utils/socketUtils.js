@@ -1,7 +1,8 @@
 import Service from '../service/user.service.js';
+import { User } from '../db/models/index.js';
 
 let ioInstance = null;
-const activeUsers = new Map(); // Track active users in rooms
+const activeUsers = new Map(); // existing — for chat delivery tracking
 
 export const configureSocket = (io) => {
   ioInstance = io;
@@ -9,35 +10,31 @@ export const configureSocket = (io) => {
   io.on('connection', (socket) => {
     console.log(`User connected: ${socket.id}`);
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // EXISTING: Chat room — unchanged
+    // ─────────────────────────────────────────────────────────────────────────
+
     socket.on('joinRoom', async ({ roomId, userId }) => {
       socket.join(roomId);
       socket.userId = userId;
       socket.roomId = roomId;
 
-      // Track active user in room
       if (!activeUsers.has(roomId)) {
         activeUsers.set(roomId, new Set());
       }
       activeUsers.get(roomId).add(userId);
 
-      console.log(`User ${userId} joined room: ${roomId}`);
+      console.log(`User ${userId} joined chat room: ${roomId}`);
 
-      // Mark all unread messages from other users as delivered
       await Service.markMessagesAsDelivered(roomId, userId);
-
-      // Notify other users in room that messages have been delivered
       socket.to(roomId).emit('messagesDelivered', { userId });
     });
 
     socket.on(
       'message',
       async ({ userId1, userId2, roomId, messageType, content }) => {
-        console.log(
-          `Message received in room ${roomId} from ${userId1}: ${content}`
-        );
-
+        console.log(`Message in room ${roomId} from ${userId1}: ${content}`);
         try {
-          // Save message to database (status will be 'sent' by default)
           const message = await Service.saveMessage(
             userId1,
             userId2,
@@ -45,30 +42,16 @@ export const configureSocket = (io) => {
             messageType,
             content
           );
-
-          // Check if recipient is online in this room
           const recipientOnline = activeUsers.get(roomId)?.has(userId2);
-
           let updatedMessage = message;
 
-          console.log(recipientOnline);
           if (recipientOnline) {
-            console.log(message);
-            console.log('qqqqqqqqqqqqqqqqqqqqqqqqq');
-            console.log('qqqqqqqqqqqqqqqqqqqqqqqqq');
-            console.log('qqqqqqqqqqqqqqqqqqqqqqqqq');
-            // If recipient is online, mark as delivered immediately
             updatedMessage = await Service.markMessageAsDelivered(message.id);
-
             console.log('Message marked as delivered:', updatedMessage);
           }
-          console.log('sssssssssssssssssssssssss');
-          console.log('sssssssssssssssssssssssss');
-          console.log('sssssssssssssssssssssssss');
-          // Emit to all users in the room
+
           io.to(roomId).emit('message', updatedMessage);
 
-          // If message was delivered, notify sender
           if (recipientOnline) {
             socket.emit('messageDelivered', { messageId: message.id });
           }
@@ -81,10 +64,7 @@ export const configureSocket = (io) => {
 
     socket.on('messagesRead', async ({ roomId, userId }) => {
       try {
-        // Mark all messages from other users as read
         await Service.markMessagesAsRead(roomId, userId);
-
-        // Notify other users in room that their messages have been read
         socket.to(roomId).emit('messagesRead', { userId });
       } catch (error) {
         console.error('Error marking messages as read:', error);
@@ -98,13 +78,19 @@ export const configureSocket = (io) => {
       });
     });
 
-    socket.on('joinOrderRoom', (data) => {
-      socket.join(`order_${data.orderId}`);
-      console.log(`User joined order room: order_${data.orderId}`);
+    // ─────────────────────────────────────────────────────────────────────────
+    // EXISTING: Order room — unchanged (QR scanning, order status)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    socket.on('joinOrderRoom', ({ orderId, userType }) => {
+      const room = `order_${orderId}`;
+      socket.join(room);
+      socket.data.orderId = orderId;
+      socket.data.userType = userType;
+      console.log(`[${userType}] joined order room: ${room}`);
     });
 
     socket.on('qrScanned', (data) => {
-      // Notify all users in the order room
       io.to(`order_${data.orderId}`).emit('qrScanSuccess', {
         message: 'QR Code has been scanned successfully',
         orderId: data.orderId,
@@ -113,7 +99,6 @@ export const configureSocket = (io) => {
     });
 
     socket.on('qrVerified', (data) => {
-      // Notify all users in the order room about verification
       io.to(`order_${data.orderId}`).emit('orderStatusUpdate', {
         orderId: data.orderId,
         status: 'completed',
@@ -121,43 +106,164 @@ export const configureSocket = (io) => {
       });
     });
 
-    // ── Caller initiates a call ─────────────────────────────────────────────────
-    socket.on('initiateCall', (data) => {
-      const { orderId, callerId, callerName, callerAvatar, receiverId } = data;
-      const room = `order_${orderId}`;
+    // ─────────────────────────────────────────────────────────────────────────
+    // NEW: User personal room — joined on login, used for calls
+    // This is what allows calls to reach users on ANY page
+    // ─────────────────────────────────────────────────────────────────────────
 
-      console.log(`Call initiated by ${callerId} in order ${orderId}`);
-      console.log(`Call details ${callerName} in callerAvatar ${callerAvatar}`);
+    socket.on('joinUserRoom', ({ userId }) => {
+      const room = `user_${userId}`;
+      socket.join(room);
+      socket.data.userId = userId;
+      console.log(`👤 User ${userId} joined personal room: ${room}`);
+    });
 
-      // Broadcast "incomingCall" to EVERYONE else in the order room
-      // (the other party — merchant or client)
-      socket.to(room).emit('incomingCall', {
+    // ─────────────────────────────────────────────────────────────────────────
+    // UPDATED: Call handlers — now use user rooms instead of order rooms
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /*
+    socket.on(
+      'initiateCall',
+      ({ orderId, callerId, callerName, callerAvatar, receiverId }) => {
+        const receiverRoom = `user_${receiverId}`;
+        const isOnline =
+          (io.sockets.adapter.rooms.get(receiverRoom)?.size || 0) > 0;
+
+        console.log(
+          `📞 Call: ${callerId} → ${receiverId} | room: ${receiverRoom} | online: ${isOnline}`
+        );
+
+        if (!isOnline) {
+          // Tell the caller the receiver is offline
+          socket.emit('receiverOffline', { orderId, receiverId });
+          console.log(`❌ Receiver ${receiverId} is offline`);
+          return;
+        }
+
+        // Store call context so callEnded knows who to notify
+        socket.data.activeCall = { orderId, callerId, receiverId };
+
+        // Route call to receiver's personal room — works on any page
+        io.to(receiverRoom).emit('incomingCall', {
+          orderId,
+          callerId,
+          callerName,
+          callerAvatar,
+        });
+      }
+    );
+
+    */
+
+    socket.on(
+      'initiateCall',
+      async ({ orderId, callerId, callerName, callerAvatar, receiverId }) => {
+        const receiverRoom = `user_${receiverId}`;
+        const isOnline =
+          (io.sockets.adapter.rooms.get(receiverRoom)?.size || 0) > 0;
+
+        console.log(
+          `📞 Call: ${callerId} → ${receiverId} | online: ${isOnline}`
+        );
+
+        // Store call context for callEnded
+        socket.data.activeCall = { orderId, callerId, receiverId };
+
+        if (isOnline) {
+          // ── User is online — deliver via socket ──────────────────────────────────
+          io.to(receiverRoom).emit('incomingCall', {
+            orderId,
+            callerId,
+            callerName,
+            callerAvatar,
+          });
+          console.log(`✅ Call delivered via socket to user_${receiverId}`);
+        } else {
+          // ── User is offline — deliver via FCM push notification ──────────────────
+          console.log(`📵 User ${receiverId} offline — sending FCM push`);
+
+          try {
+            // Fetch receiver's FCM token from DB
+            // Adjust this query to your ORM/DB setup
+            const receiver = await User.findOne({ where: { id: receiverId } });
+            // or: const [rows] = await db.query("SELECT fcm_token FROM users WHERE id = ?", [receiverId]);
+            // const receiver = rows[0];
+
+            const fcmToken = receiver?.fcmToken || receiver?.fcm_token;
+
+            if (!fcmToken) {
+              console.log(`❌ No FCM token for user ${receiverId}`);
+              socket.emit('receiverOffline', { orderId, receiverId });
+              return;
+            }
+
+            await Service.sendToDevice(
+              fcmToken,
+              {
+                title: `📞 Incoming call from ${callerName}`,
+                body: `Order #${orderId} — Tap to answer`,
+              },
+              {
+                // data payload — all must be strings (your sendToDevice already handles this)
+                type: 'INCOMING_CALL',
+                orderId: String(orderId),
+                callerId: String(callerId),
+                callerName: String(callerName),
+                callerAvatar: String(callerAvatar || ''),
+                receiverId: String(receiverId),
+                userId: String(receiverId),
+                sendto: String(receiverId),
+              }
+            );
+
+            console.log(`✅ FCM push sent to user ${receiverId}`);
+          } catch (err) {
+            console.error('Error sending FCM push:', err);
+            // Tell caller anyway
+            socket.emit('receiverOffline', { orderId, receiverId });
+          }
+        }
+      }
+    );
+
+    socket.on('callEnded', ({ orderId, userId }) => {
+      console.log(`📴 Call ended by ${userId} in order ${orderId}`);
+
+      const call = socket.data.activeCall;
+
+      // Notify via order room (covers users on the order page)
+      io.to(`order_${orderId}`).emit('callEnded', { orderId, userId });
+
+      // Also notify via user room (covers users on any other page)
+      if (call) {
+        const otherUserId =
+          String(call.callerId) === String(userId)
+            ? call.receiverId
+            : call.callerId;
+
+        io.to(`user_${otherUserId}`).emit('callEnded', { orderId, userId });
+        socket.data.activeCall = null;
+      }
+    });
+
+    socket.on('callDeclined', ({ orderId, callerId, declinedBy }) => {
+      console.log(`🚫 Call declined in order ${orderId} by ${declinedBy}`);
+      // Notify caller via their personal room
+      io.to(`user_${callerId}`).emit('callDeclined', {
         orderId,
         callerId,
-        callerName,
-        callerAvatar,
+        declinedBy,
       });
     });
 
-    // ── Either party ends the call ──────────────────────────────────────────────
-    socket.on('callEnded', ({ orderId, userId }) => {
-      const room = `order_${orderId}`;
-      console.log(`Call ended by ${userId} in order ${orderId}`);
-      // Notify the other party so their modal closes
-      socket.to(room).emit('callEnded', { orderId, userId });
-    });
+    // ─────────────────────────────────────────────────────────────────────────
+    // EXISTING: Disconnect — unchanged
+    // ─────────────────────────────────────────────────────────────────────────
 
-    // ── Receiver declines the call ──────────────────────────────────────────────
-    socket.on('callDeclined', ({ orderId, callerId, declinedBy }) => {
-      const room = `order_${orderId}`;
-      console.log(`Call declined in order ${orderId}`);
-      // Notify the caller so their modal closes
-      socket.to(room).emit('callDeclined', { orderId, callerId, declinedBy });
-    });
     socket.on('disconnect', () => {
       console.log(`User disconnected: ${socket.id}`);
 
-      // Remove user from active users
       if (socket.roomId && socket.userId) {
         const roomUsers = activeUsers.get(socket.roomId);
         if (roomUsers) {
@@ -171,7 +277,6 @@ export const configureSocket = (io) => {
   });
 };
 
-// Export a function to get the Socket.IO instance
 export const getSocketInstance = () => {
   if (!ioInstance) {
     throw new Error('Socket.IO instance is not initialized.');

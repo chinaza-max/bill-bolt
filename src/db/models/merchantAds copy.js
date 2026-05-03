@@ -51,24 +51,4 @@ export function init(connection) {
   );
 }
 
-/*
-export async function seed() {
-  // const count = await MerchantAds.count();
-  // if (count === 0) {
-  await MerchantAds.create({
-    userId: 1,
-    minAmount: 1000,
-    maxAmount: 50000,
-    pricePerThousand: [
-      { amount: 1000, charge: 100 },
-      { amount: 5000, charge: 300 },
-      { amount: 10000, charge: 500 },
-    ],
-    currency: 'NGN',
-    isDeleted: false,
-  });
-  console.log('[MerchantAds] Seed record inserted.');
-}
-*/
-
 export default MerchantAds;

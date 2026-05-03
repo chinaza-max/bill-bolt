@@ -715,35 +715,55 @@ export default class AuthenticationController {
     }
   }
 
-  async withdrawalWebhook(req, res, next) {
+  async generalWebhook(req, res, next) {
     try {
       const data = req.body;
 
-      // Basic payload structure validation
-      if (!data?.data?.sessionId) {
-        return res.status(400).json({
-          status: 400,
-          message: 'Invalid webhook payload',
-        });
-      }
+      console.log('data');
+      console.log(data);
+      console.log('data');
 
       // Only process transfer events — ignore others
-      if (data?.eventType !== 'account.debit') {
+      if (data?.eventType === 'account.debit') {
+        authService.handleWithdrawalWebhookSaveheaven(data).catch((err) => {
+          console.error('[withdrawalWebhook] Processing error:', err);
+        });
+      } else if (data?.type === 'virtualAccount.transfer') {
+        authService.handleVirtualAccountCollection(data).catch((err) => {
+          console.error('[withdrawalWebhook] Processing error:', err);
+        });
+      } else {
         return res.status(200).json({
           status: 200,
           message: 'Event type ignored',
         });
       }
 
-      // Respond immediately — process async to avoid SafeHaven timeout
       res.status(200).json({
         status: 200,
         message: 'Webhook received',
       });
+    } catch (error) {
+      next(error);
+    }
+  }
 
-      // Process after response sent
-      authService.handleWithdrawalWebhookSaveheaven(data).catch((err) => {
+  async testchecktransaction(req, res, next) {
+    try {
+      const data = req.query;
+
+      console.log('data');
+      console.log(data);
+      console.log('data');
+
+      const respon = authService.transactioncheck(data).catch((err) => {
         console.error('[withdrawalWebhook] Processing error:', err);
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Webhook received',
+        data: respon,
       });
     } catch (error) {
       next(error);
