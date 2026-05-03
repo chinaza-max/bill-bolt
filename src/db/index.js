@@ -33,7 +33,34 @@ class DB {
     console.log('serverConfig.NODE_ENV');
     console.log('serverConfig.NODE_ENV');
 
-    if (serverConfig.NODE_ENV === 'development') {
+    const options = {
+      // logging: console.log,
+      dialect: 'mysql',
+      host: serverConfig.DB_HOST,
+      username: serverConfig.DB_USERNAME,
+      password: serverConfig.DB_PASSWORD,
+      port: Number(serverConfig.DB_PORT),
+      database: serverConfig.DB_NAME,
+      logQueryParameters: true,
+      dialectOptions: {
+        ssl: {
+          ca: fs.readFileSync('./certs/aiven-ca.pem'),
+          rejectUnauthorized: true,
+        },
+      },
+    };
+
+    this.sequelize = new Sequelize(
+      serverConfig.DB_NAME,
+      serverConfig.DB_USERNAME,
+      serverConfig.DB_PASSWORD,
+      options
+    );
+    //await this.sequelize.sync({ force: true });
+    initModels(this.sequelize);
+    await this.sequelize.sync({ force: true }); // ⚠️ deletes all data
+
+    if (serverConfig.NODE_ENV === 'developments') {
       const options = {
         // logging: console.log,
         dialect: 'mysql',
@@ -100,7 +127,7 @@ class DB {
         }
       }
 */
-    } else if (serverConfig.NODE_ENV === 'production') {
+    } else if (serverConfig.NODE_ENV === 'productions') {
       const options = {
         // logging: console.log,
         dialect: 'mysql',
@@ -110,7 +137,6 @@ class DB {
         port: Number(serverConfig.DB_PORT),
         database: serverConfig.DB_NAME,
         logQueryParameters: true,
-        /*
         dialectOptions: {
           ssl: {
             ca: fs.readFileSync('./certs/aiven-ca.pem'),
