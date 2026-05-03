@@ -13,12 +13,25 @@ class DB {
   }
 
   async connectDB() {
+    console.log('serverConfig.NODE_ENV');
+    console.log('serverConfig.NODE_ENV');
+    console.log('serverConfig.NODE_ENV');
+
     console.log(serverConfig.NODE_ENV);
     console.log(serverConfig.NODE_ENV);
     console.log(serverConfig.NODE_ENV);
     console.log(serverConfig.NODE_ENV);
     console.log(serverConfig.NODE_ENV);
     console.log(serverConfig.NODE_ENV);
+    console.log('serverConfig.NODE_ENV');
+
+    console.log('serverConfig.NODE_ENV');
+    console.log('serverConfig.NODE_ENV');
+    console.log('serverConfig.NODE_ENV');
+    console.log('serverConfig.NODE_ENV');
+    console.log('serverConfig.NODE_ENV');
+    console.log('serverConfig.NODE_ENV');
+    console.log('serverConfig.NODE_ENV');
 
     if (serverConfig.NODE_ENV === 'development') {
       const options = {
@@ -73,7 +86,7 @@ class DB {
 
       //  await this.updateExistingTransactionIds();
       //  await this.updateEmptyDisplayNames();
-      try {
+      /*   try {
         await this.sequelize.query(`
           ALTER TABLE MerchantProfile 
           CHANGE COLUMN accoutTier accountTier INTEGER NOT NULL;
@@ -86,6 +99,7 @@ class DB {
           console.error('Error updating column name:', error);
         }
       }
+*/
     } else if (serverConfig.NODE_ENV === 'production') {
       const options = {
         // logging: console.log,
@@ -173,6 +187,8 @@ this.sequelize.query(disableForeignKeyChecks)
   });
 */
   }
+  /*
+
   async updateExistingTransactionIds() {
     try {
       // Find all transactions with null or empty transactionId
@@ -203,6 +219,7 @@ this.sequelize.query(disableForeignKeyChecks)
       console.error('Error updating existing transaction IDs:', error);
     }
   }
+  */
   /*
   async updateEmptyDisplayNames(sequelize) {
     try {
