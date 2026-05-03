@@ -39,7 +39,7 @@ class Server {
   async initializeDbAndFirebase() {
     await DB.connectDB();
     this.loadCronJobs();
-
+    /*
     const [setting, created] = await Setting.findOrCreate({
       where: { id: 1 },
       defaults: {
@@ -104,6 +104,7 @@ class Server {
         ],
       });
     }
+    */
 
     const hashedPassword = await bcrypt.hash(
       serverConfig.ADMIN_PASSWORD,

@@ -37,12 +37,13 @@ class DB {
       port: Number(serverConfig.DB_PORT),
       database: serverConfig.DB_NAME,
       logQueryParameters: true,
+      /*
       dialectOptions: {
         ssl: {
           ca: fs.readFileSync('./certs/aiven-ca.pem'),
           rejectUnauthorized: true,
         },
-      },
+      },*/
     };
 
     this.sequelize = new Sequelize(
@@ -51,9 +52,8 @@ class DB {
       serverConfig.DB_PASSWORD,
       options
     );
-    //await this.sequelize.sync({ force: true });
     initModels(this.sequelize);
-    await this.sequelize.sync({ alter: true });
+    //await this.sequelize.sync({ alter: true });
 
     if (serverConfig.NODE_ENV === 'developments') {
       const options = {
