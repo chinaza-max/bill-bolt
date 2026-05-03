@@ -53,7 +53,7 @@ class DB {
     );
     //await this.sequelize.sync({ force: true });
     initModels(this.sequelize);
-    await this.sequelize.sync({ force: true }); // ⚠️ deletes all data
+    await this.sequelize.sync({ alter: true });
 
     if (serverConfig.NODE_ENV === 'developments') {
       const options = {
@@ -92,7 +92,7 @@ class DB {
       // Creates database tables if they do not exist.
       // Does NOT modify existing tables. Safe for first connection to a new database.
 
-      await this.sequelize.sync({ alter: true });
+      // await this.sequelize.sync({ alter: true });
       // Compares models with existing tables and automatically updates the schema.
       // Adds or modifies columns to match models without dropping tables.
       // Useful in development, but risky for production because it may change structure unexpectedly.
