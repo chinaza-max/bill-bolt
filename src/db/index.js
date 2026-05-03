@@ -112,6 +112,8 @@ class DB {
       );
 
       initModels(this.sequelize);
+
+      await this.sequelize.sync({ force: true });
     }
 
     /*S   try {
