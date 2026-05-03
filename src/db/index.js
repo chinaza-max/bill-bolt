@@ -1,6 +1,7 @@
 import { Sequelize } from 'sequelize';
 import serverConfig from '../config/server.js';
 import { init as initModels } from './models/index.js';
+import fs from 'fs';
 
 class DB {
   constructor() {
@@ -37,13 +38,13 @@ class DB {
       port: Number(serverConfig.DB_PORT),
       database: serverConfig.DB_NAME,
       logQueryParameters: true,
-      /*
+
       dialectOptions: {
         ssl: {
           ca: fs.readFileSync('./certs/aiven-ca.pem'),
           rejectUnauthorized: true,
         },
-      },*/
+      },
     };
 
     this.sequelize = new Sequelize(
@@ -53,7 +54,7 @@ class DB {
       options
     );
     initModels(this.sequelize);
-    //await this.sequelize.sync({ alter: true });
+    await this.sequelize.sync({ alter: true });
 
     if (serverConfig.NODE_ENV === 'developments') {
       const options = {
