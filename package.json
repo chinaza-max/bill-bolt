@@ -6,12 +6,13 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon app.js"
+    "dev": "nodemon app.js",
+    "start": "node app.js"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "nodemon": "^3.0.3"
+    "nodemon": "^3.1.14"
   },
   "dependencies": {
     "agora-token": "^2.0.5",
