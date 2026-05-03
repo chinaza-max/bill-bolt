@@ -34,7 +34,7 @@ class DB {
     console.log('serverConfig.NODE_ENV');
 
     const options = {
-      // logging: console.log,
+      logging: console.log,
       dialect: 'mysql',
       host: serverConfig.DB_HOST,
       username: serverConfig.DB_USERNAME,
