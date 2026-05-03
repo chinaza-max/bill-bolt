@@ -597,6 +597,26 @@ export default class UserController {
     }
   }
 
+  async updateSettings(req, res, next) {
+    try {
+      const data = {
+        ...req.body,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleUpdateSettings(data);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'Settings updated successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
   async updateAdmin(req, res, next) {
     try {
       const data = req.body;

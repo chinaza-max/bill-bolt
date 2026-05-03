@@ -118,6 +118,7 @@ class UserRoutes extends UserController {
       '/updateVerificationSettings',
       this.updateVerificationSettings
     );
+    this.router.patch('/updateSettings', this.updateSettings);
 
     // ADMIN USER MANAGEMENT
     this.router.post('/toggleUserAccount', this.toggleUserAccount);

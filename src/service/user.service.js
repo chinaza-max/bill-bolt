@@ -1487,6 +1487,45 @@ class UserService extends NotificationServicePush {
     }
   }
 
+  async handleUpdateSettings(data) {
+    const { userId, ...fields } =
+      await userUtil.verifyHandleUpdateSettings.validateAsync(data);
+
+    try {
+      const setting = await this.SettingModel.findByPk(1);
+
+      if (!setting) {
+        throw new NotFoundError('Settings not found');
+      }
+
+      // Serialize JSON fields before saving
+      const jsonFields = [
+        'tiers',
+        'defaultAds',
+        'gatewayService',
+        'serviceCharge',
+        'gatewayList',
+      ];
+
+      const updatePayload = {};
+
+      for (const [key, value] of Object.entries(fields)) {
+        if (jsonFields.includes(key) && Array.isArray(value)) {
+          updatePayload[key] = JSON.stringify(value);
+        } else {
+          updatePayload[key] = value;
+        }
+      }
+
+      await setting.update(updatePayload);
+
+      return await this.SettingModel.findByPk(1);
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
   async handleUpdateAdmin(data) {
     const { userId, ...updateData } =
       await userUtil.verifyHandleUpdateAdmin.validateAsync(data);

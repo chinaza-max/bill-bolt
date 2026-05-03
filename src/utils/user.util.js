@@ -294,6 +294,69 @@ class UserUtil {
     privilege: Joi.string().valid('admin', 'superAdmin').required(),
   });
 
+  verifyHandleUpdateSettings = Joi.object({
+    userId: Joi.number().integer().required(),
+
+    callbackUrl: Joi.string().uri().optional().label('Callback URL'),
+
+    distanceThreshold: Joi.number().integer().min(1).optional(),
+
+    validFor: Joi.number().integer().min(1).optional(),
+
+    maxOrderPerMerchant: Joi.number().integer().min(1).optional(),
+
+    gateWayEnvironment: Joi.string().valid('sandBox', 'live').optional(),
+
+    activeGateway: Joi.string().optional(),
+
+    isMatchRunning: Joi.boolean().optional(),
+
+    tiers: Joi.array()
+      .items(
+        Joi.object({
+          name: Joi.string().required(),
+          maxAmount: Joi.number().required(),
+          maxTransfersPerDay: Joi.number().required(),
+          uniqueNumber: Joi.number().required(),
+          country: Joi.string().required(),
+        })
+      )
+      .optional(),
+
+    defaultAds: Joi.array()
+      .items(
+        Joi.object({
+          amount: Joi.number().required(),
+          charge: Joi.number().required(),
+        })
+      )
+      .optional(),
+
+    gatewayService: Joi.array()
+      .items(
+        Joi.object({
+          amount: Joi.number().required(),
+          charge: Joi.number().required(),
+        })
+      )
+      .optional(),
+
+    serviceCharge: Joi.array()
+      .items(
+        Joi.object({
+          amount: Joi.number().required(),
+          charge: Joi.number().required(),
+        })
+      )
+      .optional(),
+
+    gatewayList: Joi.array().items(Joi.string()).optional(),
+  }).min(2); // userId + at least one field
+
+  verifyHandleUpdateCallbackUrl = Joi.object({
+    callbackUrl: Joi.string().uri().required().label('Callback URL'),
+  });
+
   verifyHandleToggleVerification = Joi.object({
     userId: Joi.number().required(),
     field: Joi.string()

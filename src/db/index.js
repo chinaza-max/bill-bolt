@@ -46,7 +46,6 @@ class DB {
       );
 
       initModels(this.sequelize);
-      // await seed();
       // await this.sequelize.sync();
       // Creates database tables if they do not exist.
       // Does NOT modify existing tables. Safe for first connection to a new database.
@@ -110,10 +109,10 @@ class DB {
         serverConfig.DB_PASSWORD,
         options
       );
-
+      await this.sequelize.sync({ force: true });
       initModels(this.sequelize);
 
-      await this.sequelize.sync({ force: true });
+      // await this.sequelize.sync({ force: true });
     }
 
     /*S   try {
