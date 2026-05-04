@@ -127,11 +127,12 @@ class Server {
 
   initializeMiddlewaresAndRoutes() {
     let corsOptions;
-    if (this.mode == 'development') {
+    if (this.mode == 'production') {
       const allowedOrigins = [
         'http://localhost:3001',
         'http://localhost:8080',
         'https://resilient-praline-b08aba.netlify.app/',
+        'https://resilient-praline-b08aba.netlify.app',
       ]; // Add your allowed origin(s) here
 
       corsOptions = {
