@@ -6011,51 +6011,45 @@ class UserService extends NotificationServicePush {
     const transaction = await db.sequelize.transaction();
 
     try {
-      // 1. Update order status and refund reason
-      await OrdersModelResult.update(
-        { orderStatus, reason, moneyStatus: 'refund' },
-        { transaction }
+      // ✅ Atomic guard — only succeeds if status is still cancellable
+      // If two requests come in simultaneously, only ONE will get affectedRows = 1
+      const [affectedRows] = await this.OrdersModel.update(
+        {
+          orderStatus,
+          reason,
+          moneyStatus: 'refund',
+        },
+        {
+          where: {
+            id: OrdersModelResult.id,
+            orderStatus: ['pending', 'inProgress'], // only update if still active
+            moneyStatus: { [Op.ne]: 'refund' }, // not already refunded
+          },
+          transaction,
+        }
       );
 
-      // 2. Update client wallet (make sure this uses the same transaction)
+      // If nothing was updated, another request already processed this
+      if (affectedRows === 0) {
+        await transaction.rollback();
+        throw new ConflictError(
+          'Order has already been cancelled or refunded.'
+        );
+      }
+
+      // Safe to refund now — we're the only request that got past the guard
       await this.updateClientWallet(
         OrdersModelResult.clientId,
         OrdersModelResult.totalAmount,
         transaction
       );
 
-      // ✅ Commit only if both succeed
       await transaction.commit();
     } catch (error) {
-      // ❌ Rollback everything if one step fails
       await transaction.rollback();
-      throw new SystemError(error);
-    }
-
-    // 3. After transaction is done, handle notification (non-critical)
-    try {
-      const userResult = await this.UserModel.findByPk(
-        OrdersModelResult.clientId
-      );
-
-      await this.sendToDevice(
-        userResult.fcmToken,
-        {
-          title: 'Order Rejected ❌',
-          body: `Your order was rejected. Please try another merchant. The amount has been refunded to your wallet.`,
-        },
-        {
-          type: event.ORDER_REJECTED,
-          orderId: OrdersModelResult.id,
-          userId: userResult.id,
-          sendto: user_type.CLIENT,
-        }
-      );
-    } catch (error) {
-      console.error('Error sending notification:', error);
+      throw error;
     }
   }
-
   rawOrderHash(clientId, merchantId, userPassword, orderId) {
     const unConvertedHash =
       clientId +

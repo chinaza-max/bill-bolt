@@ -112,12 +112,6 @@ class DB {
             rejectUnauthorized: true,
           },
         },
-        /*  pool: {
-              max: 4, // Maximum number of connections in the poo
-              min: 0, // Minimum number of connections in  the pool
-              acquire: 30000, // The maximum time, in milliseconds, that pool will try to get a connection before throwing an error
-              idle: 10000, // The maximum time, in milliseconds, that a connection can be idle before being released
-            },*/
       };
 
       this.sequelize = new Sequelize(
@@ -128,7 +122,7 @@ class DB {
       );
       //await this.sequelize.sync({ force: true });
       initModels(this.sequelize);
-      await this.sequelize.sync({ alter: true });
+      //await this.sequelize.sync({ alter: true });
 
       //   await this.sequelize.sync({ force: true }); // ⚠️ deletes all data
 

@@ -182,7 +182,7 @@ class Server {
   }
   loadCronJobs() {
     cron.schedule('*/10  * * * * *', async () => {
-      userService.makeMatch();
+      // userService.makeMatch();
     });
 
     cron.schedule('*/10 * * * * *', async () => {
