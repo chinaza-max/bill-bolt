@@ -128,6 +128,7 @@ class Server {
   initializeMiddlewaresAndRoutes() {
     let corsOptions;
     if (this.mode == 'production') {
+      /*
       const allowedOrigins = [
         'http://localhost:3001',
         'http://localhost:8080',
@@ -144,6 +145,12 @@ class Server {
             callback(new Error('Not allowed by CORS'));
           }
         },
+        credentials: true,
+      };
+*/
+
+      corsOptions = {
+        origin: '*',
         credentials: true,
       };
     } else {
@@ -175,7 +182,7 @@ class Server {
   }
   loadCronJobs() {
     cron.schedule('*/10  * * * * *', async () => {
-      // userService.makeMatch();
+      userService.makeMatch();
     });
 
     cron.schedule('*/10 * * * * *', async () => {
