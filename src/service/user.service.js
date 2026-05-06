@@ -271,6 +271,7 @@ class UserService extends NotificationServicePush {
     }
   }
 
+  /*
   async uploadToDrive(filePath, fileName, mimeType) {
     const drive = google.drive({ version: 'v3', auth: oAuth2Client });
 
@@ -306,6 +307,148 @@ class UserService extends NotificationServicePush {
     });
 
     return result.data;
+  }
+  */
+
+  async uploadToDrive(filePath, fileName, mimeType) {
+    // Validate inputs
+    if (!filePath || !fileName || !mimeType) {
+      throw new Error(
+        `Missing required parameters: ${[
+          !filePath && 'filePath',
+          !fileName && 'fileName',
+          !mimeType && 'mimeType',
+        ]
+          .filter(Boolean)
+          .join(', ')}`
+      );
+    }
+
+    // Check file exists and is readable
+    try {
+      await fs.promises.access(filePath, fs.constants.R_OK);
+    } catch {
+      throw new Error(`File not accessible at path: ${filePath}`);
+    }
+
+    // Check file is not empty
+    const stats = await fs.promises.stat(filePath);
+    if (stats.size === 0) {
+      throw new Error(`File is empty (0 bytes): ${filePath}`);
+    }
+
+    // Validate OAuth client
+    if (!oAuth2Client) {
+      throw new Error('Google OAuth2 client is not initialized');
+    }
+
+    const credentials = oAuth2Client.credentials;
+    if (
+      !credentials ||
+      (!credentials.access_token && !credentials.refresh_token)
+    ) {
+      throw new Error(
+        'OAuth2 client has no credentials — check your environment variables or token setup'
+      );
+    }
+
+    // Refresh token if expired
+    if (credentials.expiry_date && credentials.expiry_date <= Date.now()) {
+      try {
+        await oAuth2Client.refreshAccessToken();
+      } catch (refreshError) {
+        throw new Error(
+          `Failed to refresh expired OAuth token: ${refreshError.message}`
+        );
+      }
+    }
+
+    const drive = google.drive({ version: 'v3', auth: oAuth2Client });
+    let fileId = null;
+    let readStream = null;
+
+    try {
+      readStream = fs.createReadStream(filePath);
+      readStream.on('error', (streamErr) => {
+        throw new Error(`Failed to read file stream: ${streamErr.message}`);
+      });
+
+      // Upload file
+      let file;
+      try {
+        file = await drive.files.create({
+          requestBody: { name: fileName },
+          media: { mimeType, body: readStream },
+          fields: 'id',
+        });
+      } catch (uploadError) {
+        const reason =
+          uploadError?.response?.data?.error?.message || uploadError.message;
+        throw new Error(`Drive file upload failed: ${reason}`);
+      }
+
+      fileId = file?.data?.id;
+      if (!fileId) {
+        throw new Error('Drive did not return a file ID after upload');
+      }
+
+      // Set public permissions
+      try {
+        await drive.permissions.create({
+          fileId,
+          requestBody: { role: 'reader', type: 'anyone' },
+        });
+      } catch (permError) {
+        await this.deleteDriveFile(drive, fileId);
+        throw new Error(
+          `Failed to make file public: ${
+            permError?.response?.data?.error?.message || permError.message
+          }`
+        );
+      }
+
+      // Fetch public links
+      let result;
+      try {
+        result = await drive.files.get({
+          fileId,
+          fields: 'webViewLink, webContentLink',
+        });
+      } catch (fetchError) {
+        throw new Error(`Failed to retrieve file links: ${fetchError.message}`);
+      }
+
+      if (!result?.data?.webViewLink) {
+        throw new Error(
+          `File uploaded (ID: ${fileId}) but no webViewLink returned`
+        );
+      }
+
+      return result.data;
+    } catch (error) {
+      if (fileId) {
+        await this.deleteDriveFile(drive, fileId).catch((e) =>
+          console.error('[uploadToDrive] Cleanup failed:', e.message)
+        );
+      }
+      console.error('[uploadToDrive] Error:', error.message);
+      throw error;
+    } finally {
+      if (readStream && !readStream.destroyed) {
+        readStream.destroy();
+      }
+    }
+  }
+
+  async deleteDriveFile(drive, fileId) {
+    try {
+      await drive.files.delete({ fileId });
+    } catch (err) {
+      console.error(
+        `[uploadToDrive] Could not delete orphaned file ${fileId}:`,
+        err.message
+      );
+    }
   }
 
   async handleInitiateNINVerify(data) {
@@ -3243,8 +3386,7 @@ class UserService extends NotificationServicePush {
     }
   }
   async handleDashBoardStatistic(data) {
-    const { userId } =
-      await userUtil.verifyHandleDashBoardStatistic.validateAsync(data);
+    await userUtil.verifyHandleDashBoardStatistic.validateAsync(data);
     try {
       const userResult = await this.UserModel.count({
         where: { isEmailValid: true },
@@ -3272,6 +3414,11 @@ class UserService extends NotificationServicePush {
         let gatewayService = await this.safeParse(
           settingModelResult.gatewayService
         );
+
+        console.log('gatewayServicebbbbbb', gatewayService);
+        console.log('gatewayServicebbbbbb', serviceCharge);
+        console.log(gatewayService);
+
         const amountSummary = await this.getdeliveryAmountSummary(
           pricePerThousand,
           order.amountOrder,
@@ -3279,7 +3426,6 @@ class UserService extends NotificationServicePush {
           gatewayService
         );
 
-        console.log(amountSummary);
         //kkk
         totalServiceCharge +=
           amountSummary.merchantCharge +
@@ -3398,6 +3544,10 @@ class UserService extends NotificationServicePush {
   }
 
   safeParse(input) {
+    console.log('ooo', input);
+    console.log('ooo', input);
+    console.log('ooo', input);
+
     if (typeof input === 'string') {
       try {
         return JSON.parse(input);
@@ -3407,7 +3557,9 @@ class UserService extends NotificationServicePush {
       }
     }
 
-    console.log(input);
+    console.log('kkkk', input);
+    console.log('kkkk', input);
+
     return input || {};
   }
   async handleSubmitComplain(data) {
@@ -5730,12 +5882,10 @@ class UserService extends NotificationServicePush {
     serviceCharge,
     gatewayService
   ) {
-    console.log('[getdeliveryAmountSummary] INPUT', {
-      merchantads,
-      amount,
-      serviceCharge,
-      gatewayService,
-    });
+    serviceCharge = await this.safeParse(serviceCharge);
+
+    gatewayService = await this.safeParse(gatewayService);
+    merchantads = await this.safeParse(merchantads);
 
     // Sort all arrays by amount ascending
     merchantads.sort((a, b) => a.amount - b.amount);

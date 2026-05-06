@@ -90,6 +90,7 @@ class Server {
         isDeleted: false,
       },
     });
+
     if (!setting.serviceCharge || !setting.gatewayService) {
       await setting.update({
         serviceCharge: setting.serviceCharge ?? [
