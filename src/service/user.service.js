@@ -1205,11 +1205,34 @@ class UserService extends NotificationServicePush {
       }
     }
   }
-
   async handleGetSettings() {
     try {
       const settings = await this.SettingModel.findByPk(1);
-      return settings;
+
+      if (!settings) return null;
+
+      const data = settings.toJSON();
+
+      const jsonFields = [
+        'tiers',
+        'defaultAds',
+        'gatewayService',
+        'serviceCharge',
+        'gatewayList',
+      ];
+
+      for (const field of jsonFields) {
+        try {
+          data[field] =
+            typeof data[field] === 'string'
+              ? JSON.parse(data[field])
+              : data[field] ?? [];
+        } catch {
+          data[field] = [];
+        }
+      }
+
+      return data;
     } catch (error) {
       console.error('Error fetching settings:', error);
       throw new SystemError(error.name, error.parent);
@@ -3544,10 +3567,6 @@ class UserService extends NotificationServicePush {
   }
 
   safeParse(input) {
-    console.log('ooo', input);
-    console.log('ooo', input);
-    console.log('ooo', input);
-
     if (typeof input === 'string') {
       try {
         return JSON.parse(input);
@@ -3556,10 +3575,6 @@ class UserService extends NotificationServicePush {
         return {};
       }
     }
-
-    console.log('kkkk', input);
-    console.log('kkkk', input);
-
     return input || {};
   }
   async handleSubmitComplain(data) {
@@ -5882,8 +5897,15 @@ class UserService extends NotificationServicePush {
     serviceCharge,
     gatewayService
   ) {
-    serviceCharge = await this.safeParse(serviceCharge);
+    console.log('merchantads');
+    console.log(merchantads);
+    console.log('merchantads');
 
+    console.log('gatewayService');
+    console.log(gatewayService);
+    console.log('gatewayService');
+
+    serviceCharge = await this.safeParse(serviceCharge);
     gatewayService = await this.safeParse(gatewayService);
     merchantads = await this.safeParse(merchantads);
 
