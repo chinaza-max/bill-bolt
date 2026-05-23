@@ -15,6 +15,9 @@ export default class AuthenticationController {
     this.signupUser = this.signupUser.bind(this);
     this.verifyEmailorTel = this.verifyEmailorTel.bind(this);
     this.loginUser = this.loginUser.bind(this);
+    this.handleGoogleSignup = this.handleGoogleSignup.bind(this);
+    this.handleConnectGoogleAccount =
+      this.handleConnectGoogleAccount.bind(this);
   }
   /*
   async verifyEmailorTelAdmin(req, res, next) {
@@ -42,6 +45,143 @@ export default class AuthenticationController {
     
   }
   */
+
+  /**
+   * POST /checkGoogleEmail
+   * Receives an email from the Google OAuth flow.
+   * If the email already exists in the DB, tells the client to
+   * connect the account instead of creating a new one.
+   */
+  async handleCheckGoogleEmail(req, res, next) {
+    try {
+      const data = req.body;
+
+      const result = await authService.handleCheckGoogleEmail(data);
+
+      return res.status(200).json({
+        status: 200,
+        message: result.message,
+        data: result.data,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  /**
+   * POST /googleSignup
+   * Receives firstName, lastName, emailAddress, googleId, dateOfBirth
+   * collected from the Google API and creates a new user account.
+   */
+  async handleGoogleSignup(req, res, next) {
+    try {
+      const data = req.body;
+
+      const my_bj = {
+        ...data,
+      };
+
+      const result = await authService.handleGoogleSignup(my_bj);
+
+      const keysToRemove = ['password', 'googleId'];
+      const filteredUser = this.filterObject(result.dataValues, keysToRemove);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'Google account registered successfully',
+        data: filteredUser,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async handleConnectGoogleAccount(req, res, next) {
+    try {
+      const data = req.body;
+
+      const my_bj = {
+        ...data,
+      };
+
+      const result = await authService.handleConnectGoogleAccount(my_bj);
+
+      if (result == 'notFound') {
+        return res.status(404).json({
+          status: 404,
+          message: 'No account found with this email address',
+        });
+      } else if (result == 'alreadyConnected') {
+        return res.status(400).json({
+          status: 400,
+          message: 'This account is already connected to a Google account',
+        });
+      }
+
+      const keysToRemove = ['password', 'googleId'];
+      const filteredUser = this.filterObject(result.dataValues, keysToRemove);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'Google account connected successfully',
+        data: filteredUser,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async handleUpdatePhoneAndDob(req, res, next) {
+    try {
+      const data = req.body;
+
+      const result = await authService.handleUpdatePhoneAndDob(data);
+
+      const keysToRemove = ['password', 'googleId'];
+      const filteredUser = this.filterObject(result.dataValues, keysToRemove);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'Phone number and date of birth updated successfully',
+        data: filteredUser,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  /**
+   * PATCH /updatePhone
+   * Updates tel and telCode for a user who signed up via Google
+   * (Google does not provide phone numbers).
+   */
+  async handleUpdatePhone(req, res, next) {
+    try {
+      const data = req.body;
+
+      const my_bj = {
+        ...data,
+      };
+
+      const result = await authService.handleUpdatePhone(my_bj);
+
+      const keysToRemove = ['password', 'googleId'];
+      const filteredUser = this.filterObject(result.dataValues, keysToRemove);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'Phone number updated successfully',
+        data: filteredUser,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
 
   async verifyEmailorTel(req, res, next) {
     try {
@@ -241,6 +381,12 @@ export default class AuthenticationController {
         return res.status(400).json({
           status: 400,
           message: 'Your email is not verified yet',
+        });
+      } else if (user == 'googleConflict') {
+        return res.status(409).json({
+          status: 409,
+          message:
+            'An account with this email already exists. Would you like to link your Google account?',
         });
       }
 

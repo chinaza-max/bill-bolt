@@ -20,6 +20,13 @@ class authUtil {
     passCode: Joi.number().required(),
   });
 
+  verifyHandleUpdatePhoneAndDob = Joi.object({
+    userId: Joi.number().integer().required(),
+    tel: Joi.string().required(),
+    telCode: Joi.string().required(),
+    dateOfBirth: Joi.date().iso().required(),
+  });
+
   verifyHandleVerifyEmailorTel = Joi.object({
     emailAddress: Joi.string().required(),
     validateFor: Joi.string().valid('user', 'admin').required(),
@@ -34,9 +41,11 @@ class authUtil {
   });
 
   verifyHandleLoginUser = Joi.object({
-    password: Joi.string().required(),
+    password: Joi.string().optional(),
     type: Joi.string().valid('user', 'admin').required(),
     emailAddress: Joi.string().email().required(),
+    googleId: Joi.string().optional(),
+    loginMethod: Joi.string().valid('password', 'google').required(),
   });
 
   validateHandleSendPasswordResetLink = Joi.object({
@@ -44,6 +53,11 @@ class authUtil {
       .try(Joi.string().email(), Joi.number())
       .required(),
     type: Joi.string().valid('user', 'admin').required(),
+  });
+
+  verifyHandleConnectGoogleAccount = Joi.object({
+    emailAddress: Joi.string().email().required(),
+    googleId: Joi.string().required(),
   });
 
   validatePasswordReset = Joi.object().keys({
@@ -63,6 +77,25 @@ class authUtil {
       'string.empty': 'Email or phone is required',
     }),
     type: Joi.string().valid('user', 'admin').required(),
+  });
+
+  verifyHandleCheckGoogleEmail = Joi.object({
+    emailAddress: Joi.string().email().required(),
+  });
+
+  // Google signup with collected data
+  verifyHandleGoogleSignup = Joi.object({
+    firstName: Joi.string().required(),
+    lastName: Joi.string().required(),
+    emailAddress: Joi.string().email().required(),
+    googleId: Joi.string().required(),
+  });
+
+  // Update phone after Google signup
+  verifyHandleUpdatePhone = Joi.object({
+    userId: Joi.number().integer().required(),
+    tel: Joi.string().required(),
+    telCode: Joi.string().required(),
   });
 
   /*

@@ -36,6 +36,12 @@ class UserUtil {
     userId: Joi.number().integer().required(),
   });
 
+  verifyHandleUpdatePhone = Joi.object({
+    userId: Joi.number().integer().required(),
+    tel: Joi.string().required(),
+    telCode: Joi.string().required(),
+  });
+
   verifyHandleUpdateMerchantProfile = Joi.object().keys({
     userId: Joi.number().required().label('user Id'),
     displayName: Joi.string().optional().label('Display Name'),

@@ -90,11 +90,61 @@ export function init(connection) {
       },
       password: {
         type: DataTypes.STRING,
-        allowNull: false,
+        // Now nullable — Google-only users won't have a password
+        allowNull: true,
       },
+
+      // ─── Google OAuth ──────────────────────────────────────────────────────────
+
+      /**
+       * The unique ID returned by Google after OAuth sign-in (sub field in the
+       * Google ID token). Stored instead of a password for Google-only accounts.
+       * Null for users who registered with email + password.
+       */
+      googleId: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        unique: true,
+      },
+
+      /**
+       * Tracks which authentication method the user most recently used to sign in.
+       * Possible values:
+       *   'password' — traditional email + password login
+       *   'google'   — Google OAuth login
+       *
+       * Update this field every time the user successfully authenticates so you
+       * always know the most recent login channel.
+       */
+      lastLoginMethod: {
+        type: DataTypes.ENUM('password', 'google'),
+        allowNull: true, // null until the user logs in for the first time
+        defaultValue: null,
+      },
+
+      /**
+       * Full history of authentication methods used, with timestamps.
+       * Stored as a JSON array so you can audit every login channel over time.
+       *
+       * Example value:
+       * [
+       *   { "method": "password", "at": "2024-01-10T08:23:00Z" },
+       *   { "method": "google",   "at": "2024-03-15T14:05:00Z" }
+       * ]
+       *
+       * Append a new entry each time the user logs in successfully.
+       
+      loginMethodHistory: {
+        type: DataTypes.JSON,
+        allowNull: false,
+        defaultValue: [],
+      },
+      */
+      // ──────────────────────────────────────────────────────────────────────────
+
       dateOfBirth: {
         type: DataTypes.DATE,
-        allowNull: false,
+        allowNull: true,
       },
       passCode: {
         type: DataTypes.STRING,
@@ -204,4 +254,3 @@ export function init(connection) {
 }
 
 export default User;
-//https://claude.ai/chat/7eb40846-b979-4f5f-9535-883e50041661

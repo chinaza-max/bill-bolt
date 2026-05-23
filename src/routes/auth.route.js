@@ -24,6 +24,11 @@ class AuthRoutes extends AuthController {
     });
 
     this.router.post('/registerUser', this.signupUser);
+    this.router.post('/checkGoogleEmail', this.handleCheckGoogleEmail);
+    this.router.post('/googleSignup', this.handleGoogleSignup);
+    this.router.patch('/updatePhone', this.handleUpdatePhone);
+    this.router.patch('/updatePhoneAndDob', this.handleUpdatePhoneAndDob);
+    this.router.post('/connectGoogleAccount', this.handleConnectGoogleAccount);
     this.router.post('/verifyEmailorTel', this.verifyEmailorTel);
     this.router.post(
       '/sendVerificationCodeEmailOrTel',

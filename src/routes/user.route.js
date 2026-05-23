@@ -33,6 +33,9 @@ class UserRoutes extends UserController {
       uploadHandler.image.single('ninImage'),
       this.uploadNinImage
     );
+
+    this.router.patch('/updatePhone', this.handleUpdatePhone);
+
     this.router.post('/updatePin', this.updatePin);
     this.router.post('/verifyNIN', this.verifyNIN);
     this.router.post('/initiateNINVerify', this.initiateNINVerify);

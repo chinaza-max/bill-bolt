@@ -103,6 +103,29 @@ class UserService extends NotificationServicePush {
     }
   }
 
+  async handleUpdatePhone(data) {
+    const { userId, tel, telCode } =
+      await authUtil.verifyHandleUpdatePhone.validateAsync(data);
+
+    const user = await this.UserModel.findOne({ where: { id: userId } });
+
+    if (!user) throw new NotFoundError('User not found');
+
+    try {
+      await user.update({ tel, telCode });
+
+      // Re-fetch so the returned dataValues reflect the update
+      const updatedUser = await this.UserModel.findOne({
+        where: { id: userId },
+      });
+
+      return updatedUser;
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
   async handleUploadNinImage(data, file) {
     let { userId } = await userUtil.verifyHandleUploadNinImage.validateAsync(
       data

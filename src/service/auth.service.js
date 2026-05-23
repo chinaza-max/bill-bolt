@@ -31,6 +31,7 @@ import {
 } from '../errors/index.js';
 import { Op } from 'sequelize';
 import { customAlphabet } from 'nanoid';
+import userUtil from '../utils/user.util.js';
 
 const drive = google.drive({ version: 'v3', auth: oAuth2Client });
 const ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -203,7 +204,7 @@ class AuthenticationService {
   }
 
   async handleLoginUser(data) {
-    const { emailAddress, password, type } =
+    const { emailAddress, password, type, loginMethod, googleId } =
       await authUtil.verifyHandleLoginUser.validateAsync(data);
 
     let user;
@@ -212,14 +213,12 @@ class AuthenticationService {
       user = await this.UserModel.findOne({
         where: {
           emailAddress,
-          //isEmailValid: true,
           isDeleted: false,
         },
         include: [
           {
             model: MerchantProfile,
-            as: 'MerchantProfile', // Ensure this matches the alias in associations
-            //attributes: ["id", "businessName", "businessType"], // Add required fields
+            as: 'MerchantProfile',
             required: false,
           },
         ],
@@ -236,23 +235,36 @@ class AuthenticationService {
 
     if (!user) throw new NotFoundError('User not found.');
 
-    if (!(await bcrypt.compare(password, user.password))) return null;
+    // Authenticate based on loginMethod
+    if (loginMethod === 'google') {
+      if (!googleId || !user.googleId) {
+        if (!user.googleId) return 'googleConflict';
+        return null;
+      }
+      if (!(await bcrypt.compare(googleId, user.googleId))) return null;
+    } else {
+      // Default: password login
+      if (!password || !user.password) return null;
+      if (!(await bcrypt.compare(password, user.password))) return null;
+    }
 
     if (user.disableAccount) return 'disabled';
-    await user.update({
-      isOnline: true,
-    });
+
+    await user.update({ isOnline: true });
+
     if (user?.isEmailValid === false) {
       const validateFor = 'user';
       await this.sendEmailVerificationCode(emailAddress, user.id, validateFor);
       return 'unverifiedEmail';
     }
+
     if (!user?.passCode) {
       user.passCode = false;
     }
     if (!user?.describeYou) {
       user.describeYou = false;
     }
+
     return user;
   }
 
@@ -1202,6 +1214,212 @@ class AuthenticationService {
     } catch (error) {
       console.log('error', error);
       return error;
+    }
+  }
+
+  /**
+   * Checks whether an email from Google already exists in the database.
+   * Returns a flag so the client knows whether to:
+   *   - connect the existing account  (accountExists: true)
+   *   - proceed with a fresh sign-up  (accountExists: false)
+   */
+
+  async handleCheckGoogleEmail(data) {
+    const { emailAddress } =
+      await authUtil.verifyHandleCheckGoogleEmail.validateAsync(data);
+
+    const existingUser = await this.UserModel.findOne({
+      where: { emailAddress },
+      attributes: {
+        exclude: [
+          'password',
+          'googleId',
+          'passCode',
+          'refreshToken',
+          'fcmToken',
+          'ninImage',
+          'nin',
+          'walletBalance',
+          'settlementAccount',
+          'bankCode',
+          'nameEnquiryReference',
+          'loginMethodHistory',
+          'bankName',
+          'accountName',
+          'tel',
+          'isTelValid',
+          'telCode',
+          'firstName',
+          'lastName',
+          'lat',
+          'lng',
+          'country',
+          'role',
+          'lastLoginMethod',
+          'dateOfBirth',
+          'ninName',
+          'describeYou',
+          'merchantActivated',
+          'isNinVerified',
+          'isDisplayNameMerchantSet',
+          'isFaceVerified',
+          'isOnline',
+          'deviceType',
+          'deviceIp',
+          'disableAccount',
+          'isninImageVerified',
+          'canWithdraw',
+        ],
+      },
+    });
+
+    if (existingUser) {
+      return {
+        message: 'Account already exists. Please connect your Google account.',
+        data: {
+          accountExists: true,
+          user: existingUser.dataValues,
+        },
+      };
+    }
+
+    return {
+      message: 'Email is available. Proceed with Google sign-up.',
+      data: {
+        accountExists: false,
+        user: null,
+      },
+    };
+  }
+
+  /**
+   * Creates a new user from Google OAuth data.
+   * No password is set; googleId is stored instead.
+   * telCode defaults to an empty string because Google does not supply a phone.
+   */
+  async handleGoogleSignup(data) {
+    const { firstName, lastName, emailAddress, googleId, dateOfBirth } =
+      await authUtil.verifyHandleGoogleSignup.validateAsync(data);
+
+    // Prevent duplicate accounts
+    const existingUser = await this.isUserEmailExisting(
+      emailAddress,
+      this.UserModel
+    );
+
+    if (existingUser) throw new ConflictError(existingUser);
+
+    let googleIdhash;
+    try {
+      googleIdhash = await bcrypt.hash(
+        googleId,
+        Number(serverConfig.SALT_ROUNDS)
+      );
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error);
+    }
+
+    try {
+      const user = await this.UserModel.create({
+        firstName,
+        lastName,
+        emailAddress,
+        googleId: googleIdhash,
+        dateOfBirth,
+        password: null,
+        telCode: '',
+        isEmailValid: true,
+        lastLoginMethod: 'google',
+        /*   loginMethodHistory: [
+          { method: 'google', at: new Date().toISOString() },
+        ], */
+      });
+
+      return user;
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  /**
+   * Updates the phone number of a user who registered via Google OAuth.
+   * Google does not supply phone numbers, so this is a separate step.
+   */
+  async handleUpdatePhone(data) {
+    const { userId, tel, telCode } =
+      await userUtil.verifyHandleUpdatePhone.validateAsync(data);
+
+    const user = await this.UserModel.findOne({ where: { id: userId } });
+
+    if (!user) throw new NotFoundError('User not found');
+
+    try {
+      await user.update({ tel, telCode });
+
+      // Re-fetch so the returned dataValues reflect the update
+      const updatedUser = await this.UserModel.findOne({
+        where: { id: userId },
+      });
+
+      return updatedUser;
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleConnectGoogleAccount(data) {
+    const { emailAddress, googleId } =
+      await authUtil.verifyHandleConnectGoogleAccount.validateAsync(data);
+
+    const user = await this.UserModel.findOne({
+      where: { emailAddress, isDeleted: false },
+    });
+
+    if (!user) return 'notFound';
+
+    if (user.googleId) return 'alreadyConnected';
+
+    try {
+      const hashedGoogleId = await bcrypt.hash(
+        googleId,
+        Number(serverConfig.SALT_ROUNDS)
+      );
+
+      await user.update({ googleId: hashedGoogleId });
+
+      const updatedUser = await this.UserModel.findOne({
+        where: { emailAddress },
+      });
+
+      return updatedUser;
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async handleUpdatePhoneAndDob(data) {
+    const { userId, tel, telCode, dateOfBirth } =
+      await userUtil.verifyHandleUpdatePhoneAndDob.validateAsync(data);
+
+    const user = await this.UserModel.findOne({ where: { id: userId } });
+
+    if (!user) throw new NotFoundError('User not found');
+
+    try {
+      await user.update({ tel, telCode, dateOfBirth });
+
+      const updatedUser = await this.UserModel.findOne({
+        where: { id: userId },
+      });
+
+      return updatedUser;
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
     }
   }
 

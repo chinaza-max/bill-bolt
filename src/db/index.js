@@ -9,27 +9,8 @@ class DB {
   }
 
   async connectDB() {
-    console.log('serverConfig.NODE_ENV');
-    console.log('serverConfig.NODE_ENV');
-    console.log('serverConfig.NODE_ENV');
-
-    console.log(serverConfig.NODE_ENV);
-    console.log(serverConfig.NODE_ENV);
-    console.log(serverConfig.NODE_ENV);
-    console.log(serverConfig.NODE_ENV);
-    console.log(serverConfig.NODE_ENV);
-    console.log(serverConfig.NODE_ENV);
-    console.log('serverConfig.NODE_ENV');
-
-    console.log('serverConfig.NODE_ENV');
-    console.log('serverConfig.NODE_ENV');
-    console.log('serverConfig.NODE_ENV');
-    console.log('serverConfig.NODE_ENV');
-    console.log('serverConfig.NODE_ENV');
-    console.log('serverConfig.NODE_ENV');
-    console.log('serverConfig.NODE_ENV');
-
     if (serverConfig.NODE_ENV === 'development') {
+      //console.log('Connecting to database in development mode...');
       const options = {
         // logging: console.log,
         dialect: 'mysql',
@@ -66,7 +47,30 @@ class DB {
       // Creates database tables if they do not exist.
       // Does NOT modify existing tables. Safe for first connection to a new database.
 
-      // await this.sequelize.sync({ alter: true });
+      /*
+      try {
+        await this.sequelize.query(
+          `ALTER TABLE \`User\` DROP COLUMN \`loginMethodHistory\``
+        );
+        console.log('Dropped loginMethodHistory');
+      } catch (e) {
+        if (e.original?.code === 'ER_CANT_DROP_FIELD_OR_KEY') {
+          console.log('loginMethodHistory already dropped, skipping');
+        } else throw e;
+      }
+
+      try {
+        await this.sequelize.query(
+          `ALTER TABLE \`User\` DROP COLUMN \`lastLoginMethod\``
+        );
+        console.log('Dropped lastLoginMethod');
+      } catch (e) {   
+        if (e.original?.code === 'ER_CANT_DROP_FIELD_OR_KEY') {
+          console.log('lastLoginMethod already dropped, skipping');
+        } else throw e;
+      }
+      */
+      //await this.sequelize.sync({ alter: true });
       // Compares models with existing tables and automatically updates the schema.
       // Adds or modifies columns to match models without dropping tables.
       // Useful in development, but risky for production because it may change structure unexpectedly.

@@ -74,6 +74,31 @@ export default class UserController {
     }
   }
 
+  async handleUpdatePhone(req, res, next) {
+    try {
+      const data = req.body;
+
+      const my_bj = {
+        ...data,
+        userId: req.user.id,
+      };
+
+      const result = await authService.handleUpdatePhone(my_bj);
+
+      const keysToRemove = ['password', 'googleId'];
+      const filteredUser = this.filterObject(result.dataValues, keysToRemove);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'Phone number updated successfully',
+        data: filteredUser,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
   async uploadNinImage(req, res) {
     try {
       const data = {
