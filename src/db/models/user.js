@@ -90,7 +90,6 @@ export function init(connection) {
       },
       password: {
         type: DataTypes.STRING,
-        // Now nullable — Google-only users won't have a password
         allowNull: true,
       },
 

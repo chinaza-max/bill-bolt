@@ -183,11 +183,19 @@ class Server {
   }
   loadCronJobs() {
     cron.schedule('*/10  * * * * *', async () => {
-      // userService.makeMatch();
+      if (process.env.NODE_ENV === 'production') {
+        userService.makeMatch();
+      } else {
+        userService.makeMatch();
+      }
     });
 
     cron.schedule('*/10 * * * * *', async () => {
       //this.checkTransaction();
+    });
+
+    cron.schedule('*/5 * * * *', async () => {
+      await userService.checkStalePendingTransactions();
     });
   }
   async checkTransaction() {

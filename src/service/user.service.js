@@ -114,7 +114,6 @@ class UserService extends NotificationServicePush {
     try {
       await user.update({ tel, telCode });
 
-      // Re-fetch so the returned dataValues reflect the update
       const updatedUser = await this.UserModel.findOne({
         where: { id: userId },
       });
@@ -123,6 +122,34 @@ class UserService extends NotificationServicePush {
     } catch (error) {
       console.log(error);
       throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  async checkStalePendingTransactions() {
+    try {
+      const cutoff = new Date(Date.now() - 20 * 60 * 1000); // 20 minutes ago
+
+      const [updatedCount] = await this.TransactionModel.update(
+        {
+          paymentStatus: 'cancelled',
+          declinedAt: new Date(),
+        },
+        {
+          where: {
+            paymentStatus: 'pending',
+            transactionType: ['withdrawal', 'fundwallet'],
+            createdAt: { [Op.lt]: cutoff },
+          },
+        }
+      );
+
+      if (updatedCount > 0) {
+        console.log(
+          `[StaleTxn] Marked ${updatedCount} stale pending transactions as cancelled`
+        );
+      }
+    } catch (error) {
+      console.error('[StaleTxn] Error marking stale transactions:', error);
     }
   }
 
@@ -5078,6 +5105,10 @@ class UserService extends NotificationServicePush {
       throw new NotFoundError('Merchant profile not found');
     }
 
+    console.log('SettingModelResult.tiers');
+    console.log(SettingModelResult.tiers);
+    console.log('SettingModelResult.tiers');
+
     // ✅ Safely parse the tiers using safeParse
     const SettingModelResultTiers = this.safeParse(SettingModelResult.tiers);
 
@@ -5085,6 +5116,8 @@ class UserService extends NotificationServicePush {
 
     // ✅ Ensure it's an array before continuing
     if (!Array.isArray(SettingModelResultTiers)) {
+      console.log('Parsed tiers is not an array:', SettingModelResultTiers);
+      console.log(Array.isArray(SettingModelResultTiers));
       throw new SystemError('Parsed tiers is not an array');
     }
 

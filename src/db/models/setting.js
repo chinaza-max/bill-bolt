@@ -47,6 +47,17 @@ export function init(connection) {
       tiers: {
         type: DataTypes.JSON,
         allowNull: false,
+        get() {
+          const value = this.getDataValue('tiers');
+          if (typeof value === 'string') {
+            try {
+              return JSON.parse(value);
+            } catch {
+              return [];
+            }
+          }
+          return value ?? [];
+        },
       },
 
       gateWayEnvironment: {
