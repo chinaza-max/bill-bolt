@@ -43,7 +43,7 @@ class Server {
     const [setting, created] = await Setting.findOrCreate({
       where: { id: 1 },
       defaults: {
-        distanceThreshold: 10,
+        distanceThreshold: 1,
         tiers: [
           {
             name: 'bronze',
