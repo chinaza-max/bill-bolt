@@ -69,6 +69,7 @@ class UserRoutes extends UserController {
     this.router.get('/notification/unread/count', this.getUnreadCount);
     this.router.post('/notification/read', this.markAsRead);
     this.router.get('/agora/token', this.generateAgoraToken);
+    this.router.post('/cancelTransaction', this.cancelTransaction);
 
     //Transaction api
     this.router.get('/getGeneralTransaction', this.getGeneralTransaction);

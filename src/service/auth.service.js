@@ -495,6 +495,35 @@ class AuthenticationService {
     }
   }
 
+  async testVerifyTransaction() {
+    try {
+      // 1. Retrieve all pending transactions
+      const pendingTransactions = await Transaction.findAll({
+        where: {
+          paymentStatus: 'pending',
+          isDeleted: false,
+        },
+      });
+
+      for (const tx of pendingTransactions) {
+        const { transactionType, amount, userId } = tx;
+        const transactionAmount = amount;
+        const type = transactionType;
+
+        if (type === 'order') {
+          await this._handleOrder(tx, transactionAmount);
+        } else if (type === 'fundwallet') {
+          await this.updateWallet(transactionAmount, userId);
+        }
+
+        // 2. Mark transaction as successful
+        tx.paymentStatus = 'successful';
+        await tx.save();
+      }
+    } catch (error) {
+      console.error('Error processing pending transactions:', error);
+    }
+  }
   /*
   async updateTransactionSaveHaven(data) {
     const sessionId = data?.data?.sessionId;

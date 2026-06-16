@@ -186,12 +186,15 @@ class Server {
       if (process.env.NODE_ENV === 'production') {
         userService.makeMatch();
       } else {
-        userService.makeMatch();
+        //userService.makeMatch();
       }
     });
 
     cron.schedule('*/10 * * * * *', async () => {
-      //this.checkTransaction();
+      if (process.env.NODE_ENV === 'production') {
+      } else {
+        this.checkTransaction();
+      }
     });
 
     cron.schedule('*/5 * * * *', async () => {
@@ -199,6 +202,9 @@ class Server {
     });
   }
   async checkTransaction() {
+    authService.testVerifyTransaction();
+
+    /*
     const dummyPayload = {
       type: 'transfer',
       data: {},
@@ -231,6 +237,7 @@ class Server {
     } catch (error) {
       console.error('Error processing pending transactions:', error);
     }
+    */
   }
   start() {
     this.httpServer.listen(this.port, () => {

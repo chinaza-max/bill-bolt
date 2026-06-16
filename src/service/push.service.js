@@ -63,7 +63,7 @@ export default class NotificationServicePush extends NotificationService {
           title: notification.title,
           body: notification.body,
           imageUrl:
-            'https://res.cloudinary.com/dvznn9s4g/image/upload/v1744585559/icon_yelohe.png',
+            'https://res.cloudinary.com/dvznn9s4g/image/upload/v1781475619/icon_yelohe_2_wwxcx6.png',
         },
         data: finalData,
         android: {

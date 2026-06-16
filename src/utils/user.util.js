@@ -64,6 +64,7 @@ class UserUtil {
     lastName: Joi.string().optional().label('Last Name'),
     tel: Joi.number().optional().label('Telephone Number'),
     telCode: Joi.string().optional().label('Telephone Code'),
+    dateOfBirth: Joi.string().optional().label('Date of Birth'),
     lat: Joi.string().optional(),
     lng: Joi.string().optional(),
     deviceType: Joi.string().optional(),
@@ -547,6 +548,11 @@ class UserUtil {
   verifyHandleConfirmTransfer = Joi.object({
     userId: Joi.number().required(),
     transactionId: Joi.string().required(),
+  });
+
+  validateCancelTransaction = Joi.object().keys({
+    transactionId: Joi.string().required(),
+    userId: Joi.number().integer().required(),
   });
 }
 

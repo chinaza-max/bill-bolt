@@ -270,6 +270,16 @@ class UserService extends NotificationServicePush {
     let { userId, role, image, ...updateData } =
       await userUtil.verifyHandleUpdateProfile.validateAsync(data);
 
+    if (updateData.tel) {
+      const existingUser = await this.UserModel.findOne({
+        where: { tel: updateData.tel },
+      });
+
+      if (existingUser && existingUser.id !== userId) {
+        throw new ConflictError('Phone number is already in use');
+      }
+    }
+
     try {
       let imageUrl = '';
       let imageUrlUpdated = false;
@@ -685,6 +695,40 @@ class UserService extends NotificationServicePush {
       console.error(error);
       next(error);
     }
+  }
+
+  async handleCancelTransaction(data) {
+    await userUtil.validateCancelTransaction.validateAsync(data);
+
+    const { transactionId, userId } = data;
+
+    const transaction = await Transaction.findOne({
+      where: {
+        transactionId,
+        userId,
+        isDeleted: false,
+      },
+    });
+
+    if (!transaction) {
+      throw new NotFoundError('Transaction not found');
+    }
+
+    if (transaction.paymentStatus !== 'pending') {
+      throw new BadRequestError(
+        `Transaction cannot be cancelled. Current status: ${transaction.paymentStatus}`
+      );
+    }
+
+    transaction.paymentStatus = 'cancelled';
+    transaction.declinedAt = new Date();
+    await transaction.save();
+
+    return {
+      transactionId: transaction.transactionId,
+      paymentStatus: transaction.paymentStatus,
+      declinedAt: transaction.declinedAt,
+    };
   }
 
   async handleGenerateAgoraToken(data) {
@@ -4257,6 +4301,7 @@ class UserService extends NotificationServicePush {
 
     await sequelize.transaction(async (t) => {
       // 1. Fetch and validate User
+
       userResult = await this.UserModel.findByPk(userId, { transaction: t });
       if (!userResult) throw new NotFoundError('User not found');
 
@@ -4445,6 +4490,176 @@ class UserService extends NotificationServicePush {
     const settingModelResult = await this.SettingModel.findByPk(1);
     if (!settingModelResult) throw new NotFoundError('Setting not found');
     await this.loadGateWay('safeHaven.gateway');
+
+    try {
+      if (settingModelResult.activeGateway === 'safeHaven.gateway') {
+        if (type == 'fundWallet') {
+          const sessionIdVirtualAcct = `session${Date.now()}-${Math.floor(
+            Math.random() * 100000
+          )}`;
+
+          const transactionId = authService.generateOrderId('NG_TX', 10);
+          const transactionModelResult = await this.TransactionModel.create({
+            userId,
+            amount,
+            transactionId,
+            transactionType: 'fundWallet',
+            paymentStatus: 'pending',
+            transactionFrom: 'external',
+            sessionIdVirtualAcct,
+          });
+
+          let generateVirtualAccountResult;
+
+          if (process.env.NODE_ENV === 'production') {
+            generateVirtualAccountResult =
+              await this.gateway.createVirtualAccount(
+                this.validFor,
+                'Fixed',
+                amount,
+                settingModelResult.callbackUrl,
+                transactionId
+              );
+          } else {
+            generateVirtualAccountResult = {
+              bankName: 'kuda',
+              accountNumber: '1111111111111',
+              accountName: 'chinaza ogbonna',
+              sessionId: sessionIdVirtualAcct,
+              amount: amount,
+              bankCode: '111023',
+              countDown: 60,
+              id: `dummy-${transactionId}`,
+            };
+          }
+
+          transactionModelResult.virtualAccountId =
+            generateVirtualAccountResult.id;
+
+          // -----------------------------
+          // SEND NOTIFICATION
+          // -----------------------------
+          const userResult = await this.UserModel.findByPk(userId);
+
+          if (userResult?.fcmToken) {
+            try {
+              await this.sendToDevice(
+                userResult.fcmToken,
+                {
+                  title: 'Wallet Funding Started 💰',
+                  body: `Transfer ₦${amount} to the provided account to fund your wallet.`,
+                },
+                {
+                  type: event.GENERATE_ACCOUNT_VIRTUAL,
+                  userId: userResult.id,
+                  transactionId,
+                  amount,
+                  bankName: generateVirtualAccountResult.bankName,
+                  accountNumber: generateVirtualAccountResult.accountNumber,
+                  accountName: generateVirtualAccountResult.accountName,
+                  sessionId: sessionIdVirtualAcct,
+                  sendto: user_type.CLIENT,
+                }
+              );
+            } catch (error) {
+              console.error('Notification failed (fundWallet):', error);
+            }
+          }
+
+          await transactionModelResult.save();
+          return { ...generateVirtualAccountResult, transactionId };
+        } else {
+          const sessionIdVirtualAcct = `session${Date.now()}-${Math.floor(
+            Math.random() * 100000
+          )}`;
+
+          const transactionId = authService.generateOrderId('NG_TX', 10);
+
+          let generateVirtualAccountResult;
+
+          if (process.env.NODE_ENV === 'production') {
+            generateVirtualAccountResult =
+              await this.gateway.createVirtualAccount(
+                this.validFor,
+                'Fixed',
+                amount,
+                settingModelResult.callbackUrl,
+                transactionId
+              );
+          } else {
+            generateVirtualAccountResult = {
+              bankName: 'kuda',
+              accountNumber: '393939939393',
+              accountName: 'chinaza ogbonna',
+              sessionId: sessionIdVirtualAcct,
+              id: `dummy-${transactionId}`,
+            };
+          }
+
+          const transactionModelResult = await this.TransactionModel.create({
+            userId,
+            amount,
+            transactionId,
+            transactionType: 'order',
+            paymentStatus: 'pending',
+            transactionFrom: 'external',
+            merchantId: userId2,
+            sessionIdVirtualAcct,
+            orderAmount,
+          });
+
+          transactionModelResult.virtualAccountId =
+            generateVirtualAccountResult.id;
+          await transactionModelResult.save();
+
+          // -----------------------------
+          // SEND NOTIFICATION
+          // -----------------------------
+          const userResult = await this.UserModel.findByPk(userId);
+
+          if (userResult?.fcmToken) {
+            try {
+              await this.sendToDevice(
+                userResult.fcmToken,
+                {
+                  title: 'Complete Your Payment 🧾',
+                  body: `Transfer ₦${amount} to the provided account to complete your order.`,
+                },
+                {
+                  type: event.ORDER_PAYMENT,
+                  transactionId: transactionModelResult.id,
+                  merchantId: userId2,
+                  amount,
+                  bankName: generateVirtualAccountResult.bankName,
+                  accountNumber: generateVirtualAccountResult.accountNumber,
+                  accountName: generateVirtualAccountResult.accountName,
+                  sessionId: sessionIdVirtualAcct,
+                  sendto: user_type.CLIENT,
+                  userId: userResult.id,
+                }
+              );
+            } catch (error) {
+              console.error('Notification failed (order payment):', error);
+            }
+          }
+
+          return { ...generateVirtualAccountResult, transactionId };
+        }
+      }
+    } catch (error) {
+      console.log(error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
+
+  /*
+  async handleGenerateAccountVirtual(data) {
+    const { amount, userId, userId2, type, orderAmount } =
+      await userUtil.verifyHandleGenerateAccountVirtual.validateAsync(data);
+
+    const settingModelResult = await this.SettingModel.findByPk(1);
+    if (!settingModelResult) throw new NotFoundError('Setting not found');
+    await this.loadGateWay('safeHaven.gateway');
     try {
       if (settingModelResult.activeGateway === 'safeHaven.gateway') {
         if (type == 'fundWallet') {
@@ -4471,8 +4686,9 @@ class UserService extends NotificationServicePush {
             countDown: 60,
           };
 */
-          // return generateVirtualAccountResult;
+  // return generateVirtualAccountResult;
 
+  /*
           const generateVirtualAccountResult =
             await this.gateway.createVirtualAccount(
               this.validFor,
@@ -4530,7 +4746,7 @@ class UserService extends NotificationServicePush {
             sessionId: sessionIdVirtualAcct,
           };
           */
-
+  /*
           const transactionId = authService.generateOrderId('NG_TX', 10);
 
           const generateVirtualAccountResult =
@@ -4600,76 +4816,10 @@ class UserService extends NotificationServicePush {
             );
 
           return generateVirtualAccountResult;*/
+  /*
         }
 
-        /*
-        const sessionId = `session${Date.now()}-${Math.floor(
-          Math.random() * 100000
-        )}`;
-        const generateVirtualAccountResult = {
-          bankName: 'kuda',
-          accountNumber: '393939939393',
-          accountName: 'chinaza ogbonna',
-          sessionId,
-          getdeliveryAmountSummary,
-        };
-
-        /**
-         * -accountniumber
-         * -sessionIdVirtualAcct
-         * -orderId
-         */
-        /*generateVirtualAccountResult[fieldName] = newValue; // Update the specific field
-          await transaction.save(); */
-
-        /**************************************************** 
-    TAKE OUT THIS SECTION IS FOR TESTING 
-*****************************************************/
-
-        /*
-        const successufullPayment = {
-          _id: '1212334556654',
-          client: '',
-          virtualAccount: {
-            sessionId,
-            nameEnquiryReference: '',
-            paymentReference: TransactionModelResult.id,
-            isReversed: true,
-            reversalReference: '',
-            provider: '',
-            providerChannel: '',
-            providerChannelCode: '',
-            destinationInstitutionCode: '',
-            creditAccountName: '',
-            creditAccountNumber: '',
-            creditBankVerificationNumber: '',
-            creditKYCLevel: '',
-            debitAccountName: '',
-            debitAccountNumber: '',
-            debitBankVerificationNumber: '',
-            debitKYCLevel: '',
-            transactionLocation: '',
-            narration: '',
-            amount: getdeliveryAmountSummary.totalAmount,
-            fees: 0,
-            vat: 0,
-            stampDuty: 0,
-            responseCode: '',
-            responseMessage: '',
-            status: 'PAID',
-            isDeleted: true,
-            createdAt: '',
-            declinedAt: '',
-            updatedAt: '',
-            __v: 0,
-          },
-        };
-
-        this.writeToDirect(successufullPayment);
-
-        /**************************************************** 
-    END OF THE SECTION
-*****************************************************/
+      
 
         return generateVirtualAccountResult;
       }
@@ -4678,126 +4828,8 @@ class UserService extends NotificationServicePush {
       throw new SystemError(error.name, error.parent);
     }
   }
-
-  /*
-  async handleGenerateAccountVirtual(data) {
-    const { amount, userId, userId2 } =
-      await userUtil.verifyHandleGenerateAccountVirtual.validateAsync(data);
-    try {
-      const OrderModelResult = await this.OrdersModel.create({
-        orderStatus: 'notAccepted',
-        moneyStatus: 'pending',
-        clientId: userId,
-        merchantId:userId2,
-        amountOrder: amount,
-      });
-
-      const settingModelResult = await this.SettingModel.findByPk(1);
-      if (settingModelResult) throw new NotFoundError('Setting not found');
-
-      if (settingModelResult.activeGateway === 'safeHaven.gateway') {
-        const TransactionModelResult = await this.TransactionModel.create({
-          userId,
-          orderId: OrderModelResult.id,
-        });
-        await this.loadGateWay();
-
-        const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
-          where: { userId: merchantId },
-        });
-
-        const getdeliveryAmountSummary = this.getdeliveryAmountSummary(
-          MerchantAdsModelResult.pricePerThousand,
-          amount,
-          settingModelResult.serviceCharge,
-          settingModelResult.gatewayService
-        );
-
-        /*
-        const generateVirtualAccountResult =
-          await this.gateway.generateVirtualAccount(
-            this.validFor,
-            getdeliveryAmountSummary.totalAmount,
-            getdeliveryAmountSummary.callbackUrl,
-            TransactionModelResult.id
-          );*/
-  /*
-        const sessionId = `session${Date.now()}-${Math.floor(
-          Math.random() * 100000
-        )}`;
-        const generateVirtualAccountResult = {
-          bankName: 'kuda',
-          accountNumber: '393939939393',
-          accountName: 'chinaza ogbonna',
-          sessionId,
-          getdeliveryAmountSummary,
-        };
-
-        /**
-         * -accountniumber
-         * -sessionIdVirtualAcct
-         * -orderId
-         */
-  /*generateVirtualAccountResult[fieldName] = newValue; // Update the specific field
-          await transaction.save(); */
-
-  /**************************************************** 
-    TAKE OUT THIS SECTION IS FOR TESTING 
-*****************************************************/
-
-  /*
-        const successufullPayment = {
-          _id: '1212334556654',
-          client: '',
-          virtualAccount: {
-            sessionId,
-            nameEnquiryReference: '',
-            paymentReference: TransactionModelResult.id,
-            isReversed: true,
-            reversalReference: '',
-            provider: '',
-            providerChannel: '',
-            providerChannelCode: '',
-            destinationInstitutionCode: '',
-            creditAccountName: '',
-            creditAccountNumber: '',
-            creditBankVerificationNumber: '',
-            creditKYCLevel: '',
-            debitAccountName: '',
-            debitAccountNumber: '',
-            debitBankVerificationNumber: '',
-            debitKYCLevel: '',
-            transactionLocation: '',
-            narration: '',
-            amount: getdeliveryAmountSummary.totalAmount,
-            fees: 0,
-            vat: 0,
-            stampDuty: 0,
-            responseCode: '',
-            responseMessage: '',
-            status: 'PAID',
-            isDeleted: true,
-            createdAt: '',
-            declinedAt: '',
-            updatedAt: '',
-            __v: 0,
-          },
-        };
-
-        this.writeToDirect(successufullPayment);
-
-        /**************************************************** 
-    END OF THE SECTION
-*****************************************************/
-
-  /*
-        return generateVirtualAccountResult;
-      }
-    } catch (error) {
-      throw new SystemError(error.name, error.parent);
-    }
-  }
   */
+
   async handleGetMyOrders(data) {
     const { userId, userType, type } =
       await userUtil.verifyHandleGetMyOrders.validateAsync(data);
@@ -5105,14 +5137,8 @@ class UserService extends NotificationServicePush {
       throw new NotFoundError('Merchant profile not found');
     }
 
-    console.log('SettingModelResult.tiers');
-    console.log(SettingModelResult.tiers);
-    console.log('SettingModelResult.tiers');
-
     // ✅ Safely parse the tiers using safeParse
     const SettingModelResultTiers = this.safeParse(SettingModelResult.tiers);
-
-    console.log(SettingModelResultTiers);
 
     // ✅ Ensure it's an array before continuing
     if (!Array.isArray(SettingModelResultTiers)) {

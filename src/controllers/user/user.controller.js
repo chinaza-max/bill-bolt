@@ -1296,6 +1296,28 @@ export default class UserController {
     }
   }
 
+  async cancelTransaction(req, res, next) {
+    try {
+      const { transactionId } = req.body;
+
+      const data = {
+        transactionId: transactionId,
+        userId: req.user.id,
+      };
+
+      const result = await userService.handleCancelTransaction(data);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'Transaction cancelled successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
   async generateAgoraToken(req, res, next) {
     try {
       const data = req.query;
