@@ -138,6 +138,37 @@ export function init(connection) {
         type: DataTypes.DATE,
         allowNull: true,
       },
+
+      // ✅ SPECIAL WITHDRAWAL CONFIG
+      specialWithdrawalEnabled: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
+
+      defaultTransportationPricePerMeter: {
+        type: DataTypes.DOUBLE,
+        allowNull: false,
+        defaultValue: 0.0,
+      },
+
+      specialWithdrawalCompanyChargePercentage: {
+        type: DataTypes.DOUBLE,
+        allowNull: false,
+        defaultValue: 0.0,
+      },
+
+      specialWithdrawalChargeBearer: {
+        type: DataTypes.ENUM('Customer', 'Merchant', 'Both'),
+        allowNull: false,
+        defaultValue: 'Customer',
+      },
+
+      specialWithdrawalDefaultCurrency: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue: 'NGN',
+      },
     },
     {
       tableName: 'Setting',

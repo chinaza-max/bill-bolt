@@ -1,0 +1,1272 @@
+{
+  "info": {
+    "_postman_id": "c1f7a635-4e78-4351-a907-f3dcdb639a03",
+    "name": "Bill Bolt API Collection",
+    "description": "Postman collection for all endpoints of the Bill Bolt API, including Auth, User, Admin, and the new Special Withdrawal features, with complete sample request payloads.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"emailAddress\": \"john.doe@example.com\",\n  \"password\": \"SecurePassword123\",\n  \"tel\": \"+2348012345678\",\n  \"telCode\": \"NG\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/registerUser",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "registerUser"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const response = pm.response.json();",
+                  "if (response.data && response.data.accessToken) {",
+                  "    pm.collectionVariables.set(\"accessToken\", response.data.accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emailAddress\": \"john.doe@example.com\",\n  \"password\": \"SecurePassword123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/loginUser",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "loginUser"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Check Google Email",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.doe@gmail.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/checkGoogleEmail",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "checkGoogleEmail"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Google Signup",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.doe@gmail.com\",\n  \"googleId\": \"google_sub_id_12345\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/googleSignup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "googleSignup"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Send Verification Code (Email/Tel)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emailAddress\": \"john.doe@example.com\",\n  \"tel\": \"+2348012345678\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/sendVerificationCodeEmailOrTel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "sendVerificationCodeEmailOrTel"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Code (Email/Tel)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emailAddress\": \"john.doe@example.com\",\n  \"tel\": \"+2348012345678\",\n  \"otp\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/verifyEmailorTel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "verifyEmailorTel"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Send Password Reset Link",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emailAddress\": \"john.doe@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/sendPasswordResetLink",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "sendPasswordResetLink"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"reset_token_from_email\",\n  \"newPassword\": \"NewSecurePassword123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/resetPassword",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "resetPassword"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Access Token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"your_refresh_token_here\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refreshAccessToken",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refreshAccessToken"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "User Profile & Verification",
+      "item": [
+        {
+          "name": "Get Profile Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user/getProfileInformation",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "getProfileInformation"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "firstName",
+                  "value": "John",
+                  "type": "text"
+                },
+                {
+                  "key": "lastName",
+                  "value": "Doe",
+                  "type": "text"
+                },
+                {
+                  "key": "describeYou",
+                  "value": "An energetic developer",
+                  "type": "text"
+                },
+                {
+                  "key": "lat",
+                  "value": "6.4281",
+                  "type": "text"
+                },
+                {
+                  "key": "lng",
+                  "value": "3.4219",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/updateProfile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "updateProfile"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Set PIN",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"1234\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/setPin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "setPin"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update PIN",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"oldPin\": \"1234\",\n  \"newPin\": \"5678\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/updatePin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "updatePin"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Initiate NIN Verify",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nin\": \"12345678901\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/initiateNINVerify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "initiateNINVerify"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Verify NIN OTP",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nin\": \"12345678901\",\n  \"otp\": \"987654\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/verifyNIN",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "verifyNIN"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Wallet & Transfer Operations",
+      "item": [
+        {
+          "name": "Generate Virtual Account",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user/generateAccountVirtual",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "generateAccountVirtual"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Bank Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user/bank-details",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "bank-details"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Bank List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user/getBank",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "getBank"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Name Enquiry",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user/nameEnquiry?accountNumber=1234567890&bankCode=999222",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "nameEnquiry"
+              ],
+              "query": [
+                {
+                  "key": "accountNumber",
+                  "value": "1234567890"
+                },
+                {
+                  "key": "bankCode",
+                  "value": "999222"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Transfer Money",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user/transferMoney?amount=5000&accountNumber=1234567890&bankCode=999222&narration=Transfer",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "transferMoney"
+              ],
+              "query": [
+                {
+                  "key": "amount",
+                  "value": "5000"
+                },
+                {
+                  "key": "accountNumber",
+                  "value": "1234567890"
+                },
+                {
+                  "key": "bankCode",
+                  "value": "999222"
+                },
+                {
+                  "key": "narration",
+                  "value": "Transfer"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Merchants & Ads",
+      "item": [
+        {
+          "name": "Signup Merchant",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Fidopoint Cash Point\",\n  \"minAmount\": 1000,\n  \"maxAmount\": 50000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/signupMerchant",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "signupMerchant"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Ad Posting",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 10000,\n  \"charge\": 300\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/createMerchantAds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "createMerchantAds"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Active Ads",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user/getMyAds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "getMyAds"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Merchant Profile Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user/getMerchantProfile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "getMerchantProfile"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Orders & Payments",
+      "item": [
+        {
+          "name": "Get My Orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user/getMyOrders?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "getMyOrders"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Cost Charge Summary",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchantId\": 5,\n  \"amount\": 5000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/getChargeSummary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "getChargeSummary"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Accept Or Cancel Order",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": 12,\n  \"action\": \"accept\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/orderAcceptOrCancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "orderAcceptOrCancel"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Pay For Order",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": 12\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/makeOrderPayment",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "makeOrderPayment"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Complete Order (Verify OTP)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": 12,\n  \"otp\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/verifyCompleteOrder",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "verifyCompleteOrder"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Special Withdrawal",
+      "item": [
+        {
+          "name": "Get Enabled Denominations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user/sw/denominations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "sw",
+                "denominations"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Cost Quotation",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchantId\": 12,\n  \"denominationId\": 7,\n  \"amount\": 10000,\n  \"deliveryLat\": \"6.4281\",\n  \"deliveryLng\": \"3.4219\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/sw/quotation",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "sw",
+                "quotation"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create SW Request",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchantId\": 12,\n  \"denominationId\": 7,\n  \"amount\": 10000,\n  \"deliveryLat\": \"6.4281\",\n  \"deliveryLng\": \"3.4219\",\n  \"deliveryAddress\": \"12 Admiralty Way, Lekki Phase 1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/sw/request",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "sw",
+                "request"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Trigger Request Action",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestId\": 1,\n  \"action\": \"complete\",\n  \"otp\": \"589211\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/sw/request/action",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "sw",
+                "request",
+                "action"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Requests List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user/sw/requests?role=client&page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "sw",
+                "requests"
+              ],
+              "query": [
+                {
+                  "key": "role",
+                  "value": "client"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Merchant Profile settings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user/sw/merchant/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "sw",
+                "merchant",
+                "profile"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Merchant profile settings",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isEnabled\": true,\n  \"minWithdrawalAmount\": 1000,\n  \"maxWithdrawalAmount\": 100000,\n  \"autoAccept\": true,\n  \"isOnline\": true,\n  \"cashAvailability\": 250000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/sw/merchant/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "sw",
+                "merchant",
+                "profile"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Merchant Charges",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user/sw/merchant/charges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "sw",
+                "merchant",
+                "charges"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Set Merchant Charges",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"charges\": [\n    { \"denominationId\": 7, \"charge\": 150 },\n    { \"denominationId\": 8, \"charge\": 250 }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/sw/merchant/charges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "sw",
+                "merchant",
+                "charges"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Merchant SW Earnings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user/sw/merchant/earnings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "sw",
+                "merchant",
+                "earnings"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin Dashboard",
+      "item": [
+        {
+          "name": "Get Users (Admin view)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user/getUsers?page=1&limit=20&type=user",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "getUsers"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "type",
+                  "value": "user"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Settings Row",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user/getSettings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "getSettings"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Admin settings",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"distanceThreshold\": 2,\n  \"gateWayEnvironment\": \"production\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/updateSettings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "updateSettings"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get SW Config settings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user/sw/admin/settings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "sw",
+                "admin",
+                "settings"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update SW Config settings",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"specialWithdrawalEnabled\": true,\n  \"defaultTransportationPricePerMeter\": 0.5,\n  \"specialWithdrawalCompanyChargePercentage\": 10.0,\n  \"specialWithdrawalChargeBearer\": \"Customer\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/sw/admin/settings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "sw",
+                "admin",
+                "settings"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Denomination Config",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": 500,\n  \"currency\": \"NGN\",\n  \"isEnabled\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/sw/admin/denomination",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "sw",
+                "admin",
+                "denomination"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get SW Platform Analytics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user/sw/admin/analytics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "sw",
+                "admin",
+                "analytics"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

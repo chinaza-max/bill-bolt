@@ -43,9 +43,8 @@ class DB {
       );
 
       initModels(this.sequelize);
-      // await this.sequelize.sync();
-      // Creates database tables if they do not exist.
-      // Does NOT modify existing tables. Safe for first connection to a new database.
+      //await this.sequelize.sync();
+      //await this.alterOrderTableDirectly();
 
       /*
       try {
@@ -249,6 +248,54 @@ this.sequelize.query(disableForeignKeyChecks)
     const timestamp = Date.now().toString();
     const random = Math.random().toString(36).substring(2, 8).toUpperCase();
     return `TXN_${timestamp}_${random}`;
+  }
+
+  async alterOrderTableDirectly() {
+    const columnsToAdd = [
+      { name: 'orderType', definition: "ENUM('normal', 'special') NOT NULL DEFAULT 'normal'" },
+      { name: 'requestId', definition: 'VARCHAR(255) NULL' },
+      { name: 'paymentStatus', definition: "ENUM('pending', 'paid', 'refunded') NULL DEFAULT 'pending'" },
+      { name: 'completedAt', definition: 'DATETIME NULL' },
+      { name: 'cancelledAt', definition: 'DATETIME NULL' },
+      { name: 'amount', definition: 'INTEGER NULL' },
+      { name: 'denominationId', definition: 'INTEGER NULL' },
+      { name: 'merchantCharge', definition: 'INTEGER NOT NULL DEFAULT 0' },
+      { name: 'transportationCharge', definition: 'INTEGER NOT NULL DEFAULT 0' },
+      { name: 'companyCharge', definition: 'INTEGER NOT NULL DEFAULT 0' },
+      { name: 'chargeBearer', definition: "ENUM('Customer', 'Merchant', 'Both') NOT NULL DEFAULT 'Customer'" },
+      { name: 'deliveryLat', definition: 'VARCHAR(255) NULL' },
+      { name: 'deliveryLng', definition: 'VARCHAR(255) NULL' },
+      { name: 'deliveryAddress', definition: 'VARCHAR(255) NULL' },
+      { name: 'verificationOtp', definition: 'VARCHAR(255) NULL' }
+    ];
+
+    for (const col of columnsToAdd) {
+      try {
+        await this.sequelize.query(`ALTER TABLE \`Order\` ADD \`${col.name}\` ${col.definition};`);
+      } catch (err) {
+        // Silently catch if column already exists (Error 1060: Duplicate column name)
+        if (err.original?.errno !== 1060 && !err.message.includes('Duplicate column')) {
+          console.error(`[DB Alter] Error adding column ${col.name}:`, err.message);
+        }
+      }
+    }
+
+    // Modify existing columns to allow NULL for Special Withdrawal compatibility
+    const columnsToModify = [
+      { name: 'amountOrder', definition: 'VARCHAR(255) NULL' },
+      { name: 'totalAmount', definition: 'VARCHAR(255) NULL' },
+      { name: 'qrCodeHash', definition: 'VARCHAR(255) NULL' },
+      { name: 'transactionId', definition: 'INTEGER NULL' },
+      { name: 'moneyStatus', definition: "ENUM('received', 'refund', 'paid') NULL" }
+    ];
+
+    for (const col of columnsToModify) {
+      try {
+        await this.sequelize.query(`ALTER TABLE \`Order\` MODIFY \`${col.name}\` ${col.definition};`);
+      } catch (err) {
+        console.error(`[DB Alter] Error modifying column ${col.name}:`, err.message);
+      }
+    }
   }
 }
 

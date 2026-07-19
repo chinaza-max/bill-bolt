@@ -132,6 +132,36 @@ class UserRoutes extends UserController {
 
     //COMPLAINTS
     this.router.get('/getComplaints', this.getComplaints);
+
+    // ═══════════════════════════════════════════════════════════════════
+    // ░░░ SPECIAL WITHDRAWAL ROUTES ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+    // ═══════════════════════════════════════════════════════════════════
+
+    // Customer endpoints
+    this.router.get('/sw/denominations', this.getDenominations);
+    this.router.get('/sw/discover', this.discoverSpecialWithdrawalMerchants);
+    this.router.post('/sw/quotation', this.getSpecialWithdrawalQuotation);
+    this.router.post('/sw/request', this.createSpecialWithdrawalRequest);
+    this.router.post('/sw/request/action', this.specialWithdrawalRequestAction);
+    this.router.get('/sw/requests', this.getSpecialWithdrawalRequests);
+    this.router.get('/sw/request/:requestId', this.getSpecialWithdrawalRequestDetails);
+
+    // Merchant endpoints
+    this.router.get('/sw/merchant/profile', this.getMerchantSWProfile);
+    this.router.post('/sw/merchant/profile', this.updateMerchantSWProfile);
+    this.router.get('/sw/merchant/charges', this.getMerchantDenominationCharges);
+    this.router.post('/sw/merchant/charges', this.updateMerchantDenominationCharges);
+    this.router.get('/sw/merchant/earnings', this.getMerchantSWEarnings);
+
+    // Admin endpoints
+    this.router.get('/sw/admin/settings', this.getSpecialWithdrawalSettings);
+    this.router.patch('/sw/admin/settings', this.updateSpecialWithdrawalSettings);
+    this.router.post('/sw/admin/denomination', this.createDenomination);
+    this.router.patch('/sw/admin/denomination', this.updateDenomination);
+    this.router.delete('/sw/admin/denomination/:denominationId', this.deleteDenomination);
+    this.router.post('/sw/admin/merchant/status', this.adminUpdateMerchantSWStatus);
+    this.router.get('/sw/admin/merchants', this.adminGetSWMerchants);
+    this.router.get('/sw/admin/analytics', this.getSWAnalytics);
   }
 }
 

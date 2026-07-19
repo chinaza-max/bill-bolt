@@ -10,10 +10,19 @@ export function init(connection) {
         primaryKey: true,
         autoIncrement: true,
       },
+      orderType: {
+        type: DataTypes.ENUM('normal', 'special'),
+        allowNull: false,
+        defaultValue: 'normal',
+      },
       orderId: {
         type: DataTypes.STRING,
         allowNull: false,
         unique: true,
+      },
+      requestId: {
+        type: DataTypes.STRING,
+        allowNull: true,
       },
       clientId: {
         type: DataTypes.INTEGER,
@@ -29,18 +38,24 @@ export function init(connection) {
           'rejected', // order rejected by merchant
           'inProgress', // order is being processed by merchant
           'completed', // order has been completed by merchant
-          'pending' // order not accepted by merchant
+          'pending', // order not accepted by merchant
+          'accepted' // special withdrawal request accepted
         ),
         defaultValue: 'pending',
         allowNull: false,
       },
       moneyStatus: {
         type: DataTypes.ENUM(
-          'received', // money has beeen received in escrow
+          'received', // money has been received in escrow
           'refund', // cancelled order
           'paid' // money paid to merchant
         ),
-        allowNull: false,
+        allowNull: true,
+      },
+      paymentStatus: {
+        type: DataTypes.ENUM('pending', 'paid', 'refunded'),
+        allowNull: true,
+        defaultValue: 'pending',
       },
       transactionTime: {
         type: DataTypes.STRING,
@@ -54,6 +69,14 @@ export function init(connection) {
         type: DataTypes.DATE,
         allowNull: true,
       },
+      completedAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
+      cancelledAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
       sessionId: {
         type: DataTypes.STRING,
         allowNull: true,
@@ -64,11 +87,15 @@ export function init(connection) {
       },
       amountOrder: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
+      },
+      amount: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
       },
       totalAmount: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       rating: {
         type: DataTypes.INTEGER,
@@ -76,7 +103,7 @@ export function init(connection) {
       },
       qrCodeHash: {
         type: DataTypes.STRING,
-        allowNull: false,
+        allowNull: true,
       },
       hasIssues: {
         type: DataTypes.BOOLEAN,
@@ -86,16 +113,56 @@ export function init(connection) {
       note: {
         type: DataTypes.TEXT,
         allowNull: true,
-        defaultValue: false,
+        defaultValue: null,
       },
       reason: {
         type: DataTypes.TEXT,
         allowNull: true,
-        defaultValue: false,
+        defaultValue: null,
       },
       transactionId: {
         type: DataTypes.INTEGER,
+        allowNull: true,
+      },
+      denominationId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
+      merchantCharge: {
+        type: DataTypes.INTEGER,
         allowNull: false,
+        defaultValue: 0,
+      },
+      transportationCharge: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      companyCharge: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      chargeBearer: {
+        type: DataTypes.ENUM('Customer', 'Merchant', 'Both'),
+        allowNull: false,
+        defaultValue: 'Customer',
+      },
+      deliveryLat: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      deliveryLng: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      deliveryAddress: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      verificationOtp: {
+        type: DataTypes.STRING,
+        allowNull: true,
       },
       isDeleted: {
         type: DataTypes.BOOLEAN,

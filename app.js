@@ -124,6 +124,9 @@ class Server {
         privilege: 'super_admin',
       },
     });
+
+    // Seed default Special Withdrawal denominations on startup
+    await userService.seedDefaultDenominations();
   }
 
   initializeMiddlewaresAndRoutes() {
@@ -199,6 +202,10 @@ class Server {
 
     cron.schedule('*/5 * * * *', async () => {
       await userService.checkStalePendingTransactions();
+    });
+
+    cron.schedule('*/1 * * * *', async () => {
+      await userService.syncUserStates();
     });
   }
   async checkTransaction() {

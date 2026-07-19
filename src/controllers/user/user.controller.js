@@ -1734,4 +1734,387 @@ export default class UserController {
     }
   }
 */
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ░░░ SPECIAL WITHDRAWAL CONTROLLERS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // ─── Admin: Global Settings ────────────────────────────────────────
+
+  async getSpecialWithdrawalSettings(req, res, next) {
+    try {
+      const result = await userService.handleGetSpecialWithdrawalSettings();
+      return res.status(200).json({
+        status: 200,
+        message: 'Settings retrieved successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async updateSpecialWithdrawalSettings(req, res, next) {
+    try {
+      const data = {
+        ...req.body,
+        userId: req.user.id,
+      };
+      const result =
+        await userService.handleUpdateSpecialWithdrawalSettings(data);
+      return res.status(200).json({
+        status: 200,
+        message: 'Settings updated successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  // ─── Admin: Denomination CRUD ──────────────────────────────────────
+
+  async getDenominations(req, res, next) {
+    try {
+      const includeAll = req.query.includeAll === 'true';
+      const result = await userService.handleGetDenominations(includeAll);
+      return res.status(200).json({
+        status: 200,
+        message: 'Denominations retrieved successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async createDenomination(req, res, next) {
+    try {
+      const data = {
+        ...req.body,
+        userId: req.user.id,
+      };
+      const result = await userService.handleCreateDenomination(data);
+      return res.status(201).json({
+        status: 201,
+        message: 'Denomination created successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async updateDenomination(req, res, next) {
+    try {
+      const data = {
+        ...req.body,
+        userId: req.user.id,
+      };
+      const result = await userService.handleUpdateDenomination(data);
+      return res.status(200).json({
+        status: 200,
+        message: 'Denomination updated successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async deleteDenomination(req, res, next) {
+    try {
+      const data = {
+        denominationId: parseInt(req.params.denominationId),
+        userId: req.user.id,
+      };
+      const result = await userService.handleDeleteDenomination(data);
+      return res.status(200).json({
+        status: 200,
+        message: result.message,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  // ─── Merchant: Special Withdrawal Profile ──────────────────────────
+
+  async getMerchantSWProfile(req, res, next) {
+    try {
+      const data = { userId: req.user.id };
+      const result =
+        await userService.handleGetMerchantSpecialWithdrawalProfile(data);
+      return res.status(200).json({
+        status: 200,
+        message: 'Profile retrieved successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async updateMerchantSWProfile(req, res, next) {
+    try {
+      const data = {
+        ...req.body,
+        userId: req.user.id,
+      };
+      const result =
+        await userService.handleUpdateMerchantSpecialWithdrawalProfile(data);
+      return res.status(200).json({
+        status: 200,
+        message: 'Profile updated successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  // ─── Merchant: Denomination Charges ────────────────────────────────
+
+  async getMerchantDenominationCharges(req, res, next) {
+    try {
+      const data = { userId: req.user.id };
+      const result =
+        await userService.handleGetMerchantDenominationCharges(data);
+      return res.status(200).json({
+        status: 200,
+        message: 'Charges retrieved successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async updateMerchantDenominationCharges(req, res, next) {
+    try {
+      const data = {
+        ...req.body,
+        userId: req.user.id,
+      };
+      const result =
+        await userService.handleUpdateMerchantDenominationCharges(data);
+      return res.status(200).json({
+        status: 200,
+        message: 'Charges updated successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  // ─── Merchant: Earnings ────────────────────────────────────────────
+
+  async getMerchantSWEarnings(req, res, next) {
+    try {
+      const data = { userId: req.user.id };
+      const result = await userService.handleGetMerchantSWEarnings(data);
+      return res.status(200).json({
+        status: 200,
+        message: 'Earnings retrieved successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  // ─── Customer: Quotation & Request ─────────────────────────────────
+
+  async discoverSpecialWithdrawalMerchants(req, res, next) {
+    try {
+      const data = {
+        ...req.query,
+        ...req.body,
+        userId: req.user.id,
+      };
+      const result =
+        await userService.handleDiscoverSpecialWithdrawalMerchants(data);
+      return res.status(200).json({
+        status: 200,
+        message: 'Qualified merchants discovered successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async getSpecialWithdrawalQuotation(req, res, next) {
+    try {
+      const data = {
+        ...req.body,
+        userId: req.user.id,
+      };
+      const result =
+        await userService.handleGetSpecialWithdrawalQuotation(data);
+      return res.status(200).json({
+        status: 200,
+        message: 'Quotation generated successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async createSpecialWithdrawalRequest(req, res, next) {
+    try {
+      const data = {
+        ...req.body,
+        userId: req.user.id,
+      };
+      const result =
+        await userService.handleCreateSpecialWithdrawalRequest(data);
+      return res.status(201).json({
+        status: 201,
+        message: 'Special withdrawal request created successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  // ─── Request Actions ───────────────────────────────────────────────
+
+  async specialWithdrawalRequestAction(req, res, next) {
+    try {
+      const data = {
+        ...req.body,
+        userId: req.user.id,
+      };
+      const result =
+        await userService.handleSpecialWithdrawalRequestAction(data);
+      return res.status(200).json({
+        status: 200,
+        message: `Request ${data.action} successful`,
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  // ─── Get Requests (List) ───────────────────────────────────────────
+
+  async getSpecialWithdrawalRequests(req, res, next) {
+    try {
+      const data = {
+        userId: req.user.id,
+        role: req.query.role || 'client',
+        status: req.query.status,
+        page: parseInt(req.query.page) || 1,
+        limit: parseInt(req.query.limit) || 20,
+        startDate: req.query.startDate,
+        endDate: req.query.endDate,
+      };
+      const result =
+        await userService.handleGetSpecialWithdrawalRequests(data);
+      return res.status(200).json({
+        status: 200,
+        message: 'Requests retrieved successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  // ─── Get Request Details ───────────────────────────────────────────
+
+  async getSpecialWithdrawalRequestDetails(req, res, next) {
+    try {
+      const data = {
+        userId: req.user.id,
+        requestId: parseInt(req.params.requestId),
+      };
+      const result =
+        await userService.handleGetSpecialWithdrawalRequestDetails(data);
+      return res.status(200).json({
+        status: 200,
+        message: 'Request details retrieved successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  // ─── Admin: Merchant Management ────────────────────────────────────
+
+  async adminUpdateMerchantSWStatus(req, res, next) {
+    try {
+      const data = {
+        ...req.body,
+        userId: req.user.id,
+      };
+      const result =
+        await userService.handleAdminUpdateMerchantSWStatus(data);
+      return res.status(200).json({
+        status: 200,
+        message: 'Merchant status updated successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async adminGetSWMerchants(req, res, next) {
+    try {
+      const data = {
+        page: parseInt(req.query.page) || 1,
+        limit: parseInt(req.query.limit) || 20,
+      };
+      const result = await userService.handleAdminGetSWMerchants(data);
+      return res.status(200).json({
+        status: 200,
+        message: 'Merchants retrieved successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  // ─── Admin: Analytics ──────────────────────────────────────────────
+
+  async getSWAnalytics(req, res, next) {
+    try {
+      const result = await userService.handleGetSWAnalytics();
+      return res.status(200).json({
+        status: 200,
+        message: 'Analytics retrieved successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
 }

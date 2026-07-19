@@ -17,6 +17,16 @@ import Admin, { init as initAdmin } from './admin.js';
 import Notification, { init as initNotification } from './notification.js';
 import NinOtp, { init as initNinOtp } from './ninOtp.js';
 import PinReset, { init as initPinReset } from './pinReset.js';
+import SpecialWithdrawalDenomination, {
+  init as initSpecialWithdrawalDenomination,
+} from './specialWithdrawalDenomination.js';
+import MerchantSpecialWithdrawalProfile, {
+  init as initMerchantSpecialWithdrawalProfile,
+} from './merchantSpecialWithdrawalProfile.js';
+import MerchantDenominationCharge, {
+  init as initMerchantDenominationCharge,
+} from './merchantDenominationCharge.js';
+
 
 function associate() {
   User.hasOne(MerchantProfile, {
@@ -107,6 +117,78 @@ function associate() {
 
   //console.log(BusinessSpot.associations)
   //console.log(UserDate.associations)
+
+  // ─── SPECIAL WITHDRAWAL ASSOCIATIONS ───────────────────────────────
+
+  // User <-> MerchantSpecialWithdrawalProfile
+  User.hasOne(MerchantSpecialWithdrawalProfile, {
+    foreignKey: 'merchantId',
+    as: 'SpecialWithdrawalProfile',
+  });
+  MerchantSpecialWithdrawalProfile.belongsTo(User, {
+    foreignKey: 'merchantId',
+    as: 'Merchant',
+  });
+
+  // User <-> MerchantDenominationCharge
+  User.hasMany(MerchantDenominationCharge, {
+    foreignKey: 'merchantId',
+    as: 'DenominationCharges',
+  });
+  MerchantDenominationCharge.belongsTo(User, {
+    foreignKey: 'merchantId',
+    as: 'ChargeMerchant',
+  });
+
+  // SpecialWithdrawalDenomination <-> MerchantDenominationCharge
+  SpecialWithdrawalDenomination.hasMany(MerchantDenominationCharge, {
+    foreignKey: 'denominationId',
+    as: 'MerchantCharges',
+  });
+  MerchantDenominationCharge.belongsTo(SpecialWithdrawalDenomination, {
+    foreignKey: 'denominationId',
+    as: 'Denomination',
+  });
+
+  // User (client) <-> SpecialWithdrawalRequest (now Orders)
+  User.hasMany(Orders, {
+    foreignKey: 'clientId',
+    as: 'ClientSpecialWithdrawals',
+  });
+  Orders.belongsTo(User, {
+    foreignKey: 'clientId',
+    as: 'Client',
+  });
+
+  // User (merchant) <-> SpecialWithdrawalRequest (now Orders)
+  User.hasMany(Orders, {
+    foreignKey: 'merchantId',
+    as: 'MerchantSpecialWithdrawals',
+  });
+  Orders.belongsTo(User, {
+    foreignKey: 'merchantId',
+    as: 'RequestMerchant',
+  });
+
+  // SpecialWithdrawalDenomination <-> SpecialWithdrawalRequest (now Orders)
+  SpecialWithdrawalDenomination.hasMany(Orders, {
+    foreignKey: 'denominationId',
+    as: 'Requests',
+  });
+  Orders.belongsTo(SpecialWithdrawalDenomination, {
+    foreignKey: 'denominationId',
+    as: 'RequestDenomination',
+  });
+
+  // Transaction <-> SpecialWithdrawalRequest (now Orders)
+  Transaction.hasOne(Orders, {
+    foreignKey: 'transactionId',
+    as: 'SpecialWithdrawalRequest',
+  });
+  Orders.belongsTo(Transaction, {
+    foreignKey: 'transactionId',
+    as: 'RequestTransaction',
+  });
 }
 
 async function authenticateConnection(connection) {
@@ -134,6 +216,9 @@ export {
   Notification,
   NinOtp,
   PinReset,
+  SpecialWithdrawalDenomination,
+  MerchantSpecialWithdrawalProfile,
+  MerchantDenominationCharge,
 };
 
 export function init(connection) {
@@ -152,6 +237,9 @@ export function init(connection) {
   initNotification(connection);
   initNinOtp(connection);
   initPinReset(connection);
+  initSpecialWithdrawalDenomination(connection);
+  initMerchantSpecialWithdrawalProfile(connection);
+  initMerchantDenominationCharge(connection);
   associate();
   authenticateConnection(connection);
 }

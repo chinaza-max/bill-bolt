@@ -554,6 +554,131 @@ class UserUtil {
     transactionId: Joi.string().required(),
     userId: Joi.number().integer().required(),
   });
+
+  // ─── SPECIAL WITHDRAWAL VALIDATIONS ─────────────────────────────────
+
+  verifyHandleUpdateSpecialWithdrawalSettings = Joi.object({
+    userId: Joi.number().integer().required(),
+    specialWithdrawalEnabled: Joi.boolean().optional(),
+    defaultTransportationPricePerMeter: Joi.number().min(0).optional(),
+    specialWithdrawalCompanyChargePercentage: Joi.number()
+      .min(0)
+      .max(100)
+      .optional(),
+    specialWithdrawalChargeBearer: Joi.string()
+      .valid('Customer', 'Merchant', 'Both')
+      .optional(),
+    specialWithdrawalDefaultCurrency: Joi.string().optional(),
+  }).min(2); // userId + at least one field
+
+  verifyHandleCreateDenomination = Joi.object({
+    userId: Joi.number().integer().required(),
+    value: Joi.number().integer().positive().required(),
+    currency: Joi.string().optional().default('NGN'),
+    isEnabled: Joi.boolean().optional().default(true),
+  });
+
+  verifyHandleUpdateDenomination = Joi.object({
+    userId: Joi.number().integer().required(),
+    denominationId: Joi.number().integer().required(),
+    value: Joi.number().integer().positive().optional(),
+    currency: Joi.string().optional(),
+    isEnabled: Joi.boolean().optional(),
+  });
+
+  verifyHandleDeleteDenomination = Joi.object({
+    userId: Joi.number().integer().required(),
+    denominationId: Joi.number().integer().required(),
+  });
+
+  verifyHandleUpdateMerchantSWProfile = Joi.object({
+    userId: Joi.number().integer().required(),
+    isEnabled: Joi.boolean().optional(),
+    minWithdrawalAmount: Joi.number().integer().min(0).optional(),
+    maxWithdrawalAmount: Joi.number().integer().min(0).optional(),
+    autoAccept: Joi.boolean().optional(),
+    isOnline: Joi.boolean().optional(),
+    cashAvailability: Joi.number().integer().min(0).optional(),
+  });
+
+  verifyHandleUpdateMerchantDenominationCharges = Joi.object({
+    userId: Joi.number().integer().required(),
+    charges: Joi.array()
+      .items(
+        Joi.object({
+          denominationId: Joi.number().integer().required(),
+          charge: Joi.number().integer().min(0).required(),
+        })
+      )
+      .min(1)
+      .required(),
+  });
+
+  verifyHandleGetSpecialWithdrawalQuotation = Joi.object({
+    userId: Joi.number().integer().required(),
+    merchantId: Joi.number().integer().required(),
+    denominationId: Joi.number().integer().required(),
+    amount: Joi.number().integer().positive().required(),
+    deliveryLat: Joi.string().optional(),
+    deliveryLng: Joi.string().optional(),
+  });
+
+  verifyHandleCreateSpecialWithdrawalRequest = Joi.object({
+    userId: Joi.number().integer().required(),
+    merchantId: Joi.number().integer().required(),
+    denominationId: Joi.number().integer().required(),
+    amount: Joi.number().integer().positive().required(),
+    deliveryLat: Joi.string().optional(),
+    deliveryLng: Joi.string().optional(),
+    deliveryAddress: Joi.string().optional(),
+  });
+
+  verifyHandleSpecialWithdrawalRequestAction = Joi.object({
+    userId: Joi.number().integer().required(),
+    requestId: Joi.number().integer().required(),
+    action: Joi.string()
+      .valid('accept', 'reject', 'cancel', 'complete')
+      .required(),
+    // For 'complete': provide either hash (QR scan) or otp (fallback)
+    hash: Joi.string().optional(),
+    otp: Joi.string().optional(),
+    reason: Joi.string().optional(),
+  });
+
+  verifyHandleGetSpecialWithdrawalRequests = Joi.object({
+    userId: Joi.number().integer().required(),
+    role: Joi.string().valid('client', 'merchant', 'admin').required(),
+    status: Joi.string()
+      .valid(
+        'pending',
+        'accepted',
+        'completed',
+        'cancelled',
+        'rejected'
+      )
+      .optional(),
+    page: Joi.number().integer().min(1).default(1),
+    limit: Joi.number().integer().min(1).max(100).default(20),
+    startDate: Joi.date().optional(),
+    endDate: Joi.date().optional(),
+  });
+
+  verifyHandleDiscoverSpecialWithdrawalMerchants = Joi.object({
+    userId: Joi.number().integer().required(),
+    amount: Joi.number().integer().positive().required(),
+    denominationId: Joi.number().integer().optional(),
+    denominationValue: Joi.number().integer().optional(),
+    deliveryLat: Joi.string().optional(),
+    deliveryLng: Joi.string().optional(),
+  });
+
+  verifyHandleAdminUpdateMerchantSWStatus = Joi.object({
+    userId: Joi.number().integer().required(),
+    merchantId: Joi.number().integer().required(),
+    serviceStatus: Joi.string()
+      .valid('Active', 'Suspended', 'Disabled')
+      .required(),
+  });
 }
 
 export default new UserUtil();

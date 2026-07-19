@@ -78,6 +78,10 @@ export function init(connection) {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      state: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
       country: {
         type: DataTypes.STRING,
         allowNull: false,

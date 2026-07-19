@@ -11,6 +11,9 @@ import {
   Complaint,
   NinOtp,
   Admin,
+  SpecialWithdrawalDenomination,
+  MerchantSpecialWithdrawalProfile,
+  MerchantDenominationCharge,
 } from '../db/models/index.js';
 import db from '../db/index.js';
 import userUtil from '../utils/user.util.js';
@@ -62,6 +65,10 @@ class UserService extends NotificationServicePush {
   ComplaintModel = Complaint;
   NinOtpModel = NinOtp;
   AdminModel = Admin;
+  SpecialWithdrawalDenominationModel = SpecialWithdrawalDenomination;
+  MerchantSpecialWithdrawalProfileModel = MerchantSpecialWithdrawalProfile;
+  MerchantDenominationChargeModel = MerchantDenominationCharge;
+
 
   #lastGeoRequestTime = 0;
   #GEO_RATE_LIMIT_MS = 1500;
@@ -299,6 +306,14 @@ class UserService extends NotificationServicePush {
       }
 
       const UserModelResult = await this.UserModel.findByPk(userId);
+
+      // If coordinates change, reset state to null so the background cron task updates it
+      if (
+        (updateData.lat && updateData.lat !== UserModelResult.lat) ||
+        (updateData.lng && updateData.lng !== UserModelResult.lng)
+      ) {
+        updateData.state = null;
+      }
 
       if (file) {
         await UserModelResult.update({
@@ -1562,17 +1577,26 @@ class UserService extends NotificationServicePush {
         },
       });
       const CancellCount = await this.OrdersModel.count({
-        where: { merchantId: userId, orderStatus: 'cancelled' },
+        where: {
+          merchantId: userId,
+          orderStatus: ['cancelled', 'rejected'],
+        },
       });
 
       const PendingCount = await this.OrdersModel.count({
-        where: { merchantId: userId, orderStatus: 'pending' },
+        where: {
+          merchantId: userId,
+          orderStatus: 'pending',
+        },
       });
       const InProgressCount = await this.OrdersModel.count({
-        where: { merchantId: userId, orderStatus: 'inProgress' },
+        where: {
+          merchantId: userId,
+          orderStatus: ['inProgress', 'accepted'],
+        },
       });
       const OrdersModelResult = await this.OrdersModel.findAll({
-        where: { orderStatus: 'inProgress', merchantId: userId },
+        where: { orderStatus: 'inProgress', merchantId: userId, orderType: 'normal' },
       });
       const merchantAdsModelResult = await this.MerchantAdsModel.findOne({
         where: { userId },
@@ -1592,23 +1616,34 @@ class UserService extends NotificationServicePush {
       const gatewayService = this.convertToJson(settingResult.gatewayService);
 
       for (let order of OrdersModelResult) {
-        console.log('order.amountOrder');
-        console.log(order.amountOrder);
-        console.log('order.amountOrder');
         const amountSummary = await this.getdeliveryAmountSummary(
           priceData,
           order.amountOrder,
           serviceCharge,
           gatewayService
         );
-
         totalMerchantCharge +=
           amountSummary.amountOrder + amountSummary.merchantCharge;
       }
-      console.log(UserModelResult.walletBalance);
+
+
+
+      
+      // ── Include accepted Special Withdrawal requests in escrow ───────────
+      const swAcceptedRequests = await this.OrdersModel.findAll({
+        where: { merchantId: userId, orderStatus: 'inProgress', orderType: 'special', isDeleted: false },
+      });
+      for (const swReq of swAcceptedRequests) {
+        // Mirror _swSettleFunds payout logic
+       /* let swPayout = swReq.amount + swReq.merchantCharge;
+        if (swReq.chargeBearer === 'Merchant' || swReq.chargeBearer === 'Both') {
+          swPayout = swReq.amount + swReq.merchantCharge - swReq.companyCharge;
+        }*/
+        totalMerchantCharge += swReq.totalAmount;
+      }
+
       const balance =
         this.convertToJson(UserModelResult.walletBalance)?.current || 0;
-      // const balance = JSON.parse(UserModelResult.walletBalance).current;
       return {
         Balance: balance,
         EscrowBalance: totalMerchantCharge,
@@ -1876,6 +1911,11 @@ class UserService extends NotificationServicePush {
       if (!addr) return null;
 
       return (
+        addr.city ||
+        addr.town ||
+        addr.village ||
+        addr.suburb ||
+        addr.municipality ||
         addr.state ||
         addr.state_district ||
         addr.county ||
@@ -2181,23 +2221,19 @@ class UserService extends NotificationServicePush {
           'isOnline',
           'lat',
           'lng',
+          'state',
           'updatedAt',
         ],
         include: includeConditions,
         distinct: true,
       });
 
-      /* ---------------- BUILD RESPONSE (sequential for rate limit) ---------------- */
+      /* ---------------- BUILD RESPONSE (fast direct load from db) ---------------- */
 
       const userData = [];
 
       for (const user of users) {
         const parsedWallet = this.safeParse(user.walletBalance);
-
-        const locationName =
-          user.lat && user.lng
-            ? await this.getLocationName(user.lat, user.lng)
-            : null;
 
         userData.push({
           id: user.id,
@@ -2221,7 +2257,7 @@ class UserService extends NotificationServicePush {
           isOnline: user.isOnline,
           lat: user.lat,
           lng: user.lng,
-          location: locationName,
+          location: user.state,
           updatedAt: user.updatedAt,
         });
       }
@@ -6360,6 +6396,1881 @@ class UserService extends NotificationServicePush {
     sendTestNotification(); // First call
     setInterval(sendTestNotification, 19000); // Every 19s
     */
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // ░░░ SPECIAL WITHDRAWAL SERVICE METHODS ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // ─── Admin: Global Settings ────────────────────────────────────────
+
+  async handleGetSpecialWithdrawalSettings() {
+    try {
+      const setting = await this.SettingModel.findByPk(1, {
+        attributes: [
+          'specialWithdrawalEnabled',
+          'defaultTransportationPricePerMeter',
+          'specialWithdrawalCompanyChargePercentage',
+          'specialWithdrawalChargeBearer',
+          'specialWithdrawalDefaultCurrency',
+        ],
+      });
+      if (!setting) throw new NotFoundError('Settings not found');
+      return setting;
+    } catch (error) {
+      if (error.name === 'NotFoundError') throw error;
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  async handleUpdateSpecialWithdrawalSettings(data) {
+    try {
+      await userUtil.verifyHandleUpdateSpecialWithdrawalSettings.validateAsync(
+        data
+      );
+      const { userId, ...updateFields } = data;
+
+      const setting = await this.SettingModel.findByPk(1);
+      if (!setting) throw new NotFoundError('Settings not found');
+
+      await setting.update(updateFields);
+      return setting;
+    } catch (error) {
+      if (error.name === 'NotFoundError') throw error;
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  // ─── Admin: Denomination CRUD ──────────────────────────────────────
+
+  async handleCreateDenomination(data) {
+    try {
+      const validated =
+        await userUtil.verifyHandleCreateDenomination.validateAsync(data);
+      const { userId, ...denominationData } = validated;
+
+      // Check for duplicate value+currency
+      const existing = await this.SpecialWithdrawalDenominationModel.findOne({
+        where: {
+          value: denominationData.value,
+          currency: denominationData.currency || 'NGN',
+          isDeleted: false,
+        },
+      });
+      if (existing) {
+        throw new ConflictError(
+          `Denomination ${denominationData.value} ${
+            denominationData.currency || 'NGN'
+          } already exists`
+        );
+      }
+
+      const denomination = await this.SpecialWithdrawalDenominationModel.create(
+        denominationData
+      );
+      return denomination;
+    } catch (error) {
+      if (error.name === 'ConflictError') throw error;
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  async handleUpdateDenomination(data) {
+    try {
+      const validated =
+        await userUtil.verifyHandleUpdateDenomination.validateAsync(data);
+      const { userId, denominationId, ...updateFields } = validated;
+
+      const denomination =
+        await this.SpecialWithdrawalDenominationModel.findByPk(denominationId);
+      if (!denomination || denomination.isDeleted) {
+        throw new NotFoundError('Denomination not found');
+      }
+
+      await denomination.update(updateFields);
+      return denomination;
+    } catch (error) {
+      if (error.name === 'NotFoundError') throw error;
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  async handleDeleteDenomination(data) {
+    try {
+      const validated =
+        await userUtil.verifyHandleDeleteDenomination.validateAsync(data);
+      const { denominationId } = validated;
+
+      const denomination =
+        await this.SpecialWithdrawalDenominationModel.findByPk(denominationId);
+      if (!denomination || denomination.isDeleted) {
+        throw new NotFoundError('Denomination not found');
+      }
+
+      await denomination.update({ isDeleted: true });
+      return { message: 'Denomination deleted successfully' };
+    } catch (error) {
+      if (error.name === 'NotFoundError') throw error;
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  async handleGetDenominations(includeAll = false) {
+    try {
+      const where = { isDeleted: false };
+      if (!includeAll) {
+        where.isEnabled = true;
+      }
+      const denominations =
+        await this.SpecialWithdrawalDenominationModel.findAll({
+          where,
+          order: [['value', 'ASC']],
+        });
+      return denominations;
+    } catch (error) {
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  // ─── Merchant: Special Withdrawal Profile ──────────────────────────
+
+  async handleGetMerchantSpecialWithdrawalProfile(data) {
+    try {
+      const { userId } = data;
+
+      let profile = await this.MerchantSpecialWithdrawalProfileModel.findOne({
+        where: { merchantId: userId, isDeleted: false },
+      });
+
+      if (!profile) {
+        // Auto-create profile for the merchant
+        profile = await this.MerchantSpecialWithdrawalProfileModel.create({
+          merchantId: userId,
+        });
+      }
+
+      // Also fetch configured charges
+      const charges = await this.MerchantDenominationChargeModel.findAll({
+        where: { merchantId: userId, isDeleted: false },
+        include: [
+          {
+            model: this.SpecialWithdrawalDenominationModel,
+            as: 'Denomination',
+            attributes: ['id', 'value', 'currency', 'isEnabled'],
+          },
+        ],
+      });
+
+      return { profile, charges };
+    } catch (error) {
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  async handleUpdateMerchantSpecialWithdrawalProfile(data) {
+    try {
+      const validated =
+        await userUtil.verifyHandleUpdateMerchantSWProfile.validateAsync(data);
+      const { userId, ...updateFields } = validated;
+
+      let profile = await this.MerchantSpecialWithdrawalProfileModel.findOne({
+        where: { merchantId: userId, isDeleted: false },
+      });
+
+      if (!profile) {
+        profile = await this.MerchantSpecialWithdrawalProfileModel.create({
+          merchantId: userId,
+          ...updateFields,
+        });
+      } else {
+        await profile.update(updateFields);
+      }
+
+      return profile;
+    } catch (error) {
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  // ─── Merchant: Denomination Charges ────────────────────────────────
+
+  async handleGetMerchantDenominationCharges(data) {
+    try {
+      const { userId } = data;
+      const charges = await this.MerchantDenominationChargeModel.findAll({
+        where: { merchantId: userId, isDeleted: false },
+        include: [
+          {
+            model: this.SpecialWithdrawalDenominationModel,
+            as: 'Denomination',
+            attributes: ['id', 'value', 'currency', 'isEnabled'],
+          },
+        ],
+        order: [
+          [
+            {
+              model: this.SpecialWithdrawalDenominationModel,
+              as: 'Denomination',
+            },
+            'value',
+            'ASC',
+          ],
+        ],
+      });
+      return charges;
+    } catch (error) {
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  async handleUpdateMerchantDenominationCharges(data) {
+    try {
+      const validated =
+        await userUtil.verifyHandleUpdateMerchantDenominationCharges.validateAsync(
+          data
+        );
+      const { userId, charges } = validated;
+
+      const results = [];
+      for (const item of charges) {
+        // Verify denomination exists
+        const denom = await this.SpecialWithdrawalDenominationModel.findByPk(
+          item.denominationId
+        );
+        if (!denom || denom.isDeleted) {
+          throw new NotFoundError(
+            `Denomination with ID ${item.denominationId} not found`
+          );
+        }
+
+        // Upsert the charge
+        const [chargeRecord, created] =
+          await this.MerchantDenominationChargeModel.findOrCreate({
+            where: {
+              merchantId: userId,
+              denominationId: item.denominationId,
+            },
+            defaults: {
+              merchantId: userId,
+              denominationId: item.denominationId,
+              charge: item.charge,
+            },
+          });
+
+        if (!created) {
+          await chargeRecord.update({ charge: item.charge });
+        }
+
+        results.push(chargeRecord);
+      }
+
+      return results;
+    } catch (error) {
+      if (error.name === 'NotFoundError') throw error;
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  // ─── Admin: Merchant SW Status ─────────────────────────────────────
+
+  async handleAdminUpdateMerchantSWStatus(data) {
+    try {
+      const validated =
+        await userUtil.verifyHandleAdminUpdateMerchantSWStatus.validateAsync(
+          data
+        );
+      const { merchantId, serviceStatus } = validated;
+
+      let profile = await this.MerchantSpecialWithdrawalProfileModel.findOne({
+        where: { merchantId, isDeleted: false },
+      });
+
+      if (!profile) {
+        profile = await this.MerchantSpecialWithdrawalProfileModel.create({
+          merchantId,
+          serviceStatus,
+        });
+      } else {
+        await profile.update({ serviceStatus });
+      }
+
+      return profile;
+    } catch (error) {
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  async handleAdminGetSWMerchants(data) {
+    try {
+      const { page = 1, limit = 20 } = data;
+      const offset = (page - 1) * limit;
+
+      const { count, rows } =
+        await this.MerchantSpecialWithdrawalProfileModel.findAndCountAll({
+          where: { isDeleted: false },
+          include: [
+            {
+              model: this.UserModel,
+              as: 'Merchant',
+              attributes: [
+                'id',
+                'firstName',
+                'lastName',
+                'emailAddress',
+                'tel',
+                'imageUrl',
+                'lat',
+                'lng',
+                'isOnline',
+              ],
+            },
+          ],
+          limit: parseInt(limit),
+          offset,
+          order: [['createdAt', 'DESC']],
+        });
+
+      return {
+        merchants: rows,
+        total: count,
+        page: parseInt(page),
+        totalPages: Math.ceil(count / limit),
+      };
+    } catch (error) {
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  // ─── Haversine Distance Fallback ───────────────────────────────────
+
+  _haversineDistance(lat1, lng1, lat2, lng2) {
+    const R = 6371000; // Earth's radius in meters
+    const toRad = (deg) => (deg * Math.PI) / 180;
+
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in meters
+  }
+
+  async _getDistanceBetween(merchantId, clientLat, clientLng) {
+    // Get merchant coordinates from User model
+    const merchant = await this.UserModel.findByPk(merchantId, {
+      attributes: ['lat', 'lng'],
+    });
+
+    if (
+      !merchant ||
+      !merchant.lat ||
+      !merchant.lng ||
+      !clientLat ||
+      !clientLng
+    ) {
+      return 0; // No distance calculable
+    }
+
+    const mLat = parseFloat(merchant.lat);
+    const mLng = parseFloat(merchant.lng);
+    const cLat = parseFloat(clientLat);
+    const cLng = parseFloat(clientLng);
+
+    // Try routing API first, fallback to Haversine
+    try {
+      await this.#waitGeoRateLimit();
+      this.#lastGeoRequestTime = Date.now();
+
+      const response = await axios.post(
+        serverConfig.GEO_BASE_URL,
+        {
+          coordinates: [
+            [mLng, mLat],
+            [cLng, cLat],
+          ],
+        },
+        {
+          headers: {
+            Authorization: serverConfig.GEO_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          timeout: 5000,
+        }
+      );
+
+      if (
+        response.data &&
+        response.data.routes &&
+        response.data.routes.length > 0
+      ) {
+        return response.data.routes[0].summary.distance; // meters
+      }
+    } catch (error) {
+      console.warn(
+        '[SpecialWithdrawal] Geo API failed, using Haversine fallback:',
+        error.message
+      );
+    }
+
+    // Fallback: Haversine
+    return this._haversineDistance(mLat, mLng, cLat, cLng);
+  }
+
+  // ─── Cost Estimation ───────────────────────────────────────────────
+
+  async calculateSpecialWithdrawalCosts(
+    merchantId,
+    denominationId,
+    amount,
+    clientLat,
+    clientLng
+  ) {
+    // 1. Get global settings
+    const setting = await this.SettingModel.findByPk(1);
+    if (!setting) throw new SystemError('SystemError', 'Settings not found');
+    if (!setting.specialWithdrawalEnabled) {
+      throw new BadRequestError('Special Withdrawal is currently disabled');
+    }
+
+    // 2. Get merchant profile
+    const merchantProfile =
+      await this.MerchantSpecialWithdrawalProfileModel.findOne({
+        where: {
+          merchantId,
+          isDeleted: false,
+        },
+      });
+    if (!merchantProfile) {
+      throw new NotFoundError(
+        'Merchant is not registered for Special Withdrawal'
+      );
+    }
+    if (merchantProfile.serviceStatus !== 'Active') {
+      throw new BadRequestError(
+        `Merchant Special Withdrawal service is ${merchantProfile.serviceStatus}`
+      );
+    }
+    if (!merchantProfile.isOnline) {
+      throw new BadRequestError('Merchant is currently offline');
+    }
+    if (!merchantProfile.isEnabled) {
+      throw new BadRequestError('Merchant has not enabled Special Withdrawal');
+    }
+
+    // 3. Check amount limits
+    if (amount < merchantProfile.minWithdrawalAmount) {
+      throw new BadRequestError(
+        `Minimum withdrawal amount is ₦${merchantProfile.minWithdrawalAmount}`
+      );
+    }
+    if (amount > merchantProfile.maxWithdrawalAmount) {
+      throw new BadRequestError(
+        `Maximum withdrawal amount is ₦${merchantProfile.maxWithdrawalAmount}`
+      );
+    }
+
+    // 4. Get denomination
+    const denomination = await this.SpecialWithdrawalDenominationModel.findByPk(
+      denominationId
+    );
+    if (!denomination || denomination.isDeleted || !denomination.isEnabled) {
+      throw new NotFoundError('Selected denomination is not available');
+    }
+
+    // 5. Get merchant charge for this denomination
+    const merchantChargeRecord =
+      await this.MerchantDenominationChargeModel.findOne({
+        where: {
+          merchantId,
+          denominationId,
+          isDeleted: false,
+        },
+      });
+    if (!merchantChargeRecord) {
+      throw new NotFoundError(
+        'Merchant has not configured a charge for this denomination'
+      );
+    }
+
+    const merchantCharge = merchantChargeRecord.charge;
+
+    // 6. Calculate distance & transportation cost
+    const distance = await this._getDistanceBetween(
+      merchantId,
+      clientLat,
+      clientLng
+    );
+    const transportationCharge = Math.round(
+      distance * setting.defaultTransportationPricePerMeter
+    );
+
+    // 7. Calculate company charge
+    const companyPercentage =
+      setting.specialWithdrawalCompanyChargePercentage / 100;
+    const companyChargeAmountToCustomer = Math.round(
+      amount * companyPercentage
+    );
+    const companyChargeAmountToMerchant = Math.round(
+      merchantCharge * companyPercentage
+    );
+    const chargeBearer = setting.specialWithdrawalChargeBearer;
+
+    // 8. Calculate total based on who bears the company charge
+    let customerTotal;
+    let merchantDeduction = 0;
+    let companyChargeAmount = 0;
+    switch (chargeBearer) {
+      case 'Customer':
+        // Customer pays everything including company charge
+        customerTotal =
+          amount +
+          merchantCharge +
+          transportationCharge +
+          companyChargeAmountToCustomer;
+        merchantDeduction = 0; // Merchant gets full charge
+        companyChargeAmount = companyChargeAmountToCustomer;
+        break;
+      case 'Merchant':
+        // Customer does NOT pay company charge; merchant absorbs it
+        customerTotal =
+          amount +
+          merchantCharge +
+          transportationCharge +
+          companyChargeAmountToMerchant;
+        merchantDeduction = companyChargeAmountToMerchant; // Deducted from merchant earnings
+        companyChargeAmount = companyChargeAmountToMerchant;
+        break;
+      case 'Both':
+        // Customer pays a company charge, merchant also contributes
+        customerTotal =
+          amount +
+          merchantCharge +
+          transportationCharge +
+          companyChargeAmountToCustomer +
+          companyChargeAmountToMerchant;
+        merchantDeduction = companyChargeAmountToMerchant;
+        companyChargeAmount =
+          companyChargeAmountToCustomer + companyChargeAmountToMerchant;
+        break;
+      default:
+        customerTotal =
+          amount +
+          merchantCharge +
+          transportationCharge +
+          companyChargeAmountToMerchant;
+        merchantDeduction = companyChargeAmountToMerchant;
+        companyChargeAmount = companyChargeAmountToMerchant;
+    }
+
+    return {
+      amount,
+      denomination: {
+        id: denomination.id,
+        value: denomination.value,
+        currency: denomination.currency,
+      },
+      merchantCharge,
+      transportationCharge,
+      companyCharge: companyChargeAmount,
+      companyChargePercentage: setting.specialWithdrawalCompanyChargePercentage,
+      chargeBearer,
+      distance: Math.round(distance),
+      totalAmount: customerTotal,
+      merchantDeduction,
+      merchantPayout: merchantCharge - merchantDeduction + amount,
+      platformRevenue: companyChargeAmount,
+    };
+  }
+
+  // ─── Customer: Get Quotation ───────────────────────────────────────
+
+  async handleGetSpecialWithdrawalQuotation(data) {
+    try {
+      const validated =
+        await userUtil.verifyHandleGetSpecialWithdrawalQuotation.validateAsync(
+          data
+        );
+
+      const { merchantId, denominationId, amount, deliveryLat, deliveryLng } =
+        validated;
+
+      // Use customer coordinates from User model if not supplied
+      let clientLat = deliveryLat;
+      let clientLng = deliveryLng;
+      if (!clientLat || !clientLng) {
+        const client = await this.UserModel.findByPk(validated.userId, {
+          attributes: ['lat', 'lng'],
+        });
+        if (client) {
+          clientLat = clientLat || client.lat;
+          clientLng = clientLng || client.lng;
+        }
+      }
+
+      const costs = await this.calculateSpecialWithdrawalCosts(
+        merchantId,
+        denominationId,
+        amount,
+        clientLat,
+        clientLng
+      );
+
+      return costs;
+    } catch (error) {
+      if (error.name === 'NotFoundError' || error.name === 'BadRequestError') {
+        throw error;
+      }
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  // ─── Customer: Create Request ──────────────────────────────────────
+
+  async handleCreateSpecialWithdrawalRequest(data) {
+    const sequelize = this.UserModel.sequelize;
+
+    try {
+      const validated =
+        await userUtil.verifyHandleCreateSpecialWithdrawalRequest.validateAsync(
+          data
+        );
+
+      const {
+        userId,
+        merchantId,
+        denominationId,
+        amount,
+        deliveryLat,
+        deliveryLng,
+        deliveryAddress,
+      } = validated;
+
+      // Use customer coordinates from User model if not supplied
+      let clientLat = deliveryLat;
+      let clientLng = deliveryLng;
+      if (!clientLat || !clientLng) {
+        const client = await this.UserModel.findByPk(userId, {
+          attributes: ['lat', 'lng'],
+        });
+        if (client) {
+          clientLat = clientLat || client.lat;
+          clientLng = clientLng || client.lng;
+        }
+      }
+
+      // Calculate costs
+      const costs = await this.calculateSpecialWithdrawalCosts(
+        merchantId,
+        denominationId,
+        amount,
+        clientLat,
+        clientLng
+      );
+
+      let newRequest;
+      let merchantUser;
+
+      await sequelize.transaction(async (t) => {
+        // Check client wallet balance
+        const client = await this.UserModel.findByPk(userId, {
+          transaction: t,
+          lock: true,
+        });
+        if (!client) throw new NotFoundError('User not found');
+
+        let clientWallet =
+          typeof client.walletBalance === 'string'
+            ? JSON.parse(client.walletBalance)
+            : client.walletBalance || { current: 0, previous: 0 };
+
+        const currentBalance = Number(clientWallet.current) || 0;
+        if (currentBalance < costs.totalAmount) {
+          throw new BadRequestError(
+            `Insufficient balance. You need ₦${costs.totalAmount} but have ₦${currentBalance}`
+          );
+        }
+
+        // Deduct from client wallet (escrow)
+        const updatedWallet = {
+          previous: currentBalance,
+          current: currentBalance - costs.totalAmount,
+        };
+        await client.update(
+          { walletBalance: updatedWallet },
+          { transaction: t }
+        );
+
+        // Create transaction record
+        const transactionRecord = await this.TransactionModel.create(
+          {
+            userId,
+            transactionId: authService.generateOrderId('SW_TX', 12),
+            merchantId,
+            amount: costs.totalAmount,
+            orderAmount: amount,
+            transactionType: 'order',
+            paymentStatus: 'successful',
+            transactionFrom: 'wallet',
+            narration: `Special Withdrawal - ₦${costs.denomination.value} denomination`,
+          },
+          { transaction: t }
+        );
+
+        // Generate OTP for verification
+        const verificationOtp = String(
+          Math.floor(100000 + Math.random() * 900000)
+        );
+
+        // Generate request ID
+        const requestId = authService.generateOrderId('SWR', 10);
+
+        // Generate QR code hash for scan-to-complete verification (mirrors normal cash)
+        const qrCodeHash = await this.getQRCodeHash(
+          userId,
+          merchantId,
+          client.password,
+          requestId
+        );
+
+        // Check merchant autoAccept
+        const merchantProfile =
+          await this.MerchantSpecialWithdrawalProfileModel.findOne({
+            where: { merchantId, isDeleted: false },
+            transaction: t,
+          });
+
+        const initialStatus =
+          merchantProfile && merchantProfile.autoAccept
+            ? 'accepted'
+            : 'pending';
+
+        // Create the request
+        newRequest = await this.OrdersModel.create(
+          {
+            // ── Unified Order fields (required for Orders table compatibility) ────
+            orderType: 'special',
+            orderId: requestId,          // map requestId -> orderId (unique)
+            requestId,
+            amountOrder: String(amount), // Order table expects string
+            totalAmount: String(costs.totalAmount),
+            orderStatus: initialStatus,  // mirror status in orderStatus column
+            moneyStatus: 'received',     // money is in escrow
+            // ── Special Withdrawal specific fields ───────────────────────────
+            clientId: userId,
+            merchantId,
+            denominationId,
+            amount,
+            merchantCharge: costs.merchantCharge,
+            transportationCharge: costs.transportationCharge,
+            companyCharge: costs.companyCharge,
+            chargeBearer: costs.chargeBearer,
+            deliveryLat: clientLat,
+            deliveryLng: clientLng,
+            deliveryAddress: deliveryAddress || null,
+            distance: costs.distance,
+            orderStatus: initialStatus,
+            paymentStatus: 'paid',
+            verificationOtp,
+            qrCodeHash,
+            transactionId: transactionRecord.id,
+          },
+          { transaction: t }
+        );
+
+        merchantUser = await this.UserModel.findByPk(merchantId, {
+          transaction: t,
+        });
+      });
+
+      // Send push notification to merchant (outside transaction)
+      if (merchantUser && merchantUser.fcmToken) {
+        try {
+          const clientUser = await this.UserModel.findByPk(validated.userId, {
+            attributes: ['firstName', 'lastName'],
+          });
+          await this.sendToDevice(
+            merchantUser.fcmToken,
+            {
+              title: 'New Special Withdrawal Request 💵',
+              body: `${
+                clientUser?.firstName || 'A customer'
+              } requests ₦${amount} in ₦${costs.denomination.value} notes.`,
+            },
+            {
+              type: event.SW_NEW_REQUEST,
+              requestId: String(newRequest.id),
+              userId: merchantUser.id,
+              sendto: user_type.MERCHANT,
+            }
+          );
+        } catch (notifyErr) {
+          console.warn(
+            '[SW] Push notification to merchant failed:',
+            notifyErr.message
+          );
+        }
+      }
+
+      return {
+        request: newRequest,
+        costs,
+        verificationOtp: newRequest.verificationOtp,
+      };
+    } catch (error) {
+      if (
+        error.name === 'NotFoundError' ||
+        error.name === 'BadRequestError' ||
+        error.name === 'ConflictError'
+      ) {
+        throw error;
+      }
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  // ─── Request Actions State Machine ─────────────────────────────────
+
+  async handleSpecialWithdrawalRequestAction(data) {
+    const sequelize = this.UserModel.sequelize;
+
+    try {
+      const validated =
+        await userUtil.verifyHandleSpecialWithdrawalRequestAction.validateAsync(
+          data
+        );
+
+      const { userId, requestId, action, otp, hash, reason } = validated;
+
+      const request = await this.OrdersModel.findByPk(
+        requestId
+      );
+      if (!request || request.isDeleted) {
+        throw new NotFoundError('Request not found');
+      }
+
+      const ALLOWED_TRANSITIONS = {
+        accept:   { from: ['pending'],             by: 'merchant' },
+        reject:   { from: ['pending'],             by: 'merchant' },
+        cancel:   { from: ['pending', 'accepted'], by: 'client'   },
+        complete: { from: ['accepted'],            by: 'merchant' },
+      };
+
+      const rule = ALLOWED_TRANSITIONS[action];
+      if (!rule) throw new BadRequestError('Invalid action');
+
+      // Check authorization
+      if (rule.by === 'merchant' && request.merchantId !== userId) {
+        throw new BadRequestError(
+          'Only the assigned merchant can perform this action'
+        );
+      }
+      if (rule.by === 'client' && request.clientId !== userId) {
+        throw new BadRequestError(
+          'Only the requesting customer can perform this action'
+        );
+      }
+
+      // Check valid status transition
+      if (!rule.from.includes(request.orderStatus)) {
+        throw new BadRequestError(
+          `Cannot ${action} a request with status "${request.orderStatus}"`
+        );
+      }
+
+      let result;
+
+      switch (action) {
+        case 'accept':
+          await request.update({ orderStatus: 'accepted' });
+          // Notify client
+          await this._swNotifyUser(request.clientId, {
+            title: 'Request Accepted ✅',
+            body: 'Your Special Withdrawal request has been accepted. The merchant is preparing your cash.',
+            eventType: event.SW_REQUEST_ACCEPTED,
+            requestId: request.id,
+            sendto: user_type.CLIENT,
+          });
+          result = { orderStatus: 'accepted' };
+          break;
+
+        case 'reject':
+          await this._swRefundClient(request, sequelize, reason, 'rejected');
+          await this._swNotifyUser(request.clientId, {
+            title: 'Request Rejected ❌',
+            body: `Your Special Withdrawal request was rejected.${
+              reason ? ' Reason: ' + reason : ''
+            } Your money has been refunded to your wallet.`,
+            eventType: event.SW_REQUEST_REJECTED,
+            requestId: request.id,
+            sendto: user_type.CLIENT,
+          });
+          result = { orderStatus: 'rejected' };
+          break;
+
+        case 'cancel':
+          await this._swRefundClient(request, sequelize, reason, 'cancelled');
+          await this._swNotifyUser(request.merchantId, {
+            title: 'Request Cancelled ❌',
+            body: 'The customer has cancelled their Special Withdrawal request.',
+            eventType: event.SW_REQUEST_CANCELLED,
+            requestId: request.id,
+            sendto: user_type.MERCHANT,
+          });
+          result = { orderStatus: 'cancelled' };
+          break;
+
+        case 'complete': {
+          // Must provide QR hash (primary) or OTP (fallback)
+          if (!otp && !hash) {
+            throw new BadRequestError(
+              'Verification required: scan QR code or provide OTP to complete'
+            );
+          }
+
+          if (hash) {
+            // ── QR code scan path — mirrors normal cash /verifyCompleteOrder ──
+            const client = await this.UserModel.findByPk(request.clientId, {
+              attributes: ['id', 'password'],
+            });
+            if (!client) throw new NotFoundError('Client not found');
+
+            // Recompute the raw hash input from DB fields (not from client input)
+            const rawHashInput = this.rawOrderHash(
+              request.clientId,
+              request.merchantId,
+              client.password,
+              request.requestId
+            );
+            const isValidHash = await bcrypt.compare(rawHashInput, hash);
+            if (!isValidHash) {
+              throw new BadRequestError(
+                'Invalid QR code. Ask the customer to display their QR code again.'
+              );
+            }
+          } else {
+            // ── OTP fallback ──────────────────────────────────────────
+            if (otp !== request.verificationOtp) {
+              throw new BadRequestError('Invalid verification OTP');
+            }
+          }
+
+          await this._swSettleFunds(request, sequelize);
+
+          await this._swNotifyUser(request.clientId, {
+            title: 'Withdrawal Complete ✅💰',
+            body: 'Your Special Withdrawal is complete. You have received your cash!',
+            eventType: event.SW_REQUEST_COMPLETED,
+            requestId: request.id,
+            sendto: user_type.CLIENT,
+          });
+          await this._swNotifyUser(request.merchantId, {
+            title: 'Transaction Settled ✅💰',
+            body: `Special Withdrawal completed. ₦${
+              request.merchantCharge + request.transportationCharge
+            } has been credited to your wallet.`,
+            eventType: event.SW_REQUEST_COMPLETED,
+            requestId: request.id,
+            sendto: user_type.MERCHANT,
+          });
+          result = { orderStatus: 'completed' };
+          break;
+        }
+      }
+
+      return result;
+    } catch (error) {
+      if (
+        error.name === 'NotFoundError' ||
+        error.name === 'BadRequestError' ||
+        error.name === 'ConflictError'
+      ) {
+        throw error;
+      }
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  // ─── SW: Refund Client (cancel/reject) ─────────────────────────────
+
+  async _swRefundClient(request, sequelize, reason, targetStatus = 'cancelled') {
+    await sequelize.transaction(async (t) => {
+      // ── Atomic guard: only one concurrent request can refund ──────────────
+      // If two requests arrive simultaneously, only ONE gets affectedRows = 1.
+      const [affectedRows] = await this.OrdersModel.update(
+        {
+          orderStatus: targetStatus,
+          moneyStatus: 'refund',
+          paymentStatus: 'refunded',
+          cancelledAt: new Date(),
+          reason: reason || null,
+        },
+        {
+          where: {
+            id: request.id,
+            orderType: 'special',
+            orderStatus: ['pending', 'accepted'],    // only if still active
+            paymentStatus: { [Op.ne]: 'refunded' }   // not already refunded
+          },
+          transaction: t,
+        }
+      );
+
+      if (affectedRows === 0) {
+        throw new ConflictError(
+          'Request has already been cancelled or refunded.'
+        );
+      }
+
+      // ── Refund client wallet ────────────────────────────────────────────
+      const client = await this.UserModel.findByPk(request.clientId, {
+        transaction: t,
+        lock: true,
+      });
+      if (!client) throw new NotFoundError('Client not found');
+
+      const wallet =
+        typeof client.walletBalance === 'string'
+          ? JSON.parse(client.walletBalance)
+          : client.walletBalance || { current: 0, previous: 0 };
+
+      const currentBalance = Number(wallet.current) || 0;
+      const refundAmount = Number(request.totalAmount) || 0;
+      await client.update(
+        {
+          walletBalance: {
+            previous: currentBalance,
+            current: currentBalance + refundAmount,
+          },
+        },
+        { transaction: t }
+      );
+
+      // ── Reverse the original debit transaction record ─────────────────
+      if (request.transactionId) {
+        await this.TransactionModel.update(
+          {
+            paymentStatus: 'reversed',
+            isReversed: true,
+            declinedAt: new Date(),
+          },
+          { where: { id: request.transactionId }, transaction: t }
+        );
+      }
+    });
+  }
+
+  // ─── SW: Settle Funds (completion) ─────────────────────────────────
+
+  async _swSettleFunds(request, sequelize) {
+    await sequelize.transaction(async (t) => {
+      const setting = await this.SettingModel.findByPk(1, { transaction: t });
+      if (!setting) throw new SystemError('SystemError', 'Settings not found');
+
+      const chargeBearer = request.chargeBearer;
+      let merchantPayout = request.amount + request.merchantCharge;
+      let platformRevenue = request.companyCharge;
+
+      if (chargeBearer === 'Merchant') {
+        // Merchant absorbs company charge from their earnings
+        merchantPayout =
+          request.amount + request.merchantCharge - request.companyCharge;
+        platformRevenue = request.companyCharge;
+      } else if (chargeBearer === 'Both') {
+        // Merchant also contributes their share
+        merchantPayout =
+          request.amount + request.merchantCharge - request.companyCharge;
+        platformRevenue = request.companyCharge * 2; // customer + merchant
+      }
+      // chargeBearer === 'Customer': merchant gets full charge, platform gets customer-paid fee
+
+      // Credit merchant wallet
+      const merchant = await this.UserModel.findByPk(request.merchantId, {
+        transaction: t,
+        lock: true,
+      });
+      if (!merchant) throw new NotFoundError('Merchant not found');
+
+      let merchantWallet =
+        typeof merchant.walletBalance === 'string'
+          ? JSON.parse(merchant.walletBalance)
+          : merchant.walletBalance || { current: 0, previous: 0 };
+
+      const merchantCurrentBalance = Number(merchantWallet.current) || 0;
+      const updatedMerchantWallet = {
+        previous: merchantCurrentBalance,
+        current: merchantCurrentBalance + merchantPayout,
+      };
+      await merchant.update(
+        { walletBalance: updatedMerchantWallet },
+        { transaction: t }
+      );
+
+      // Credit platform (admin/setting) wallet
+      let settingWallet =
+        typeof setting.walletBalance === 'string'
+          ? JSON.parse(setting.walletBalance)
+          : setting.walletBalance || { current: 0, previous: 0 };
+
+      const settingCurrentBalance = Number(settingWallet.current) || 0;
+      const updatedSettingWallet = {
+        previous: settingCurrentBalance,
+        current: settingCurrentBalance + platformRevenue,
+      };
+      await setting.update(
+        { walletBalance: updatedSettingWallet },
+        { transaction: t }
+      );
+
+      // ── Atomic guard: prevents double-settlement on concurrent complete calls ──
+      const [completedRows] = await this.OrdersModel.update(
+        {
+          orderStatus: 'completed',
+          moneyStatus: 'paid',
+          completedAt: new Date(),
+        },
+        {
+          where: {
+            id: request.id,
+            orderType: 'special',
+            orderStatus: 'accepted',                 // must still be accepted
+            paymentStatus: { [Op.ne]: 'refunded' }   // not already refunded/cancelled
+          },
+          transaction: t,
+        }
+      );
+      if (completedRows === 0) {
+        throw new ConflictError(
+          'Request has already been completed, cancelled, or refunded.'
+        );
+      }
+    });
+  }
+
+  // ─── SW: Notify User Helper ────────────────────────────────────────
+
+  async _swNotifyUser(userId, { title, body, eventType, requestId, sendto }) {
+    try {
+      const user = await this.UserModel.findByPk(userId, {
+        attributes: ['id', 'fcmToken'],
+      });
+      if (user && user.fcmToken) {
+        await this.sendToDevice(
+          user.fcmToken,
+          { title, body },
+          {
+            type: eventType,
+            requestId: String(requestId),
+            userId: user.id,
+            sendto,
+          }
+        );
+      }
+    } catch (error) {
+      console.warn('[SW] Push notification failed:', error.message);
+    }
+  }
+
+  // ─── Get Requests (Client / Merchant / Admin) ──────────────────────
+
+  async handleGetSpecialWithdrawalRequests(data) {
+    try {
+      const validated =
+        await userUtil.verifyHandleGetSpecialWithdrawalRequests.validateAsync(
+          data
+        );
+
+      const { userId, role, status, page, limit, startDate, endDate } =
+        validated;
+      const offset = (page - 1) * limit;
+
+      const where = { isDeleted: false, orderType: 'special' };
+
+      if (role === 'client') {
+        where.clientId = userId;
+      } else if (role === 'merchant') {
+        where.merchantId = userId;
+      }
+      // admin sees all
+
+      if (status) where.orderStatus = status;
+
+      if (startDate || endDate) {
+        where.createdAt = {};
+        if (startDate) where.createdAt[Op.gte] = new Date(startDate);
+        if (endDate) where.createdAt[Op.lte] = new Date(endDate);
+      }
+
+      const { count, rows } =
+        await this.OrdersModel.findAndCountAll({
+          where,
+          include: [
+            {
+              model: this.UserModel,
+              as: 'Client',
+              attributes: [
+                'id',
+                'firstName',
+                'lastName',
+                'imageUrl',
+                'emailAddress',
+                'tel',
+              ],
+            },
+            {
+              model: this.UserModel,
+              as: 'RequestMerchant',
+              attributes: [
+                'id',
+                'firstName',
+                'lastName',
+                'imageUrl',
+                'emailAddress',
+                'tel',
+              ],
+            },
+            {
+              model: this.SpecialWithdrawalDenominationModel,
+              as: 'RequestDenomination',
+              attributes: ['id', 'value', 'currency'],
+            },
+          ],
+          limit: parseInt(limit),
+          offset,
+          order: [['createdAt', 'DESC']],
+        });
+
+      return {
+        requests: rows,
+        total: count,
+        page: parseInt(page),
+        totalPages: Math.ceil(count / limit),
+      };
+    } catch (error) {
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  // ─── Get Request Details ───────────────────────────────────────────
+
+  async handleGetSpecialWithdrawalRequestDetails(data) {
+    try {
+      const { userId, requestId } = data;
+
+      const request = await this.OrdersModel.findByPk(
+        requestId,
+        {
+          include: [
+            {
+              model: this.UserModel,
+              as: 'Client',
+              attributes: [
+                'id',
+                'firstName',
+                'lastName',
+                'imageUrl',
+                'emailAddress',
+                'tel',
+                'lat',
+                'lng',
+              ],
+            },
+            {
+              model: this.UserModel,
+              as: 'RequestMerchant',
+              attributes: [
+                'id',
+                'firstName',
+                'lastName',
+                'imageUrl',
+                'emailAddress',
+                'tel',
+                'lat',
+                'lng',
+              ],
+            },
+            {
+              model: this.SpecialWithdrawalDenominationModel,
+              as: 'RequestDenomination',
+              attributes: ['id', 'value', 'currency'],
+            },
+            {
+              model: this.TransactionModel,
+              as: 'RequestTransaction',
+              attributes: [
+                'id',
+                'transactionId',
+                'amount',
+                'paymentStatus',
+                'createdAt',
+              ],
+            },
+          ],
+        }
+      );
+
+      if (!request || request.isDeleted) {
+        throw new NotFoundError('Request not found');
+      }
+
+      return request;
+    } catch (error) {
+      if (error.name === 'NotFoundError') throw error;
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  // ─── Merchant: Get Earnings ────────────────────────────────────────
+
+  async handleGetMerchantSWEarnings(data) {
+    try {
+      const { userId } = data;
+
+      const completedRequests =
+        await this.OrdersModel.findAll({
+          where: {
+            merchantId: userId,
+            orderStatus: 'completed',
+            orderType: 'special',
+            isDeleted: false,
+          },
+          include: [
+            {
+              model: this.SpecialWithdrawalDenominationModel,
+              as: 'RequestDenomination',
+              attributes: ['id', 'value', 'currency'],
+            },
+          ],
+          order: [['completedAt', 'DESC']],
+        });
+
+      let totalEarned = 0;
+      let totalCompanyDeductions = 0;
+      let totalTransactions = completedRequests.length;
+
+      for (const req of completedRequests) {
+        let payout = req.amount + req.merchantCharge;
+        let deduction = 0;
+        if (req.chargeBearer === 'Merchant' || req.chargeBearer === 'Both') {
+          deduction = req.companyCharge;
+          payout -= deduction;
+        }
+        totalEarned += payout;
+        totalCompanyDeductions += deduction;
+      }
+
+      return {
+        totalEarned,
+        totalCompanyDeductions,
+        totalTransactions,
+        transactions: completedRequests,
+      };
+    } catch (error) {
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  // ─── Admin: Analytics ──────────────────────────────────────────────
+
+  async handleGetSWAnalytics() {
+    try {
+      const allRequests = await this.OrdersModel.findAll({
+        where: { isDeleted: false, orderType: 'special' },
+        include: [
+          {
+            model: this.SpecialWithdrawalDenominationModel,
+            as: 'RequestDenomination',
+            attributes: ['id', 'value', 'currency'],
+          },
+        ],
+      });
+
+      const totalRequests = allRequests.length;
+      const completed = allRequests.filter((r) => r.orderStatus === 'completed');
+      const cancelled = allRequests.filter((r) => r.orderStatus === 'cancelled');
+      const rejected = allRequests.filter((r) => r.orderStatus === 'rejected');
+
+      let totalVolume = 0;
+      let totalCompanyRevenue = 0;
+      const denominationCounts = {};
+      const merchantPerformance = {};
+
+      for (const req of completed) {
+        totalVolume += req.totalAmount;
+
+        // Platform revenue
+        if (req.chargeBearer === 'Both') {
+          totalCompanyRevenue += req.companyCharge * 2;
+        } else {
+          totalCompanyRevenue += req.companyCharge;
+        }
+
+        // Denomination counts
+        const denomValue = req.RequestDenomination?.value || 'unknown';
+        denominationCounts[denomValue] =
+          (denominationCounts[denomValue] || 0) + 1;
+
+        // Merchant performance
+        merchantPerformance[req.merchantId] =
+          (merchantPerformance[req.merchantId] || 0) + 1;
+      }
+
+      // Sort denominations by frequency
+      const topDenominations = Object.entries(denominationCounts)
+        .sort(([, a], [, b]) => b - a)
+        .map(([value, count]) => ({ denomination: value, count }));
+
+      // Sort merchants by completed transactions
+      const topMerchantIds = Object.entries(merchantPerformance)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 10);
+
+      const topMerchants = [];
+      for (const [merchantId, count] of topMerchantIds) {
+        const user = await this.UserModel.findByPk(merchantId, {
+          attributes: ['id', 'firstName', 'lastName', 'imageUrl'],
+        });
+        topMerchants.push({
+          merchant: user,
+          completedTransactions: count,
+        });
+      }
+
+      return {
+        totalRequests,
+        totalCompleted: completed.length,
+        totalCancelled: cancelled.length,
+        totalRejected: rejected.length,
+        totalTransactionVolume: totalVolume,
+        totalCompanyRevenue,
+        topDenominations,
+        topMerchants,
+      };
+    } catch (error) {
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  // ─── Seed Default Denominations ────────────────────────────────────
+
+  async seedDefaultDenominations() {
+    try {
+      const existing = await this.SpecialWithdrawalDenominationModel.count({
+        where: { isDeleted: false },
+      });
+
+      if (existing > 0) return; // Already seeded
+
+      const defaultDenominations = [
+        { value: 5, currency: 'NGN' },
+        { value: 10, currency: 'NGN' },
+        { value: 20, currency: 'NGN' },
+        { value: 50, currency: 'NGN' },
+        { value: 100, currency: 'NGN' },
+        { value: 200, currency: 'NGN' },
+        { value: 500, currency: 'NGN' },
+        { value: 1000, currency: 'NGN' },
+      ];
+
+      await this.SpecialWithdrawalDenominationModel.bulkCreate(
+        defaultDenominations
+      );
+      console.log(
+        '[SpecialWithdrawal] Default Nigerian denominations seeded successfully'
+      );
+    } catch (error) {
+      console.error(
+        '[SpecialWithdrawal] Error seeding denominations:',
+        error.message
+      );
+    }
+  }
+
+  async handleDiscoverSpecialWithdrawalMerchants(data) {
+    const validated =
+      await userUtil.verifyHandleDiscoverSpecialWithdrawalMerchants.validateAsync(
+        data
+      );
+
+    const {
+      userId,
+      amount,
+      denominationId,
+      denominationValue,
+      deliveryLat,
+      deliveryLng,
+    } = validated;
+
+    // 1. Get global settings
+    const setting = await this.SettingModel.findByPk(1);
+    if (!setting) throw new SystemError('SystemError', 'Settings not found');
+    if (!setting.specialWithdrawalEnabled) {
+      throw new BadRequestError('Special Withdrawal is currently disabled');
+    }
+    try {
+      // 2. Resolve Denomination
+      let denomination;
+      if (denominationId) {
+        denomination = await this.SpecialWithdrawalDenominationModel.findByPk(
+          denominationId
+        );
+      } else if (denominationValue) {
+        denomination = await this.SpecialWithdrawalDenominationModel.findOne({
+          where: {
+            value: Number(denominationValue),
+            isDeleted: false,
+            isEnabled: true,
+          },
+        });
+      }
+      console.log('Resolved denomination:', denomination);
+      if (!denomination || denomination.isDeleted || !denomination.isEnabled) {
+        throw new NotFoundError('Selected denomination is not available');
+      }
+
+      // 3. Resolve customer coordinates (fallback to DB)
+      let clientLat = deliveryLat;
+      let clientLng = deliveryLng;
+      if (!clientLat || !clientLng) {
+        const client = await this.UserModel.findByPk(userId, {
+          attributes: ['lat', 'lng'],
+        });
+        if (client) {
+          clientLat = clientLat || client.lat;
+          clientLng = clientLng || client.lng;
+        }
+      }
+
+      if (!clientLat || !clientLng) {
+        throw new BadRequestError(
+          'Customer location coordinates are required for discovery'
+        );
+      }
+
+      // 4. Retrieve qualifying merchants
+      const merchants = await this.UserModel.findAll({
+        where: {
+          merchantActivated: true,
+          disableAccount: false,
+          isEmailValid: true,
+          isDeleted: false,
+        },
+        include: [
+          {
+            model: this.MerchantSpecialWithdrawalProfileModel,
+            as: 'SpecialWithdrawalProfile',
+            where: {
+              isEnabled: true,
+              isOnline: true,
+              serviceStatus: 'Active',
+              isDeleted: false,
+              minWithdrawalAmount: { [Op.lte]: amount },
+              maxWithdrawalAmount: { [Op.gte]: amount },
+              /*  [Op.or]: [
+                { cashAvailability: 0 },
+                { cashAvailability: { [Op.gte]: amount } },
+              ],*/
+            },
+            required: true,
+          },
+          {
+            model: this.MerchantDenominationChargeModel,
+            as: 'DenominationCharges',
+            where: {
+              denominationId: denomination.id,
+              isDeleted: false,
+            },
+            required: true,
+          },
+        ],
+        attributes: ['id', 'firstName', 'lastName', 'lat', 'lng'],
+      });
+
+      if (merchants.length === 0) {
+        return [];
+      }
+
+      const merchantIds = merchants.map((m) => m.id);
+
+      // 5. Query completed/cancelled/rejected requests and orders for these merchants
+      const swRequests = await this.OrdersModel.findAll({
+        where: { merchantId: merchantIds, isDeleted: false, orderType: 'special' },
+        attributes: ['merchantId', 'orderStatus', 'createdAt', 'completedAt'],
+      });
+
+      const standardOrders = await this.OrdersModel.findAll({
+        where: { merchantId: merchantIds, isDeleted: false, orderType: 'normal' },
+        attributes: ['merchantId', 'orderStatus', 'startTime', 'endTime'],
+      });
+
+      // 6. Compute counts for active orders to determine "availability" and statistics for sorting
+      const activeOrdersCountMap = {};
+      const statsMap = {};
+
+      for (const id of merchantIds) {
+        activeOrdersCountMap[id] = 0;
+        statsMap[id] = {
+          total: 0,
+          completed: 0,
+          totalDuration: 0,
+          completedDurationCount: 0,
+        };
+      }
+
+      for (const req of swRequests) {
+        if (['pending', 'accepted'].includes(req.orderStatus)) {
+          activeOrdersCountMap[req.merchantId] =
+            (activeOrdersCountMap[req.merchantId] || 0) + 1;
+        }
+        if (['completed', 'cancelled', 'rejected'].includes(req.orderStatus)) {
+          statsMap[req.merchantId].total++;
+        }
+        if (req.orderStatus === 'completed') {
+          statsMap[req.merchantId].completed++;
+          if (req.completedAt && req.createdAt) {
+            const duration =
+              (new Date(req.completedAt) - new Date(req.createdAt)) / 1000;
+            if (duration > 0) {
+              statsMap[req.merchantId].totalDuration += duration;
+              statsMap[req.merchantId].completedDurationCount++;
+            }
+          }
+        }
+      }
+
+      for (const order of standardOrders) {
+        if (['pending', 'inProgress'].includes(order.orderStatus)) {
+          activeOrdersCountMap[order.merchantId] =
+            (activeOrdersCountMap[order.merchantId] || 0) + 1;
+        }
+        if (
+          ['completed', 'cancelled', 'rejected'].includes(order.orderStatus)
+        ) {
+          statsMap[order.merchantId].total++;
+        }
+        if (order.orderStatus === 'completed') {
+          statsMap[order.merchantId].completed++;
+          if (order.endTime && order.startTime) {
+            const duration =
+              (new Date(order.endTime) - new Date(order.startTime)) / 1000;
+            if (duration > 0) {
+              statsMap[order.merchantId].totalDuration += duration;
+              statsMap[order.merchantId].completedDurationCount++;
+            }
+          }
+        }
+      }
+
+      // 7. Calculate details for each merchant card
+      const qualifiedMerchants = merchants.map((m) => {
+        const profile = m.SpecialWithdrawalProfile;
+        const chargeRecord = m.DenominationCharges[0];
+        const merchantCharge = chargeRecord.charge;
+
+        // Proximity (straight-line distance, in meters)
+        const distance = this._haversineDistance(
+          Number(clientLat),
+          Number(clientLng),
+          Number(m.lat),
+          Number(m.lng)
+        );
+
+        // Transportation fee
+        const transportationCharge = Math.round(
+          distance * setting.defaultTransportationPricePerMeter
+        );
+
+        // Company charge calculation
+        const companyPercentage =
+          setting.specialWithdrawalCompanyChargePercentage / 100;
+        const companyChargeAmountToCustomer = Math.round(
+          amount * companyPercentage
+        );
+        const companyChargeAmountToMerchant = Math.round(
+          merchantCharge * companyPercentage
+        );
+        const chargeBearer = setting.specialWithdrawalChargeBearer;
+
+        let totalAmount;
+        if (chargeBearer === 'Customer') {
+          totalAmount =
+            amount +
+            merchantCharge +
+            transportationCharge +
+            companyChargeAmountToCustomer;
+        } else if (chargeBearer === 'Merchant') {
+          totalAmount =
+            amount +
+            merchantCharge +
+            transportationCharge +
+            companyChargeAmountToMerchant;
+        } else if (chargeBearer === 'Both') {
+          totalAmount =
+            amount +
+            merchantCharge +
+            transportationCharge +
+            companyChargeAmountToMerchant +
+            companyChargeAmountToCustomer;
+        } else {
+          totalAmount =
+            amount +
+            merchantCharge +
+            transportationCharge +
+            companyChargeAmountToMerchant +
+            companyChargeAmountToCustomer;
+        }
+
+        // Availability status
+        const maxOrders = setting.maxOrderPerMerchant || 5;
+        const activeCount = activeOrdersCountMap[m.id] || 0;
+        const availability = activeCount >= maxOrders ? 'Busy' : 'Available';
+
+        // Stats for sorting
+        const stats = statsMap[m.id];
+        const successRate =
+          stats.total > 0 ? stats.completed / stats.total : 1.0;
+        const avgCompletionTime =
+          stats.completedDurationCount > 0
+            ? stats.totalDuration / stats.completedDurationCount
+            : 900; // default 15 minutes in seconds
+
+        const displayName =
+          profile?.displayName || `${m.firstName} ${m.lastName}`;
+
+        return {
+          id: m.id,
+          displayName,
+          distance,
+          rating: parseFloat(profile?.rating || 5.0),
+          serviceCharge: merchantCharge,
+          transportationFee: transportationCharge,
+          totalAmountPayable: totalAmount,
+          estimatedDeliveryTime: this.getEstimatedDeliveryTimeByFoot(
+            distance / 1000
+          ),
+          amount,
+          availability,
+          successRate,
+          avgCompletionTime,
+        };
+      });
+
+      // 8. Multi-level Sort matching the priority:
+      // 1. Distance (closest first)
+      // 2. Availability (Available first, Busy second)
+      // 3. Rating (highest first)
+      // 4. Lowest service charge (lowest first)
+      // 5. Fastest average completion time (lowest first)
+      // 6. Highest successful transaction rate (highest first)
+      const sortedMerchants = qualifiedMerchants.sort((a, b) => {
+        if (a.distance !== b.distance) {
+          return a.distance - b.distance;
+        }
+
+        const availabilityOrder = { Available: 0, Busy: 1 };
+        const availA = availabilityOrder[a.availability] ?? 2;
+        const availB = availabilityOrder[b.availability] ?? 2;
+        if (availA !== availB) {
+          return availA - availB;
+        }
+
+        if (a.rating !== b.rating) {
+          return b.rating - a.rating;
+        }
+
+        if (a.serviceCharge !== b.serviceCharge) {
+          return a.serviceCharge - b.serviceCharge;
+        }
+
+        if (a.avgCompletionTime !== b.avgCompletionTime) {
+          return a.avgCompletionTime - b.avgCompletionTime;
+        }
+
+        if (a.successRate !== b.successRate) {
+          return b.successRate - a.successRate;
+        }
+
+        return 0;
+      });
+
+      // Format response cards
+      return sortedMerchants.map((m) => ({
+        merchantId: m.id,
+        displayName: m.displayName,
+        distance: m.distance,
+        distanceFormatted:
+          m.distance >= 1000
+            ? `${(m.distance / 1000).toFixed(2)} km`
+            : `${Math.round(m.distance)} m`,
+        rating: m.rating,
+        selectedDenomination: denomination.value,
+        merchantServiceCharge: m.serviceCharge,
+        estimatedTransportationFee: m.transportationFee,
+        estimatedTotalPayableAmount: m.totalAmountPayable,
+        estimatedDeliveryTime: m.estimatedDeliveryTime,
+        availability: m.availability,
+        amount: m.amount,
+      }));
+    } catch (error) {
+      if (error.name === 'NotFoundError' || error.name === 'BadRequestError') {
+        throw error;
+      }
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  async checkStaleSpecialWithdrawals() {
+    return; // Disabled by user request (requests should not automatically timeout)
+  }
+
+  async syncUserStates() {
+    try {
+      // Find up to 5 users that have coordinates but no state cached
+      const users = await this.UserModel.findAll({
+        where: {
+          lat: { [Op.ne]: null },
+          lng: { [Op.ne]: null },
+          state: null,
+          isDeleted: false,
+        },
+        limit: 5,
+      });
+
+      if (users.length === 0) return;
+
+      console.log(`[Cron] Found ${users.length} users needing geocoding...`);
+
+      for (const user of users) {
+        try {
+          const stateName = await this.getLocationName(user.lat, user.lng);
+          if (stateName) {
+            await user.update({ state: stateName });
+            console.log(
+              `[Cron] Geocoded user ID ${user.id} to state: ${stateName}`
+            );
+          } else {
+            // Keep it from retrying indefinitely on every run if Nominatim didn't find anything
+            await user.update({ state: 'Unknown' });
+            console.log(
+              `[Cron] Geocoding user ID ${user.id} returned no state. Set to 'Unknown'.`
+            );
+          }
+        } catch (err) {
+          console.error(
+            `[Cron] Geocoding failed for user ID ${user.id}:`,
+            err.message
+          );
+        }
+      }
+    } catch (error) {
+      console.error(
+        '[Cron] Error running state synchronization:',
+        error.message
+      );
+    }
   }
 }
 
