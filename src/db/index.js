@@ -125,8 +125,8 @@ class DB {
       );
       //await this.sequelize.sync({ force: true });
       initModels(this.sequelize);
-    //  await this.sequelize.sync({ alter: true });
-      await this.sequelize.sync();
+      await this.sequelize.sync({ alter: true });
+     // await this.sequelize.sync();
       await this.alterOrderTableDirectly();
 
       //   await this.sequelize.sync({ force: true }); // ⚠️ deletes all data
