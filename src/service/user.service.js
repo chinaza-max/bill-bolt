@@ -6925,9 +6925,13 @@ class UserService extends NotificationServicePush {
         `Merchant Special Withdrawal service is ${merchantProfile.serviceStatus}`
       );
     }
+
+    /*
     if (!merchantProfile.isOnline) {
       throw new BadRequestError('Merchant is currently offline');
     }
+*/
+
     if (!merchantProfile.isEnabled) {
       throw new BadRequestError('Merchant has not enabled Special Withdrawal');
     }
@@ -7197,7 +7201,7 @@ class UserService extends NotificationServicePush {
         );
 
         // Generate request ID
-        const requestId = authService.generateOrderId('SWR', 10);
+        const requestId = authService.generateOrderId('NGSWR', 10);
 
         // Generate QR code hash for scan-to-complete verification (mirrors normal cash)
         const qrCodeHash = await this.getQRCodeHash(
