@@ -8022,7 +8022,7 @@ class UserService extends NotificationServicePush {
             as: 'SpecialWithdrawalProfile',
             where: {
               isEnabled: true,
-              isOnline: true,
+              //isOnline: true,
               serviceStatus: 'Active',
               isDeleted: false,
               minWithdrawalAmount: { [Op.lte]: amount },
