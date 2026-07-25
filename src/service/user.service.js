@@ -8219,7 +8219,7 @@ class UserService extends NotificationServicePush {
         const avgCompletionTime =
           stats.completedDurationCount > 0
             ? stats.totalDuration / stats.completedDurationCount
-            : 900; // default 15 minutes in seconds
+            : 900; // default 15 minutes in seconds//
 
         const displayName =
           merchantProfile?.displayName || `${m.firstName} ${m.lastName}`;
