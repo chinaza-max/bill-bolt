@@ -69,7 +69,6 @@ class UserService extends NotificationServicePush {
   MerchantSpecialWithdrawalProfileModel = MerchantSpecialWithdrawalProfile;
   MerchantDenominationChargeModel = MerchantDenominationCharge;
 
-
   #lastGeoRequestTime = 0;
   #GEO_RATE_LIMIT_MS = 1500;
 
@@ -1399,7 +1398,9 @@ class UserService extends NotificationServicePush {
             merchantResult.lng
           );
 
-          estimatedDeliveryTime = this.getEstimatedDeliveryTimeByFoot(distance / 1000);
+          estimatedDeliveryTime = this.getEstimatedDeliveryTimeByFoot(
+            distance / 1000
+          );
         }
 
         return {
@@ -1445,7 +1446,9 @@ class UserService extends NotificationServicePush {
             merchantResult.lng
           );
 
-          estimatedDeliveryTime = this.getEstimatedDeliveryTimeByFoot(distance / 1000);
+          estimatedDeliveryTime = this.getEstimatedDeliveryTimeByFoot(
+            distance / 1000
+          );
         }
         return {
           orderDetails: {
@@ -1597,7 +1600,11 @@ class UserService extends NotificationServicePush {
         },
       });
       const OrdersModelResult = await this.OrdersModel.findAll({
-        where: { orderStatus: 'inProgress', merchantId: userId, orderType: 'normal' },
+        where: {
+          orderStatus: 'inProgress',
+          merchantId: userId,
+          orderType: 'normal',
+        },
       });
       const merchantAdsModelResult = await this.MerchantAdsModel.findOne({
         where: { userId },
@@ -1627,16 +1634,18 @@ class UserService extends NotificationServicePush {
           amountSummary.amountOrder + amountSummary.merchantCharge;
       }
 
-
-
-      
       // ── Include accepted Special Withdrawal requests in escrow ───────────
       const swAcceptedRequests = await this.OrdersModel.findAll({
-        where: { merchantId: userId, orderStatus: 'inProgress', orderType: 'special', isDeleted: false },
+        where: {
+          merchantId: userId,
+          orderStatus: 'inProgress',
+          orderType: 'special',
+          isDeleted: false,
+        },
       });
       for (const swReq of swAcceptedRequests) {
         // Mirror _swSettleFunds payout logic
-       /* let swPayout = swReq.amount + swReq.merchantCharge;
+        /* let swPayout = swReq.amount + swReq.merchantCharge;
         if (swReq.chargeBearer === 'Merchant' || swReq.chargeBearer === 'Both') {
           swPayout = swReq.amount + swReq.merchantCharge - swReq.companyCharge;
         }*/
@@ -4943,8 +4952,9 @@ class UserService extends NotificationServicePush {
         order.distance = distance;
 
         // Estimate delivery time (in minutes)
-        const estimatedDeliveryTime =
-          this.getEstimatedDeliveryTimeByFoot(distance / 1000);
+        const estimatedDeliveryTime = this.getEstimatedDeliveryTimeByFoot(
+          distance / 1000
+        );
         order.transactionTime = estimatedDeliveryTime;
       }
 
@@ -5547,7 +5557,10 @@ class UserService extends NotificationServicePush {
 
           const currentThresholdMeters = currentThreshold * 1000;
           if (distance <= currentThresholdMeters) {
-            userMatches.push({ merchantId: merchant.id, distance: Math.round(distance / 1000) });
+            userMatches.push({
+              merchantId: merchant.id,
+              distance: Math.round(distance / 1000),
+            });
           } else {
             skippedReasons.outOfRange++;
           }
@@ -7211,12 +7224,12 @@ class UserService extends NotificationServicePush {
           {
             // ── Unified Order fields (required for Orders table compatibility) ────
             orderType: 'special',
-            orderId: requestId,          // map requestId -> orderId (unique)
+            orderId: requestId, // map requestId -> orderId (unique)
             requestId,
             amountOrder: String(amount), // Order table expects string
             totalAmount: String(costs.totalAmount),
-            orderStatus: initialStatus,  // mirror status in orderStatus column
-            moneyStatus: 'received',     // money is in escrow
+            orderStatus: initialStatus, // mirror status in orderStatus column
+            moneyStatus: 'received', // money is in escrow
             // ── Special Withdrawal specific fields ───────────────────────────
             clientId: userId,
             merchantId,
@@ -7303,18 +7316,16 @@ class UserService extends NotificationServicePush {
 
       const { userId, requestId, action, otp, hash, reason } = validated;
 
-      const request = await this.OrdersModel.findByPk(
-        requestId
-      );
+      const request = await this.OrdersModel.findByPk(requestId);
       if (!request || request.isDeleted) {
         throw new NotFoundError('Request not found');
       }
 
       const ALLOWED_TRANSITIONS = {
-        accept:   { from: ['pending'],             by: 'merchant' },
-        reject:   { from: ['pending'],             by: 'merchant' },
-        cancel:   { from: ['pending', 'accepted'], by: 'client'   },
-        complete: { from: ['accepted'],            by: 'merchant' },
+        accept: { from: ['pending'], by: 'merchant' },
+        reject: { from: ['pending'], by: 'merchant' },
+        cancel: { from: ['pending', 'accepted'], by: 'client' },
+        complete: { from: ['accepted'], by: 'merchant' },
       };
 
       const rule = ALLOWED_TRANSITIONS[action];
@@ -7454,7 +7465,12 @@ class UserService extends NotificationServicePush {
 
   // ─── SW: Refund Client (cancel/reject) ─────────────────────────────
 
-  async _swRefundClient(request, sequelize, reason, targetStatus = 'cancelled') {
+  async _swRefundClient(
+    request,
+    sequelize,
+    reason,
+    targetStatus = 'cancelled'
+  ) {
     await sequelize.transaction(async (t) => {
       // ── Atomic guard: only one concurrent request can refund ──────────────
       // If two requests arrive simultaneously, only ONE gets affectedRows = 1.
@@ -7470,8 +7486,8 @@ class UserService extends NotificationServicePush {
           where: {
             id: request.id,
             orderType: 'special',
-            orderStatus: ['pending', 'accepted'],    // only if still active
-            paymentStatus: { [Op.ne]: 'refunded' }   // not already refunded
+            orderStatus: ['pending', 'accepted'], // only if still active
+            paymentStatus: { [Op.ne]: 'refunded' }, // not already refunded
           },
           transaction: t,
         }
@@ -7594,8 +7610,8 @@ class UserService extends NotificationServicePush {
           where: {
             id: request.id,
             orderType: 'special',
-            orderStatus: 'accepted',                 // must still be accepted
-            paymentStatus: { [Op.ne]: 'refunded' }   // not already refunded/cancelled
+            orderStatus: 'accepted', // must still be accepted
+            paymentStatus: { [Op.ne]: 'refunded' }, // not already refunded/cancelled
           },
           transaction: t,
         }
@@ -7662,44 +7678,43 @@ class UserService extends NotificationServicePush {
         if (endDate) where.createdAt[Op.lte] = new Date(endDate);
       }
 
-      const { count, rows } =
-        await this.OrdersModel.findAndCountAll({
-          where,
-          include: [
-            {
-              model: this.UserModel,
-              as: 'Client',
-              attributes: [
-                'id',
-                'firstName',
-                'lastName',
-                'imageUrl',
-                'emailAddress',
-                'tel',
-              ],
-            },
-            {
-              model: this.UserModel,
-              as: 'RequestMerchant',
-              attributes: [
-                'id',
-                'firstName',
-                'lastName',
-                'imageUrl',
-                'emailAddress',
-                'tel',
-              ],
-            },
-            {
-              model: this.SpecialWithdrawalDenominationModel,
-              as: 'RequestDenomination',
-              attributes: ['id', 'value', 'currency'],
-            },
-          ],
-          limit: parseInt(limit),
-          offset,
-          order: [['createdAt', 'DESC']],
-        });
+      const { count, rows } = await this.OrdersModel.findAndCountAll({
+        where,
+        include: [
+          {
+            model: this.UserModel,
+            as: 'Client',
+            attributes: [
+              'id',
+              'firstName',
+              'lastName',
+              'imageUrl',
+              'emailAddress',
+              'tel',
+            ],
+          },
+          {
+            model: this.UserModel,
+            as: 'RequestMerchant',
+            attributes: [
+              'id',
+              'firstName',
+              'lastName',
+              'imageUrl',
+              'emailAddress',
+              'tel',
+            ],
+          },
+          {
+            model: this.SpecialWithdrawalDenominationModel,
+            as: 'RequestDenomination',
+            attributes: ['id', 'value', 'currency'],
+          },
+        ],
+        limit: parseInt(limit),
+        offset,
+        order: [['createdAt', 'DESC']],
+      });
 
       return {
         requests: rows,
@@ -7718,57 +7733,54 @@ class UserService extends NotificationServicePush {
     try {
       const { userId, requestId } = data;
 
-      const request = await this.OrdersModel.findByPk(
-        requestId,
-        {
-          include: [
-            {
-              model: this.UserModel,
-              as: 'Client',
-              attributes: [
-                'id',
-                'firstName',
-                'lastName',
-                'imageUrl',
-                'emailAddress',
-                'tel',
-                'lat',
-                'lng',
-              ],
-            },
-            {
-              model: this.UserModel,
-              as: 'RequestMerchant',
-              attributes: [
-                'id',
-                'firstName',
-                'lastName',
-                'imageUrl',
-                'emailAddress',
-                'tel',
-                'lat',
-                'lng',
-              ],
-            },
-            {
-              model: this.SpecialWithdrawalDenominationModel,
-              as: 'RequestDenomination',
-              attributes: ['id', 'value', 'currency'],
-            },
-            {
-              model: this.TransactionModel,
-              as: 'RequestTransaction',
-              attributes: [
-                'id',
-                'transactionId',
-                'amount',
-                'paymentStatus',
-                'createdAt',
-              ],
-            },
-          ],
-        }
-      );
+      const request = await this.OrdersModel.findByPk(requestId, {
+        include: [
+          {
+            model: this.UserModel,
+            as: 'Client',
+            attributes: [
+              'id',
+              'firstName',
+              'lastName',
+              'imageUrl',
+              'emailAddress',
+              'tel',
+              'lat',
+              'lng',
+            ],
+          },
+          {
+            model: this.UserModel,
+            as: 'RequestMerchant',
+            attributes: [
+              'id',
+              'firstName',
+              'lastName',
+              'imageUrl',
+              'emailAddress',
+              'tel',
+              'lat',
+              'lng',
+            ],
+          },
+          {
+            model: this.SpecialWithdrawalDenominationModel,
+            as: 'RequestDenomination',
+            attributes: ['id', 'value', 'currency'],
+          },
+          {
+            model: this.TransactionModel,
+            as: 'RequestTransaction',
+            attributes: [
+              'id',
+              'transactionId',
+              'amount',
+              'paymentStatus',
+              'createdAt',
+            ],
+          },
+        ],
+      });
 
       if (!request || request.isDeleted) {
         throw new NotFoundError('Request not found');
@@ -7787,23 +7799,22 @@ class UserService extends NotificationServicePush {
     try {
       const { userId } = data;
 
-      const completedRequests =
-        await this.OrdersModel.findAll({
-          where: {
-            merchantId: userId,
-            orderStatus: 'completed',
-            orderType: 'special',
-            isDeleted: false,
+      const completedRequests = await this.OrdersModel.findAll({
+        where: {
+          merchantId: userId,
+          orderStatus: 'completed',
+          orderType: 'special',
+          isDeleted: false,
+        },
+        include: [
+          {
+            model: this.SpecialWithdrawalDenominationModel,
+            as: 'RequestDenomination',
+            attributes: ['id', 'value', 'currency'],
           },
-          include: [
-            {
-              model: this.SpecialWithdrawalDenominationModel,
-              as: 'RequestDenomination',
-              attributes: ['id', 'value', 'currency'],
-            },
-          ],
-          order: [['completedAt', 'DESC']],
-        });
+        ],
+        order: [['completedAt', 'DESC']],
+      });
 
       let totalEarned = 0;
       let totalCompanyDeductions = 0;
@@ -7847,8 +7858,12 @@ class UserService extends NotificationServicePush {
       });
 
       const totalRequests = allRequests.length;
-      const completed = allRequests.filter((r) => r.orderStatus === 'completed');
-      const cancelled = allRequests.filter((r) => r.orderStatus === 'cancelled');
+      const completed = allRequests.filter(
+        (r) => r.orderStatus === 'completed'
+      );
+      const cancelled = allRequests.filter(
+        (r) => r.orderStatus === 'cancelled'
+      );
       const rejected = allRequests.filter((r) => r.orderStatus === 'rejected');
 
       let totalVolume = 0;
@@ -8027,7 +8042,6 @@ class UserService extends NotificationServicePush {
               isDeleted: false,
               minWithdrawalAmount: { [Op.lte]: amount },
               maxWithdrawalAmount: { [Op.gte]: amount },
-         
             },
             required: true,
           },
@@ -8039,6 +8053,12 @@ class UserService extends NotificationServicePush {
               isDeleted: false,
             },
             required: true,
+          },
+          {
+            model: this.MerchantProfileModel,
+            as: 'MerchantProfile',
+            attributes: ['displayName', 'imageUrl'],
+            required: false, // don't drop merchants who somehow lack a MerchantProfile row
           },
         ],
         attributes: ['id', 'firstName', 'lastName', 'lat', 'lng'],
@@ -8052,12 +8072,20 @@ class UserService extends NotificationServicePush {
 
       // 5. Query completed/cancelled/rejected requests and orders for these merchants
       const swRequests = await this.OrdersModel.findAll({
-        where: { merchantId: merchantIds, isDeleted: false, orderType: 'special' },
+        where: {
+          merchantId: merchantIds,
+          isDeleted: false,
+          orderType: 'special',
+        },
         attributes: ['merchantId', 'orderStatus', 'createdAt', 'completedAt'],
       });
 
       const standardOrders = await this.OrdersModel.findAll({
-        where: { merchantId: merchantIds, isDeleted: false, orderType: 'normal' },
+        where: {
+          merchantId: merchantIds,
+          isDeleted: false,
+          orderType: 'normal',
+        },
         attributes: ['merchantId', 'orderStatus', 'startTime', 'endTime'],
       });
 
@@ -8124,6 +8152,7 @@ class UserService extends NotificationServicePush {
         const profile = m.SpecialWithdrawalProfile;
         const chargeRecord = m.DenominationCharges[0];
         const merchantCharge = chargeRecord.charge;
+        const merchantProfile = m.MerchantProfile;
 
         // Proximity (straight-line distance, in meters)
         const distance = this._haversineDistance(
@@ -8193,7 +8222,7 @@ class UserService extends NotificationServicePush {
             : 900; // default 15 minutes in seconds
 
         const displayName =
-          profile?.displayName || `${m.firstName} ${m.lastName}`;
+          merchantProfile?.displayName || `${m.firstName} ${m.lastName}`;
 
         return {
           id: m.id,
@@ -8257,7 +8286,7 @@ class UserService extends NotificationServicePush {
       return sortedMerchants.map((m) => ({
         merchantId: m.id,
         displayName: m.displayName,
-        distanceMeters: m.distanceMeters,             // raw distance in metres
+        distanceMeters: m.distanceMeters, // raw distance in metres
         distanceFormatted:
           m.distanceMeters >= 1000
             ? `${(m.distanceMeters / 1000).toFixed(2)} km`
