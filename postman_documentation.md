@@ -393,9 +393,35 @@ Authorization: Bearer <your_jwt_access_token>
 
 ### 6. Special Withdrawal Features (New)
 
-#### 6.1 Get Active Denominations
+#### 6.1 Get All / Active Denominations
 * **Method**: `GET`
-* **Route**: `/sw/denominations`
+* **Route**: `/api/v1/user/sw/denominations`
+* **Headers**: `Authorization: Bearer <TOKEN>` *(available to all authenticated users)*
+* **Description**: Returns denominations for Special Withdrawal. By default, only returns **enabled** denominations. Admin can pass `?includeAll=true` to see **all** denominations including disabled ones.
+* **Query Parameters**:
+  * `includeAll` *(boolean string, optional, default: `false`)*: Pass `"true"` to include disabled/all denominations (admin use). Pass `"false"` or omit for active-only (public use).
+* **Example URLs**:
+  * `GET /api/v1/user/sw/denominations` — Returns only enabled denominations (for customers/merchants).
+  * `GET /api/v1/user/sw/denominations?includeAll=true` — Returns all denominations including disabled (for admin panel).
+* **Default denominations seeded at startup** (NGN): ₦5, ₦10, ₦20, ₦50, ₦100, ₦200, ₦500, ₦1000.
+* **Success Response (200 OK)**:
+```json
+{
+  "status": 200,
+  "message": "Denominations retrieved successfully",
+  "data": [
+    { "id": 1, "value": 5,    "currency": "NGN", "isEnabled": true, "isDeleted": false },
+    { "id": 2, "value": 10,   "currency": "NGN", "isEnabled": true, "isDeleted": false },
+    { "id": 3, "value": 20,   "currency": "NGN", "isEnabled": true, "isDeleted": false },
+    { "id": 4, "value": 50,   "currency": "NGN", "isEnabled": true, "isDeleted": false },
+    { "id": 5, "value": 100,  "currency": "NGN", "isEnabled": true, "isDeleted": false },
+    { "id": 6, "value": 200,  "currency": "NGN", "isEnabled": true, "isDeleted": false },
+    { "id": 7, "value": 500,  "currency": "NGN", "isEnabled": true, "isDeleted": false },
+    { "id": 8, "value": 1000, "currency": "NGN", "isEnabled": true, "isDeleted": false }
+  ]
+}
+```
+*(Results are sorted by `value` ASC)*
 
 #### 6.2 Get Distance Cost Quotation
 * **Method**: `POST`
@@ -462,7 +488,6 @@ Authorization: Bearer <your_jwt_access_token>
   "maxWithdrawalAmount": 100000,
   "autoAccept": true,
   "isOnline": true,
-  "cashAvailability": 250000
 }
 ```
 
@@ -563,20 +588,104 @@ Base URL Path: `/api/v1/user`
 * **Method**: `GET`
 * **Route**: `/getUsers?page=1&limit=20`
 
-#### 1.3 Get System Settings Config Row
+#### 1.3 Get All System Settings
 * **Method**: `GET`
-* **Route**: `/getSettings`
+* **Route**: `/api/v1/user/getSettings`
+* **Headers**: `Authorization: Bearer <ADMIN_TOKEN>`
+* **Description**: Returns all global configuration settings stored in the system (row 1 of `Setting` table), including general system configs, verification toggles, gateway configurations, tier limits, break points, and Special Withdrawal settings.
+* **Success Response (200 OK)**:
+```json
+{
+  "status": 200,
+  "message": "successfully.",
+  "data": {
+    "id": 1,
+    "distanceThreshold": 10,
+    "validFor": 900,
+    "walletBalance": {
+      "previous": 0,
+      "current": 0
+    },
+    "callbackUrl": "https://api.billbolt.com/webhook",
+    "maxOrderPerMerchant": 5,
+    "tiers": [
+      {
+        "name": "Tier 1",
+        "maxAmount": 50000,
+        "maxTransfersPerDay": 5,
+        "uniqueNumber": 1,
+        "country": "NG"
+      }
+    ],
+    "gateWayEnvironment": "sandBox",
+    "activeGateway": "safeHaven.gateway",
+    "isMatchRunning": false,
+    "defaultAds": [],
+    "gatewayService": [],
+    "serviceCharge": [],
+    "gatewayList": ["safeHaven.gateway", "paystack.gateway"],
+    "breakPoint": [],
+    "ninVerificationEnabled": true,
+    "ninImageUploadEnabled": true,
+    "nameVerificationEnabled": true,
+    "faceVerificationEnabled": true,
+    "matchStartedAt": null,
+    "specialWithdrawalEnabled": true,
+    "defaultTransportationPricePerMeter": 0.5,
+    "specialWithdrawalCompanyChargePercentage": 10.0,
+    "specialWithdrawalChargeBearer": "Customer",
+    "specialWithdrawalDefaultCurrency": "NGN",
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "updatedAt": "2026-07-25T20:00:00.000Z"
+  }
+}
+```
 
-#### 1.4 Update System settings Configuration
-* **Method**: `PATCH`
-* **Route**: `/updateSettings`
+#### 1.4 Update All / Any System Settings
+* **Method**: `POST`
+* **Route**: `/api/v1/user/manageBreakPoint`
+* **Headers**: 
+  * `Authorization: Bearer <ADMIN_TOKEN>`
+  * `Content-Type: application/json`
+* **Description**: Updates one or multiple fields in the global system settings table. Accepts general configuration parameters, verification toggles, break points, and Special Withdrawal configuration.
 * **Body (JSON)**:
 ```json
 {
-  "distanceThreshold": 2,
-  "gateWayEnvironment": "production"
+  "distanceThreshold": 10,
+  "validFor": 900,
+  "maxOrderPerMerchant": 5,
+  "gateWayEnvironment": "sandBox",
+  "activeGateway": "safeHaven.gateway",
+  "callbackUrl": "https://api.billbolt.com/webhook",
+  "specialWithdrawalEnabled": true,
+  "defaultTransportationPricePerMeter": 0.5,
+  "specialWithdrawalCompanyChargePercentage": 10.0,
+  "specialWithdrawalChargeBearer": "Customer",
+  "specialWithdrawalDefaultCurrency": "NGN"
 }
 ```
+* **Success Response (200 OK)**:
+```json
+{
+  "status": 200,
+  "message": "Settings updated successfully",
+  "data": {
+    "id": 1,
+    "distanceThreshold": 10,
+    "validFor": 900,
+    "maxOrderPerMerchant": 5,
+    "gateWayEnvironment": "sandBox",
+    "activeGateway": "safeHaven.gateway",
+    "specialWithdrawalEnabled": true,
+    "defaultTransportationPricePerMeter": 0.5,
+    "specialWithdrawalCompanyChargePercentage": 10.0,
+    "specialWithdrawalChargeBearer": "Customer",
+    "specialWithdrawalDefaultCurrency": "NGN",
+    "updatedAt": "2026-07-25T20:20:00.000Z"
+  }
+}
+```
+
 
 #### 1.5 Toggle User Account Lock State
 * **Method**: `POST`
@@ -618,27 +727,72 @@ Base URL Path: `/api/v1/user`
 
 ### 2. Admin Special Withdrawal Management
 
-#### 2.1 Get Special Withdrawal Settings (Charge Bearer Config)
+#### 2.1 Get Special Withdrawal Settings
 * **Method**: `GET`
-* **Route**: `/sw/admin/settings`
+* **Route**: `/api/v1/user/sw/admin/settings`
+* **Headers**: `Authorization: Bearer <ADMIN_TOKEN>`
+* **Description**: Fetches current global system settings for Special Withdrawal, including master toggle, transportation rates, company fee percentage, charge bearer, and currency.
+* **Success Response (200 OK)**:
+```json
+{
+  "status": 200,
+  "message": "Settings retrieved successfully",
+  "data": {
+    "specialWithdrawalEnabled": true,
+    "defaultTransportationPricePerMeter": 0.5,
+    "specialWithdrawalCompanyChargePercentage": 10.0,
+    "specialWithdrawalChargeBearer": "Customer",
+    "specialWithdrawalDefaultCurrency": "NGN"
+  }
+}
+```
 
 #### 2.2 Update Special Withdrawal Settings
 * **Method**: `PATCH`
-* **Route**: `/sw/admin/settings`
+* **Route**: `/api/v1/user/sw/admin/settings`
+* **Headers**: 
+  * `Authorization: Bearer <ADMIN_TOKEN>`
+  * `Content-Type: application/json`
+* **Description**: Partial update of global Special Withdrawal configuration. All payload fields are optional, but at least one setting must be provided.
 * **Body (JSON)**:
 ```json
 {
   "specialWithdrawalEnabled": true,
   "defaultTransportationPricePerMeter": 0.5,
   "specialWithdrawalCompanyChargePercentage": 10.0,
-  "specialWithdrawalChargeBearer": "Customer"
+  "specialWithdrawalChargeBearer": "Customer",
+  "specialWithdrawalDefaultCurrency": "NGN"
 }
 ```
-*(Valid values for `specialWithdrawalChargeBearer`: `Customer`, `Merchant`, `Both`)*
+* **Field Specifications**:
+  * `specialWithdrawalEnabled` *(boolean, optional)*: Master feature toggle for enabling (`true`) or disabling (`false`) Special Withdrawal nationwide.
+  * `defaultTransportationPricePerMeter` *(number, min 0, optional)*: Default price charged per meter for delivery/logistics distance calculation.
+  * `specialWithdrawalCompanyChargePercentage` *(number, min 0, max 100, optional)*: Percentage fee retained by the platform on each withdrawal.
+  * `specialWithdrawalChargeBearer` *(string, enum, optional)*: Who pays the company commission fee. Allowed values: `"Customer"`, `"Merchant"`, or `"Both"`.
+  * `specialWithdrawalDefaultCurrency` *(string, optional)*: Default currency code (e.g., `"NGN"`).
+* **Success Response (200 OK)**:
+```json
+{
+  "status": 200,
+  "message": "Settings updated successfully",
+  "data": {
+    "id": 1,
+    "specialWithdrawalEnabled": true,
+    "defaultTransportationPricePerMeter": 0.5,
+    "specialWithdrawalCompanyChargePercentage": 10,
+    "specialWithdrawalChargeBearer": "Customer",
+    "specialWithdrawalDefaultCurrency": "NGN",
+    "updatedAt": "2026-07-25T19:50:00.000Z"
+  }
+}
+```
 
 #### 2.3 Create Denomination Configuration
 * **Method**: `POST`
-* **Route**: `/sw/admin/denomination`
+* **Route**: `/api/v1/user/sw/admin/denomination`
+* **Headers**: 
+  * `Authorization: Bearer <ADMIN_TOKEN>`
+  * `Content-Type: application/json`
 * **Body (JSON)**:
 ```json
 {
@@ -647,10 +801,27 @@ Base URL Path: `/api/v1/user`
   "isEnabled": true
 }
 ```
+* **Success Response (200 OK)**:
+```json
+{
+  "status": 200,
+  "message": "Denomination created successfully",
+  "data": {
+    "id": 8,
+    "value": 500,
+    "currency": "NGN",
+    "isEnabled": true,
+    "isDeleted": false,
+    "updatedAt": "2026-07-25T19:50:00.000Z",
+    "createdAt": "2026-07-25T19:50:00.000Z"
+  }
+}
+```
 
 #### 2.4 Update Denomination Configuration
 * **Method**: `PATCH`
-* **Route**: `/sw/admin/denomination`
+* **Route**: `/api/v1/user/sw/admin/denomination`
+* **Headers**: `Authorization: Bearer <ADMIN_TOKEN>`
 * **Body (JSON)**:
 ```json
 {
@@ -661,24 +832,100 @@ Base URL Path: `/api/v1/user`
 
 #### 2.5 Delete Denomination Configuration (Soft-Delete)
 * **Method**: `DELETE`
-* **Route**: `/sw/admin/denomination/7`
+* **Route**: `/api/v1/user/sw/admin/denomination/7`
+* **Headers**: `Authorization: Bearer <ADMIN_TOKEN>`
 
-#### 2.6 Suspend or Disable Merchant's Special Withdrawal Capability
+#### 2.6 Approve, Suspend, Disable, or Set Pending for Merchant's Special Withdrawal Service Status
 * **Method**: `POST`
-* **Route**: `/sw/admin/merchant/status`
+* **Route**: `/api/v1/user/sw/admin/merchant/status`
+* **Headers**: 
+  * `Authorization: Bearer <ADMIN_TOKEN>`
+  * `Content-Type: application/json`
 * **Body (JSON)**:
 ```json
 {
   "merchantId": 12,
-  "serviceStatus": "Suspended"
+  "serviceStatus": "Active"
 }
 ```
-*(Valid service statuses: `Active`, `Suspended`, `Disabled`)*
+*(Valid service statuses: `"Pending"`, `"Active"`, `"Suspended"`, `"Disabled"`. Automatically dispatches push notifications to the merchant.)*
+* **Success Response (200 OK)**:
+```json
+{
+  "status": 200,
+  "message": "Merchant status updated successfully",
+  "data": {
+    "id": 5,
+    "merchantId": 12,
+    "isEnabled": true,
+    "serviceStatus": "Active",
+    "minWithdrawalAmount": 1000,
+    "maxWithdrawalAmount": 50000,
+    "updatedAt": "2026-07-25T20:55:00.000Z"
+  }
+}
+```
 
-#### 2.7 List All Special Withdrawal Merchant Profiles
+#### 2.7 List Special Withdrawal Merchant Profiles (Filter by Status / Exclude Pending)
 * **Method**: `GET`
-* **Route**: `/sw/admin/merchants?page=1&limit=20`
+* **Route**: `/api/v1/user/sw/admin/merchants`
+* **Headers**: `Authorization: Bearer <ADMIN_TOKEN>`
+* **Description**: Returns special withdrawal merchant profiles with flexible filters. Supports filtering by exact `serviceStatus`, excluding `Pending` profiles, or filtering by `isEnabled`.
+* **Query Parameters**:
+  * `excludePending` *(boolean/string, optional)*: Pass `"true"` to fetch all merchants whose `serviceStatus` is **NOT equal to `Pending`** (i.e. returns `Active`, `Suspended`, `Disabled`).
+  * `serviceStatusNot` *(string, optional)*: Filter by excluding a specific status (e.g. `serviceStatusNot=Pending`).
+  * `serviceStatus` *(string, optional)*: Exact status match (`"Pending"`, `"Active"`, `"Suspended"`, `"Disabled"`). Can also pass `!Pending` to exclude `Pending`.
+  * `isEnabled` *(boolean/string, optional)*: Filter by whether merchant has enabled special withdrawal (`"true"` or `"false"`).
+  * `page` *(number, optional, default: 1)*: Page number.
+  * `limit` *(number, optional, default: 20)*: Page size.
+
+* **Example Request 1 (Fetch merchants whose service status is NOT Pending)**:
+  `GET /api/v1/user/sw/admin/merchants?excludePending=true&page=1&limit=20`
+
+* **Example Request 2 (Fetch Pending approval applications)**:
+  `GET /api/v1/user/sw/admin/merchants?serviceStatus=Pending&page=1&limit=20`
+
+* **Success Response Example (200 OK)**:
+```json
+{
+  "status": 200,
+  "message": "Merchants retrieved successfully",
+  "data": {
+    "merchants": [
+      {
+        "id": 1,
+        "merchantId": 12,
+        "isEnabled": true,
+        "minWithdrawalAmount": 1000,
+        "maxWithdrawalAmount": 500000,
+        "autoAccept": false,
+        "isOnline": true,
+        "serviceStatus": "Active",
+        "rating": "5.00",
+        "createdAt": "2026-07-20T10:00:00.000Z",
+        "Merchant": {
+          "id": 12,
+          "firstName": "Super",
+          "lastName": "Vendor",
+          "emailAddress": "vendor@example.com",
+          "tel": "+2348012345678",
+          "imageUrl": "https://...",
+          "lat": "6.5244",
+          "lng": "3.3792",
+          "isOnline": true,
+          "state": "Lagos"
+        }
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "totalPages": 1
+  }
+}
+```
 
 #### 2.8 Special Withdrawal Analytics Overview
 * **Method**: `GET`
-* **Route**: `/sw/admin/analytics`
+* **Route**: `/api/v1/user/sw/admin/analytics`
+* **Headers**: `Authorization: Bearer <ADMIN_TOKEN>`
+

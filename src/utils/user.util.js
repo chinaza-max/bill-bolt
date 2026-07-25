@@ -358,6 +358,13 @@ class UserUtil {
       .optional(),
 
     gatewayList: Joi.array().items(Joi.string()).optional(),
+
+    // Special Withdrawal Settings
+    specialWithdrawalEnabled: Joi.boolean().optional(),
+    defaultTransportationPricePerMeter: Joi.number().min(0).optional(),
+    specialWithdrawalCompanyChargePercentage: Joi.number().min(0).max(100).optional(),
+    specialWithdrawalChargeBearer: Joi.string().valid('Customer', 'Merchant', 'Both').optional(),
+    specialWithdrawalDefaultCurrency: Joi.string().optional(),
   }).min(2); // userId + at least one field
 
   verifyHandleUpdateCallbackUrl = Joi.object({
@@ -598,7 +605,6 @@ class UserUtil {
     maxWithdrawalAmount: Joi.number().integer().min(0).optional(),
     autoAccept: Joi.boolean().optional(),
     isOnline: Joi.boolean().optional(),
-    cashAvailability: Joi.number().integer().min(0).optional(),
   });
 
   verifyHandleUpdateMerchantDenominationCharges = Joi.object({
@@ -676,7 +682,7 @@ class UserUtil {
     userId: Joi.number().integer().required(),
     merchantId: Joi.number().integer().required(),
     serviceStatus: Joi.string()
-      .valid('Active', 'Suspended', 'Disabled')
+      .valid('Pending', 'Active', 'Suspended', 'Disabled')
       .required(),
   });
 }

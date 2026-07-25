@@ -41,14 +41,9 @@ export function init(connection) {
         defaultValue: false,
       },
       serviceStatus: {
-        type: DataTypes.ENUM('Active', 'Suspended', 'Disabled'),
+        type: DataTypes.ENUM('Pending', 'Active', 'Suspended', 'Disabled'),
         allowNull: false,
-        defaultValue: 'Active',
-      },
-      cashAvailability: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 0,
+        defaultValue: 'Pending',
       },
       rating: {
         type: DataTypes.DECIMAL(3, 2),

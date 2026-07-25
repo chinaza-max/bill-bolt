@@ -43,8 +43,7 @@ class DB {
       );
 
       initModels(this.sequelize);
-      //await this.sequelize.sync();
-      //await this.alterOrderTableDirectly();
+      await this.alterOrderTableDirectly();
 
       /*
       try {
@@ -125,6 +124,7 @@ class DB {
       );
       //await this.sequelize.sync({ force: true });
       initModels(this.sequelize);
+      await this.alterOrderTableDirectly();
      // await this.sequelize.sync({ alter: true });
      // await this.sequelize.sync();
       //await this.alterOrderTableDirectly();
@@ -297,6 +297,14 @@ this.sequelize.query(disableForeignKeyChecks)
       } catch (err) {
         console.error(`[DB Alter] Error modifying column ${col.name}:`, err.message);
       }
+    }
+
+    try {
+      await this.sequelize.query(
+        "ALTER TABLE `MerchantSpecialWithdrawalProfile` MODIFY `serviceStatus` ENUM('Pending', 'Active', 'Suspended', 'Disabled') NOT NULL DEFAULT 'Pending';"
+      );
+    } catch (err) {
+      console.error('[DB Alter] Error modifying serviceStatus column:', err.message);
     }
   }
 }

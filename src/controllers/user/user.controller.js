@@ -2089,6 +2089,10 @@ export default class UserController {
       const data = {
         page: parseInt(req.query.page) || 1,
         limit: parseInt(req.query.limit) || 20,
+        serviceStatus: req.query.serviceStatus || null,
+        serviceStatusNot: req.query.serviceStatusNot || null,
+        excludePending: req.query.excludePending || null,
+        isEnabled: req.query.isEnabled || null,
       };
       const result = await userService.handleAdminGetSWMerchants(data);
       return res.status(200).json({

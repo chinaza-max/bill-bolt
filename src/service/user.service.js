@@ -1328,6 +1328,7 @@ class UserService extends NotificationServicePush {
         'gatewayService',
         'serviceCharge',
         'gatewayList',
+        'breakPoint',
       ];
 
       for (const field of jsonFields) {
@@ -1398,7 +1399,7 @@ class UserService extends NotificationServicePush {
             merchantResult.lng
           );
 
-          estimatedDeliveryTime = this.getEstimatedDeliveryTimeByFoot(distance);
+          estimatedDeliveryTime = this.getEstimatedDeliveryTimeByFoot(distance / 1000);
         }
 
         return {
@@ -1444,7 +1445,7 @@ class UserService extends NotificationServicePush {
             merchantResult.lng
           );
 
-          estimatedDeliveryTime = this.getEstimatedDeliveryTimeByFoot(distance);
+          estimatedDeliveryTime = this.getEstimatedDeliveryTimeByFoot(distance / 1000);
         }
         return {
           orderDetails: {
@@ -2258,6 +2259,7 @@ class UserService extends NotificationServicePush {
           lat: user.lat,
           lng: user.lng,
           location: user.state,
+          state: user.state,
           updatedAt: user.updatedAt,
         });
       }
@@ -2305,6 +2307,7 @@ class UserService extends NotificationServicePush {
           'bankName',
           'bankCode',
           'settlementAccount',
+          'state',
         ],
         include: [
           {
@@ -2390,6 +2393,7 @@ class UserService extends NotificationServicePush {
               disableAccount: user.MerchantProfile.disableAccount,
             }
           : null,
+        state: user.state,
       };
 
       const orders = [
@@ -4929,7 +4933,7 @@ class UserService extends NotificationServicePush {
         order.clientDetails = clientDetails;
         order.merchantDetails = merchantDetails;
 
-        // Calculate distance
+        // Calculate distance in meters
         const distance = this.calculateDistance(
           clientDetails.lat,
           clientDetails.lng,
@@ -4940,8 +4944,7 @@ class UserService extends NotificationServicePush {
 
         // Estimate delivery time (in minutes)
         const estimatedDeliveryTime =
-          this.getEstimatedDeliveryTimeByFoot(distance);
-        // order.estimatedDeliveryTimeByFoot = estimatedDeliveryTime;
+          this.getEstimatedDeliveryTimeByFoot(distance / 1000);
         order.transactionTime = estimatedDeliveryTime;
       }
 
@@ -5318,8 +5321,8 @@ class UserService extends NotificationServicePush {
           console.log('distance', distance);
           console.log('distanceThreshold==', distanceThreshold);
 
-          if (distance <= distanceThreshold) {
-            userMatches.push({ merchantId: merchant.id, distance });
+          if (distance <= distanceThreshold * 1000) {
+            userMatches.push({ merchantId: merchant.id, distance: Math.round(distance / 1000) });
           }
         }
 
@@ -5542,8 +5545,9 @@ class UserService extends NotificationServicePush {
             '=========================================================================================='
           );
 
-          if (distance <= currentThreshold) {
-            userMatches.push({ merchantId: merchant.id, distance });
+          const currentThresholdMeters = currentThreshold * 1000;
+          if (distance <= currentThresholdMeters) {
+            userMatches.push({ merchantId: merchant.id, distance: Math.round(distance / 1000) });
           } else {
             skippedReasons.outOfRange++;
           }
@@ -5633,14 +5637,11 @@ class UserService extends NotificationServicePush {
         Math.cos(toRadians(lat2)) *
         Math.sin(dLng / 2) ** 2;
 
-    const EARTH_RADIUS_KM = 6371; // Earth's radius in kilometers
+    const EARTH_RADIUS_METERS = 6371000; // Earth's radius in meters
 
     const value =
-      EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const rounded = Math.floor(value * 100) / 100;
-
-    //returns km
-    return rounded;
+      EARTH_RADIUS_METERS * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return Math.round(value);
   }
 
   async getActiveGateway() {
@@ -6694,6 +6695,37 @@ class UserService extends NotificationServicePush {
         await profile.update({ serviceStatus });
       }
 
+      // ── Push notification to merchant ──────────────────────────────────
+      const notificationMap = {
+        Pending: {
+          title: 'Special Withdrawal Application Under Review ⏳',
+          body: 'Your Special Withdrawal application is currently under review by admin.',
+        },
+        Active: {
+          title: 'Special Withdrawal Service Activated ✅',
+          body: 'Your Special Withdrawal service has been activated. You can now receive cash withdrawal requests from customers.',
+        },
+        Suspended: {
+          title: 'Special Withdrawal Service Suspended ⚠️',
+          body: 'Your Special Withdrawal service has been suspended by the admin. Please contact support for more information.',
+        },
+        Disabled: {
+          title: 'Special Withdrawal Service Disabled 🚫',
+          body: 'Your Special Withdrawal service has been disabled. You will no longer receive cash withdrawal requests.',
+        },
+      };
+
+      const notif = notificationMap[serviceStatus];
+      if (notif) {
+        await this._swNotifyUser(merchantId, {
+          title: notif.title,
+          body: notif.body,
+          eventType: event.SW_SERVICE_STATUS_CHANGED,
+          requestId: profile.id,
+          sendto: user_type.MERCHANT,
+        });
+      }
+
       return profile;
     } catch (error) {
       throw new SystemError(error.name, error.message);
@@ -6702,12 +6734,37 @@ class UserService extends NotificationServicePush {
 
   async handleAdminGetSWMerchants(data) {
     try {
-      const { page = 1, limit = 20 } = data;
+      const {
+        page = 1,
+        limit = 20,
+        serviceStatus,
+        serviceStatusNot,
+        excludePending,
+        isEnabled,
+      } = data;
       const offset = (page - 1) * limit;
+
+      const where = { isDeleted: false };
+      if (serviceStatus) {
+        if (serviceStatus.startsWith('!')) {
+          where.serviceStatus = { [Op.ne]: serviceStatus.substring(1) };
+        } else {
+          where.serviceStatus = serviceStatus;
+        }
+      }
+      if (serviceStatusNot) {
+        where.serviceStatus = { [Op.ne]: serviceStatusNot };
+      }
+      if (excludePending === 'true' || excludePending === true) {
+        where.serviceStatus = { [Op.ne]: 'Pending' };
+      }
+      if (isEnabled !== undefined && isEnabled !== null) {
+        where.isEnabled = isEnabled === 'true' || isEnabled === true;
+      }
 
       const { count, rows } =
         await this.MerchantSpecialWithdrawalProfileModel.findAndCountAll({
-          where: { isDeleted: false },
+          where,
           include: [
             {
               model: this.UserModel,
@@ -6722,6 +6779,7 @@ class UserService extends NotificationServicePush {
                 'lat',
                 'lng',
                 'isOnline',
+                'state',
               ],
             },
           ],
@@ -7969,10 +8027,7 @@ class UserService extends NotificationServicePush {
               isDeleted: false,
               minWithdrawalAmount: { [Op.lte]: amount },
               maxWithdrawalAmount: { [Op.gte]: amount },
-              /*  [Op.or]: [
-                { cashAvailability: 0 },
-                { cashAvailability: { [Op.gte]: amount } },
-              ],*/
+         
             },
             required: true,
           },
@@ -8143,13 +8198,15 @@ class UserService extends NotificationServicePush {
         return {
           id: m.id,
           displayName,
-          distance,
+          firstName: m.firstName,
+          lastName: m.lastName,
+          distanceMeters: Math.round(distance), // raw distance in meters
           rating: parseFloat(profile?.rating || 5.0),
           serviceCharge: merchantCharge,
           transportationFee: transportationCharge,
           totalAmountPayable: totalAmount,
           estimatedDeliveryTime: this.getEstimatedDeliveryTimeByFoot(
-            distance / 1000
+            distance / 1000 // convert meters → km for the walking-speed calculation
           ),
           amount,
           availability,
@@ -8166,8 +8223,8 @@ class UserService extends NotificationServicePush {
       // 5. Fastest average completion time (lowest first)
       // 6. Highest successful transaction rate (highest first)
       const sortedMerchants = qualifiedMerchants.sort((a, b) => {
-        if (a.distance !== b.distance) {
-          return a.distance - b.distance;
+        if (a.distanceMeters !== b.distanceMeters) {
+          return a.distanceMeters - b.distanceMeters;
         }
 
         const availabilityOrder = { Available: 0, Busy: 1 };
@@ -8200,11 +8257,11 @@ class UserService extends NotificationServicePush {
       return sortedMerchants.map((m) => ({
         merchantId: m.id,
         displayName: m.displayName,
-        distance: m.distance,
+        distanceMeters: m.distanceMeters,             // raw distance in metres
         distanceFormatted:
-          m.distance >= 1000
-            ? `${(m.distance / 1000).toFixed(2)} km`
-            : `${Math.round(m.distance)} m`,
+          m.distanceMeters >= 1000
+            ? `${(m.distanceMeters / 1000).toFixed(2)} km`
+            : `${m.distanceMeters} m`,
         rating: m.rating,
         selectedDenomination: denomination.value,
         merchantServiceCharge: m.serviceCharge,

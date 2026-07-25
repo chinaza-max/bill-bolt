@@ -973,7 +973,7 @@
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"isEnabled\": true,\n  \"minWithdrawalAmount\": 1000,\n  \"maxWithdrawalAmount\": 100000,\n  \"autoAccept\": true,\n  \"isOnline\": true,\n  \"cashAvailability\": 250000\n}",
+              "raw": "{\n  \"isEnabled\": true,\n  \"minWithdrawalAmount\": 1000,\n  \"maxWithdrawalAmount\": 100000,\n  \"autoAccept\": true,\n  \"isOnline\": true,\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1239,6 +1239,74 @@
                 "sw",
                 "admin",
                 "analytics"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Merchant SW Status",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchantId\": 12,\n  \"serviceStatus\": \"Active\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user/sw/admin/merchant/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "sw",
+                "admin",
+                "merchant",
+                "status"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List SW Merchants",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user/sw/admin/merchants?serviceStatus=Active&isEnabled=true&page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "sw",
+                "admin",
+                "merchants"
+              ],
+              "query": [
+                {
+                  "key": "serviceStatus",
+                  "value": "Active"
+                },
+                {
+                  "key": "isEnabled",
+                  "value": "true"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
               ]
             }
           },
