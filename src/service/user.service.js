@@ -8181,7 +8181,7 @@ class UserService extends NotificationServicePush {
           merchantCharge * companyPercentage
         );
         const chargeBearer = setting.specialWithdrawalChargeBearer;
-
+        let companyTotalCharge
         let totalAmount;
         if (chargeBearer === 'Customer') {
           totalAmount =
@@ -8189,12 +8189,19 @@ class UserService extends NotificationServicePush {
             merchantCharge +
             transportationCharge +
             companyChargeAmountToCustomer;
+
+            companyTotalCharge = companyChargeAmountToCustomer;
+
+
         } else if (chargeBearer === 'Merchant') {
           totalAmount =
             amount +
             merchantCharge +
             transportationCharge +
             companyChargeAmountToMerchant;
+
+
+            companyTotalCharge = companyChargeAmountToMerchant;
         } else if (chargeBearer === 'Both') {
           totalAmount =
             amount +
@@ -8202,6 +8209,10 @@ class UserService extends NotificationServicePush {
             transportationCharge +
             companyChargeAmountToMerchant +
             companyChargeAmountToCustomer;
+
+
+
+            companyTotalCharge = companyChargeAmountToMerchant + companyChargeAmountToCustomer;
         } else {
           totalAmount =
             amount +
@@ -8209,6 +8220,8 @@ class UserService extends NotificationServicePush {
             transportationCharge +
             companyChargeAmountToMerchant +
             companyChargeAmountToCustomer;
+
+            companyTotalCharge = companyChargeAmountToMerchant + companyChargeAmountToCustomer;
         }
 
         // Availability status
@@ -8227,7 +8240,6 @@ class UserService extends NotificationServicePush {
 
         const displayName =
           merchantProfile?.displayName || `${m.firstName} ${m.lastName}`;
-
         return {
           id: m.id,
           displayName,
@@ -8245,6 +8257,7 @@ class UserService extends NotificationServicePush {
           availability,
           successRate,
           avgCompletionTime,
+          companyTotalCharge,
         };
       });
 
