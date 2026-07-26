@@ -1082,7 +1082,7 @@ class UserService extends NotificationServicePush {
     //try {
 
     const OrdersModelResult = await this.OrdersModel.findByPk(orderId);
-    if (!OrdersModelResult) throw new NotFoundError('Order not found');
+    if (!OrdersModelResult) throw new NotFoundError('Withdrawal request not found');
     if (type === 'cancel') {
       if (OrdersModelResult.orderStatus !== 'completed') {
         try {
@@ -1096,7 +1096,7 @@ class UserService extends NotificationServicePush {
         }
       } else {
         throw new ConflictError(
-          `Order already ${OrdersModelResult.orderStatus}`
+          `Withdrawal request already ${OrdersModelResult.orderStatus}`
         );
       }
     } else if (type === 'reject') {
@@ -1138,8 +1138,8 @@ class UserService extends NotificationServicePush {
               await this.sendToDevice(
                 userResult.fcmToken, // Assuming `userResult` is the customer
                 {
-                  title: 'Order Rejected ❌',
-                  body: `Your order was rejected. Please try another merchant. The amount has been refunded to your wallet.`,
+                  title: 'Withdrawal Request Rejected ❌',
+                  body: `Your withdrawal request was rejected. Please try another merchant. The amount has been refunded to your wallet.`,
                 },
                 {
                   type: 'ORDER_REJECTED',
@@ -1165,7 +1165,7 @@ class UserService extends NotificationServicePush {
         }
       } else {
         throw new ConflictError(
-          `Order already ${OrdersModelResult.orderStatus}`
+          `Withdrawal request already ${OrdersModelResult.orderStatus}`
         );
       }
     } else if (type === 'accept') {
@@ -1177,7 +1177,7 @@ class UserService extends NotificationServicePush {
         OrdersModelResult.update({ moneyStatus: 'received' });
       } else {
         throw new ConflictError(
-          `Order already ${OrdersModelResult.orderStatus}`
+          `Withdrawal request already ${OrdersModelResult.orderStatus}`
         );
       }
     }
@@ -1192,7 +1192,7 @@ class UserService extends NotificationServicePush {
       await userUtil.verifyHandleOrderAcceptOrCancel.validateAsync(data);
 
     const OrdersModelResult = await this.OrdersModel.findByPk(orderId);
-    if (!OrdersModelResult) throw new NotFoundError('Order not found');
+    if (!OrdersModelResult) throw new NotFoundError('Withdrawal request not found');
 
     let userResult;
     if (OrdersModelResult.clientId === userId) {
@@ -1219,8 +1219,8 @@ class UserService extends NotificationServicePush {
             await this.sendToDevice(
               userResult.fcmToken,
               {
-                title: 'Order Cancelled ❌',
-                body: 'Your order was cancelled and your money refunded to your wallet.',
+                title: 'Withdrawal Request Cancelled ❌',
+                body: 'Your withdrawal request was cancelled and your money refunded to your wallet.',
               },
               {
                 type: event.ORDER_CANCELLED,
@@ -1237,7 +1237,7 @@ class UserService extends NotificationServicePush {
         }
       } else {
         throw new ConflictError(
-          `Order already ${OrdersModelResult.orderStatus}`
+          `Withdrawal request already ${OrdersModelResult.orderStatus}`
         );
       }
     } else if (type === 'reject') {
@@ -1258,8 +1258,8 @@ class UserService extends NotificationServicePush {
             await this.sendToDevice(
               userResult.fcmToken,
               {
-                title: 'Order Rejected ❌',
-                body: `Your order was rejected. Please try another merchant. The amount has been refunded to your wallet.`,
+                title: 'Withdrawal Request Rejected ❌',
+                body: `Your withdrawal request was rejected. Please try another merchant. The amount has been refunded to your wallet.`,
               },
               {
                 type: event.ORDER_REJECTED,
@@ -1276,7 +1276,7 @@ class UserService extends NotificationServicePush {
         }
       } else {
         throw new ConflictError(
-          `Order already ${OrdersModelResult.orderStatus}`
+          `Withdrawal request already ${OrdersModelResult.orderStatus}`
         );
       }
     } else if (type === 'accept') {
@@ -1292,8 +1292,8 @@ class UserService extends NotificationServicePush {
           await this.sendToDevice(
             userResult.fcmToken,
             {
-              title: 'Order Accepted ✅',
-              body: 'Your order has been accepted and is now in progress.',
+              title: 'Withdrawal Request Accepted ✅',
+              body: 'Your withdrawal request has been accepted and is now in progress.',
             },
             {
               type: event.ORDER_ACCEPTED,
@@ -1308,7 +1308,7 @@ class UserService extends NotificationServicePush {
         }
       } else {
         throw new ConflictError(
-          `Order already ${OrdersModelResult.orderStatus}`
+          `Withdrawal request already ${OrdersModelResult.orderStatus}`
         );
       }
     }
@@ -1354,7 +1354,7 @@ class UserService extends NotificationServicePush {
 
     const orderResult = await this.OrdersModel.findByPk(orderId);
 
-    if (!orderResult) throw new NotFoundError('Order not found');
+    if (!orderResult) throw new NotFoundError('Withdrawal request not found');
 
     try {
       const merchantAdsModelResult = await this.MerchantAdsModel.findOne({
@@ -3357,7 +3357,7 @@ class UserService extends NotificationServicePush {
 
         switch (txn.transactionType) {
           case 'order':
-            title = 'Order Payment';
+            title = 'Withdrawal Request Payment';
             initials = 'OP';
             direction = 'outgoing';
             break;
@@ -3474,8 +3474,8 @@ class UserService extends NotificationServicePush {
           await this.sendToDevice(
             UserModelResult.fcmToken, // Assuming `userResult` is the customer
             {
-              title: 'Merchat account activated',
-              body: `Great news your merchant account is now active login and set your price to start taking order near by.`,
+              title: 'Merchant account activated',
+              body: `Great news your merchant account is now active login and set your price to start taking withdrawal requests near by.`,
             },
             {
               type: event.ACTIVATED_MERCHANT_ACCOUNT,
@@ -4037,17 +4037,17 @@ class UserService extends NotificationServicePush {
 
       const orderResult = await this.OrdersModel.findByPk(orderId);
       if (!orderResult) {
-        throw new NotFoundError(`Order with ID ${orderId} not found.`);
+        throw new NotFoundError(`Withdrawal request with ID ${orderId} not found.`);
       }
 
       if (orderResult.orderStatus === 'completed') {
-        throw new ConflictError(`Order marked as completed already.`);
+        throw new ConflictError(`Withdrawal request marked as completed already.`);
       } else if (
         orderResult.orderStatus === 'cancelled' ||
         orderResult.orderStatus === 'rejected'
       ) {
         throw new ConflictError(
-          `Order marked as ${orderResult.orderStatus} already.`
+          `Withdrawal request marked as ${orderResult.orderStatus} already.`
         );
       }
 
@@ -4118,8 +4118,8 @@ class UserService extends NotificationServicePush {
           await this.sendToDevice(
             userResult.fcmToken,
             {
-              title: 'Order Completed ✅',
-              body: 'Your order has been successfully completed.',
+              title: 'Withdrawal Request Completed ✅',
+              body: 'Your withdrawal request has been successfully completed.',
             },
             {
               type: event.ORDER_COMPLETED,
@@ -4137,8 +4137,8 @@ class UserService extends NotificationServicePush {
           await this.sendToDevice(
             userResult2.fcmToken,
             {
-              title: 'Order Completed ✅',
-              body: 'Your order has been successfully completed.',
+              title: 'Withdrawal Request Completed ✅',
+              body: 'Your withdrawal request has been successfully completed.',
             },
             {
               type: event.ORDER_COMPLETED,
@@ -4483,8 +4483,8 @@ class UserService extends NotificationServicePush {
         await this.sendToDevice(
           merchantUser.fcmToken,
           {
-            title: 'New Order Alert 🚀',
-            body: `You’ve received a new order from ${userResult.firstName}. Open the app to accept it.`,
+            title: 'New Withdrawal Request Alert 🚀',
+            body: `You’ve received a new withdrawal request from ${userResult.firstName}. Open the app to accept it.`,
           },
           {
             type: event.NEW_ORDER,
@@ -4501,7 +4501,7 @@ class UserService extends NotificationServicePush {
 
     return {
       success: true,
-      message: 'Order payment processed successfully',
+      message: 'Withdrawal request payment processed successfully',
     };
   }
 
@@ -4525,7 +4525,7 @@ class UserService extends NotificationServicePush {
         where: { id: TransactionModelResult.orderId },
       });
 
-      if (!OrderModelResult) throw new NotFoundError('Order not found');
+      if (!OrderModelResult) throw new NotFoundError('Withdrawal request not found');
      await OrderModelResult.update({ orderStatus: 'completed' });  */
     // } catch (error) {
     // throw new SystemError(error.name, error.parent);
@@ -4672,7 +4672,7 @@ class UserService extends NotificationServicePush {
                 userResult.fcmToken,
                 {
                   title: 'Complete Your Payment 🧾',
-                  body: `Transfer ₦${amount} to the provided account to complete your order.`,
+                  body: `Transfer ₦${amount} to the provided account to complete your withdrawal request.`,
                 },
                 {
                   type: event.ORDER_PAYMENT,
@@ -4832,7 +4832,7 @@ class UserService extends NotificationServicePush {
                 userResult.fcmToken,
                 {
                   title: 'Complete Your Payment 🧾',
-                  body: `Transfer ₦${amount} to the provided account to complete your order.`,
+                  body: `Transfer ₦${amount} to the provided account to complete your withdrawal request.`,
                 },
                 {
                   type: event.ORDER_PAYMENT,
@@ -4987,7 +4987,7 @@ class UserService extends NotificationServicePush {
 
     let user = {};
 
-    if (!order) throw new NotFoundError('Order not found');
+    if (!order) throw new NotFoundError('Withdrawal request not found');
     if (userType == 'client') {
       const merchant = await this.UserModel.findByPk(order.merchantId, {
         include: [

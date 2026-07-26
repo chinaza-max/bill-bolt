@@ -1044,7 +1044,7 @@ class AuthenticationService {
 
       if (existingOrder)
         throw new ConflictError(
-          'Order with this transaction ID already exists'
+          'Withdrawal request with this transaction ID already exists'
         );
 
       const orderID = this.generateOrderId('NG', 10);

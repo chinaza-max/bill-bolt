@@ -202,7 +202,7 @@ export const configureSocket = (io) => {
               fcmToken,
               {
                 title: `📞 Incoming call from ${callerName}`,
-                body: `Order #${orderId} — Tap to answer`,
+                body: `Withdrawal request #${orderId} — Tap to answer`,
               },
               {
                 // data payload — all must be strings (your sendToDevice already handles this)
