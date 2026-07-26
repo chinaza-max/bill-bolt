@@ -8316,6 +8316,7 @@ class UserService extends NotificationServicePush {
         estimatedDeliveryTime: m.estimatedDeliveryTime,
         availability: m.availability,
         amount: m.amount,
+        companyTotalCharge: m.companyTotalCharge,
       }));
     } catch (error) {
       if (error.name === 'NotFoundError' || error.name === 'BadRequestError') {
