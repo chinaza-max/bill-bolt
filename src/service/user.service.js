@@ -1192,7 +1192,8 @@ class UserService extends NotificationServicePush {
       await userUtil.verifyHandleOrderAcceptOrCancel.validateAsync(data);
 
     const OrdersModelResult = await this.OrdersModel.findByPk(orderId);
-    if (!OrdersModelResult) throw new NotFoundError('Withdrawal request not found');
+    if (!OrdersModelResult)
+      throw new NotFoundError('Withdrawal request not found');
 
     let userResult;
     if (OrdersModelResult.clientId === userId) {
@@ -4037,11 +4038,15 @@ class UserService extends NotificationServicePush {
 
       const orderResult = await this.OrdersModel.findByPk(orderId);
       if (!orderResult) {
-        throw new NotFoundError(`Withdrawal request with ID ${orderId} not found.`);
+        throw new NotFoundError(
+          `Withdrawal request with ID ${orderId} not found.`
+        );
       }
 
       if (orderResult.orderStatus === 'completed') {
-        throw new ConflictError(`Withdrawal request marked as completed already.`);
+        throw new ConflictError(
+          `Withdrawal request marked as completed already.`
+        );
       } else if (
         orderResult.orderStatus === 'cancelled' ||
         orderResult.orderStatus === 'rejected'
@@ -8065,7 +8070,7 @@ class UserService extends NotificationServicePush {
             required: false, // don't drop merchants who somehow lack a MerchantProfile row
           },
         ],
-        attributes: ['id', 'firstName', 'lastName', 'lat', 'lng'],
+        attributes: ['id', 'firstName', 'lastName', 'lat', 'lng', 'state'],
       });
 
       if (merchants.length === 0) {
@@ -8181,7 +8186,7 @@ class UserService extends NotificationServicePush {
           merchantCharge * companyPercentage
         );
         const chargeBearer = setting.specialWithdrawalChargeBearer;
-        let companyTotalCharge
+        let companyTotalCharge;
         let totalAmount;
         if (chargeBearer === 'Customer') {
           totalAmount =
@@ -8190,9 +8195,7 @@ class UserService extends NotificationServicePush {
             transportationCharge +
             companyChargeAmountToCustomer;
 
-            companyTotalCharge = companyChargeAmountToCustomer;
-
-
+          companyTotalCharge = companyChargeAmountToCustomer;
         } else if (chargeBearer === 'Merchant') {
           totalAmount =
             amount +
@@ -8200,8 +8203,7 @@ class UserService extends NotificationServicePush {
             transportationCharge +
             companyChargeAmountToMerchant;
 
-
-            companyTotalCharge = companyChargeAmountToMerchant;
+          companyTotalCharge = companyChargeAmountToMerchant;
         } else if (chargeBearer === 'Both') {
           totalAmount =
             amount +
@@ -8210,9 +8212,8 @@ class UserService extends NotificationServicePush {
             companyChargeAmountToMerchant +
             companyChargeAmountToCustomer;
 
-
-
-            companyTotalCharge = companyChargeAmountToMerchant + companyChargeAmountToCustomer;
+          companyTotalCharge =
+            companyChargeAmountToMerchant + companyChargeAmountToCustomer;
         } else {
           totalAmount =
             amount +
@@ -8221,7 +8222,8 @@ class UserService extends NotificationServicePush {
             companyChargeAmountToMerchant +
             companyChargeAmountToCustomer;
 
-            companyTotalCharge = companyChargeAmountToMerchant + companyChargeAmountToCustomer;
+          companyTotalCharge =
+            companyChargeAmountToMerchant + companyChargeAmountToCustomer;
         }
 
         // Availability status
@@ -8243,6 +8245,7 @@ class UserService extends NotificationServicePush {
         return {
           id: m.id,
           displayName,
+          state: m.state,
           firstName: m.firstName,
           lastName: m.lastName,
           distanceMeters: Math.round(distance), // raw distance in meters
@@ -8309,6 +8312,7 @@ class UserService extends NotificationServicePush {
             ? `${(m.distanceMeters / 1000).toFixed(2)} km`
             : `${m.distanceMeters} m`,
         rating: m.rating,
+        denominationId: denomination.id,
         selectedDenomination: denomination.value,
         merchantServiceCharge: m.serviceCharge,
         estimatedTransportationFee: m.transportationFee,
@@ -8317,6 +8321,7 @@ class UserService extends NotificationServicePush {
         availability: m.availability,
         amount: m.amount,
         companyTotalCharge: m.companyTotalCharge,
+        state: m.state || 'Unknown',
       }));
     } catch (error) {
       if (error.name === 'NotFoundError' || error.name === 'BadRequestError') {
