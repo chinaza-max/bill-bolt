@@ -7811,7 +7811,7 @@ class UserService extends NotificationServicePush {
           where: {
             id: request.id,
             orderType: 'special',
-            orderStatus: 'accepted', // must still be accepted
+            orderStatus: 'inProgress', // must still be accepted
           },
           transaction: t,
         }
