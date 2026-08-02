@@ -4036,7 +4036,12 @@ class UserService extends NotificationServicePush {
       const { userId, orderId, hash } =
         await userUtil.verifyHandleverifyCompleteOrder.validateAsync(data);
 
-      const orderResult = await this.OrdersModel.findByPk(orderId);
+      let orderResult = await this.OrdersModel.findByPk(orderId);
+      if (!orderResult) {
+        orderResult = await this.OrdersModel.findOne({
+          where: { orderId: orderId },
+        });
+      }
       if (!orderResult) {
         throw new NotFoundError(
           `Withdrawal request with ID ${orderId} not found.`
@@ -4065,11 +4070,16 @@ class UserService extends NotificationServicePush {
         );
       }
 
+      const hashOrderId =
+        orderResult.orderType === 'special'
+          ? orderResult.requestId || orderResult.orderId
+          : orderResult.orderId;
+
       const unConvertedHash = this.rawOrderHash(
         orderResult.clientId,
         orderResult.merchantId,
         userResult.password,
-        orderResult.orderId
+        hashOrderId
       );
 
       const isValidHash = await bcrypt.compare(unConvertedHash, hash);
@@ -4077,45 +4087,21 @@ class UserService extends NotificationServicePush {
         throw new BadRequestError('The provided hash is invalid or tampered.');
       }
 
-      const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
-        where: { userId: orderResult.merchantId },
-      });
-      if (!MerchantAdsModelResult) {
-        throw new NotFoundError('No ad found for this merchant.');
+      // ── Separate Settlement Logic based on orderType ('normal' vs 'special') ──
+      let settlementResult;
+      if (orderResult.orderType === 'special') {
+        settlementResult = await this._settleSpecialOrderMoney(
+          orderResult,
+          userResult,
+          userResult2
+        );
+      } else {
+        settlementResult = await this._settleNormalOrderMoney(
+          orderResult,
+          userResult,
+          userResult2
+        );
       }
-
-      const priceData = this.convertToJson(
-        MerchantAdsModelResult.pricePerThousand
-      );
-      const settingResult = await this.SettingModel.findByPk(1);
-      if (!settingResult) {
-        throw new SystemError('SettingsNotFound', 'System settings not found.');
-      }
-
-      const serviceCharge = this.convertToJson(settingResult.serviceCharge);
-      const gatewayService = this.convertToJson(settingResult.gatewayService);
-
-      const getdeliveryAmountSummary = await this.getdeliveryAmountSummary(
-        priceData,
-        orderResult.amountOrder,
-        serviceCharge,
-        gatewayService
-      );
-
-      const merchantPayOut =
-        getdeliveryAmountSummary.merchantCharge +
-        getdeliveryAmountSummary.amountOrder;
-      const commission = getdeliveryAmountSummary.serviceCharge;
-
-      // 💸 Update wallets
-      await this.updateWallet(userId, orderResult.totalAmount);
-      await this.updateAdminWallet(1, commission);
-
-      // ✅ Mark order completed
-      await orderResult.update({
-        orderStatus: 'completed',
-        moneyStatus: 'received',
-      });
 
       // 🔔 Push notification (non-blocking)
       if (userResult?.fcmToken) {
@@ -4147,7 +4133,6 @@ class UserService extends NotificationServicePush {
             },
             {
               type: event.ORDER_COMPLETED,
-
               orderId: orderResult.id,
               userId: userResult2.id,
               sendto: user_type.MERCHANT,
@@ -4157,10 +4142,17 @@ class UserService extends NotificationServicePush {
           console.error('Notification failed (complete order):', notifyErr);
         }
       }
+
+      return settlementResult;
     } catch (error) {
       console.error('handleverifyCompleteOrder Error:', error);
 
-      if (error instanceof SystemError) {
+      if (
+        error instanceof SystemError ||
+        error.name === 'NotFoundError' ||
+        error.name === 'BadRequestError' ||
+        error.name === 'ConflictError'
+      ) {
         throw error;
       }
 
@@ -4169,6 +4161,87 @@ class UserService extends NotificationServicePush {
         error.message || 'An unexpected error occurred.'
       );
     }
+  }
+
+  // ─── Settlement Helper: Normal Cash Order ─────────────────────────
+  async _settleNormalOrderMoney(orderResult, userResult, userResult2) {
+    const MerchantAdsModelResult = await this.MerchantAdsModel.findOne({
+      where: { userId: orderResult.merchantId },
+    });
+    if (!MerchantAdsModelResult) {
+      throw new NotFoundError('No ad found for this merchant.');
+    }
+
+    const priceData = this.convertToJson(
+      MerchantAdsModelResult.pricePerThousand
+    );
+    const settingResult = await this.SettingModel.findByPk(1);
+    if (!settingResult) {
+      throw new SystemError('SettingsNotFound', 'System settings not found.');
+    }
+
+    const serviceCharge = this.convertToJson(settingResult.serviceCharge);
+    const gatewayService = this.convertToJson(settingResult.gatewayService);
+
+    const getdeliveryAmountSummary = await this.getdeliveryAmountSummary(
+      priceData,
+      orderResult.amountOrder,
+      serviceCharge,
+      gatewayService
+    );
+
+    // 💸 Merchant Payout: merchant charge + order amount
+    const merchantPayOut =
+      getdeliveryAmountSummary.merchantCharge +
+      getdeliveryAmountSummary.amountOrder;
+
+    // 💸 Company Commission: system service charge
+    const companyCommission = getdeliveryAmountSummary.serviceCharge;
+
+    // 💸 Update Merchant Wallet
+    await this.updateWallet(orderResult.merchantId, merchantPayOut);
+
+    // 💸 Update Company / Admin Wallet
+    await this.updateAdminWallet(1, companyCommission);
+
+    // ✅ Mark normal order completed
+    await orderResult.update({
+      orderStatus: 'completed',
+      moneyStatus: 'received',
+      completedAt: new Date(),
+    });
+
+    return {
+      orderType: 'normal',
+      orderId: orderResult.orderId,
+      merchantId: orderResult.merchantId,
+      merchantPayOut,
+      companyCommission,
+      settlementStatus: 'completed',
+    };
+  }
+
+  // ─── Settlement Helper: Special Withdrawal Order ───────────────────
+  async _settleSpecialOrderMoney(orderResult, userResult, userResult2) {
+    const sequelize = this.UserModel.sequelize;
+
+    // 💸 Execute atomic special withdrawal settlement (merchant money + company money)
+    await this._swSettleFunds(orderResult, sequelize);
+
+    // Refresh model state for updated status
+    await orderResult.reload();
+
+    return {
+      orderType: 'special',
+      orderId: orderResult.orderId,
+      requestId: orderResult.requestId,
+      merchantId: orderResult.merchantId,
+      merchantCharge: orderResult.merchantCharge,
+      transportationCharge: orderResult.transportationCharge,
+      companyCharge: orderResult.companyCharge,
+      chargeBearer: orderResult.chargeBearer,
+      settlementStatus: 'completed',
+    };
   }
   /*
   async handleGetChargeSummary(data) {
@@ -6442,6 +6515,125 @@ class UserService extends NotificationServicePush {
     }
   }
 
+  async handleGetSpecialChargeDetails(data = {}) {
+    try {
+      const validated =
+        await userUtil.verifyHandleGetSpecialChargeDetails.validateAsync(data);
+      const { amount } = validated;
+
+      const setting = await this.SettingModel.findByPk(1, {
+        attributes: [
+          'specialWithdrawalEnabled',
+          'specialWithdrawalCompanyChargePercentage',
+          'specialWithdrawalChargeBearer',
+          'specialWithdrawalDefaultCurrency',
+        ],
+      });
+      if (!setting) throw new NotFoundError('Settings not found');
+
+      const chargeBearer = setting.specialWithdrawalChargeBearer;
+      const companyChargePercentage =
+        setting.specialWithdrawalCompanyChargePercentage;
+      const currency = setting.specialWithdrawalDefaultCurrency || 'NGN';
+      const specialWithdrawalEnabled = setting.specialWithdrawalEnabled;
+
+      const response = {
+        chargeBearer,
+        companyChargePercentage,
+        currency,
+        specialWithdrawalEnabled,
+      };
+
+      if (amount !== undefined && amount !== null) {
+        const parsedAmount = Number(amount);
+        const companyPercentage = companyChargePercentage / 100;
+        const calculatedCharge = Math.round(parsedAmount * companyPercentage);
+
+        let customerChargeAmount = 0;
+        let merchantChargeAmount = 0;
+
+        switch (chargeBearer) {
+          case 'Customer':
+            customerChargeAmount = calculatedCharge;
+            merchantChargeAmount = 0;
+            break;
+          case 'Merchant':
+            customerChargeAmount = 0;
+            merchantChargeAmount = calculatedCharge;
+            break;
+          case 'Both':
+            customerChargeAmount = calculatedCharge;
+            merchantChargeAmount = calculatedCharge;
+            break;
+          default:
+            customerChargeAmount = calculatedCharge;
+            merchantChargeAmount = 0;
+        }
+
+        response.calculation = {
+          amount: parsedAmount,
+          customerChargeAmount,
+          merchantChargeAmount,
+          totalCompanyChargeAmount: customerChargeAmount + merchantChargeAmount,
+        };
+      }
+
+      return response;
+    } catch (error) {
+      if (error.name === 'NotFoundError' || error.name === 'BadRequestError') {
+        throw error;
+      }
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
+  async handleGetTransportationChargePerMeter(data = {}) {
+    try {
+      const validated =
+        await userUtil.verifyHandleGetTransportationChargePerMeter.validateAsync(
+          data
+        );
+      const dist = validated.distanceInMeters ?? validated.distance;
+
+      const setting = await this.SettingModel.findByPk(1, {
+        attributes: [
+          'specialWithdrawalEnabled',
+          'defaultTransportationPricePerMeter',
+          'specialWithdrawalDefaultCurrency',
+        ],
+      });
+      if (!setting) throw new NotFoundError('Settings not found');
+
+      const pricePerMeter = setting.defaultTransportationPricePerMeter;
+      const currency = setting.specialWithdrawalDefaultCurrency || 'NGN';
+      const specialWithdrawalEnabled = setting.specialWithdrawalEnabled;
+
+      const response = {
+        pricePerMeter,
+        unit: 'meter',
+        currency,
+        specialWithdrawalEnabled,
+      };
+
+      if (dist !== undefined && dist !== null) {
+        const parsedDistance = Number(dist);
+        response.calculation = {
+          distanceInMeters: parsedDistance,
+          estimatedTransportationCharge: Math.round(
+            parsedDistance * pricePerMeter
+          ),
+        };
+      }
+
+      return response;
+    } catch (error) {
+      if (error.name === 'NotFoundError' || error.name === 'BadRequestError') {
+        throw error;
+      }
+      throw new SystemError(error.name, error.message);
+    }
+  }
+
   async handleUpdateSpecialWithdrawalSettings(data) {
     try {
       await userUtil.verifyHandleUpdateSpecialWithdrawalSettings.validateAsync(
@@ -7566,7 +7758,7 @@ class UserService extends NotificationServicePush {
         // Merchant also contributes their share
         merchantPayout =
           request.amount + request.merchantCharge - request.companyCharge;
-        platformRevenue = request.companyCharge * 2; // customer + merchant
+        platformRevenue = request.companyCharge;
       }
       // chargeBearer === 'Customer': merchant gets full charge, platform gets customer-paid fee
 
@@ -8197,11 +8389,8 @@ class UserService extends NotificationServicePush {
 
           companyTotalCharge = companyChargeAmountToCustomer;
         } else if (chargeBearer === 'Merchant') {
-          totalAmount =
-            amount +
-            merchantCharge +
-            transportationCharge +
-            companyChargeAmountToMerchant;
+          totalAmount = amount + merchantCharge + transportationCharge;
+          //+companyChargeAmountToMerchant;
 
           companyTotalCharge = companyChargeAmountToMerchant;
         } else if (chargeBearer === 'Both') {

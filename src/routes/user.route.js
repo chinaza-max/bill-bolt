@@ -145,6 +145,8 @@ class UserRoutes extends UserController {
     this.router.post('/sw/request/action', this.specialWithdrawalRequestAction);
     this.router.get('/sw/requests', this.getSpecialWithdrawalRequests);
     this.router.get('/sw/request/:requestId', this.getSpecialWithdrawalRequestDetails);
+    this.router.get('/sw/special-charge', this.getSpecialChargeDetails);
+    this.router.get('/sw/transportation-charge-per-meter', this.getTransportationChargePerMeter);
 
     // Merchant endpoints
     this.router.get('/sw/merchant/profile', this.getMerchantSWProfile);

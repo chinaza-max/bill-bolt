@@ -1589,12 +1589,12 @@ export default class UserController {
         userId: req.user.id,
       };
 
-      await userService.handleverifyCompleteOrder(my_bj);
+      const result = await userService.handleverifyCompleteOrder(my_bj);
 
       return res.status(200).json({
         status: 200,
-        message: 'successfully.',
-        data: 'success',
+        message: 'Order completed and settled successfully.',
+        data: result,
       });
     } catch (error) {
       console.log(error);
@@ -1747,6 +1747,43 @@ export default class UserController {
       return res.status(200).json({
         status: 200,
         message: 'Settings retrieved successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async getSpecialChargeDetails(req, res, next) {
+    try {
+      const data = {
+        ...req.query,
+        userId: req.user?.id,
+      };
+      const result = await userService.handleGetSpecialChargeDetails(data);
+      return res.status(200).json({
+        status: 200,
+        message: 'Special charge details retrieved successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async getTransportationChargePerMeter(req, res, next) {
+    try {
+      const data = {
+        ...req.query,
+        userId: req.user?.id,
+      };
+      const result =
+        await userService.handleGetTransportationChargePerMeter(data);
+      return res.status(200).json({
+        status: 200,
+        message: 'Transportation charge per meter retrieved successfully',
         data: result,
       });
     } catch (error) {

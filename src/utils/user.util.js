@@ -685,6 +685,17 @@ class UserUtil {
       .valid('Pending', 'Active', 'Suspended', 'Disabled')
       .required(),
   });
+
+  verifyHandleGetSpecialChargeDetails = Joi.object({
+    userId: Joi.number().integer().optional(),
+    amount: Joi.number().positive().optional(),
+  });
+
+  verifyHandleGetTransportationChargePerMeter = Joi.object({
+    userId: Joi.number().integer().optional(),
+    distanceInMeters: Joi.number().positive().optional(),
+    distance: Joi.number().positive().optional(),
+  });
 }
 
 export default new UserUtil();
