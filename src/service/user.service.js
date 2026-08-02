@@ -7812,7 +7812,6 @@ class UserService extends NotificationServicePush {
             id: request.id,
             orderType: 'special',
             orderStatus: 'accepted', // must still be accepted
-            paymentStatus: { [Op.ne]: 'refunded' }, // not already refunded/cancelled
           },
           transaction: t,
         }
