@@ -169,6 +169,18 @@ export function init(connection) {
         allowNull: false,
         defaultValue: 'NGN',
       },
+
+      // ✅ IDENTITY VERIFICATION CONFIG
+      ninVerificationAmount: {
+        type: DataTypes.DOUBLE,
+        allowNull: false,
+        defaultValue: 60.0,
+      },
+
+      identityDebitAccountNumber: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
     },
     {
       tableName: 'Setting',

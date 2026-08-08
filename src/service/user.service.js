@@ -711,6 +711,46 @@ class UserService extends NotificationServicePush {
     }
   }
 
+
+  async handleTestInitiateNINVerify(obj) {
+
+
+      // 13. Load gateway
+    await this.loadGateWay('safeHaven.gateway');
+
+
+
+      const data = await userUtil.testHandleInitiateNINVerify.validateAsync(
+        obj
+      );
+
+      //      transferResponse = await this.gateway.initiateTransfer({
+
+    const result = await this.gateway.initiateVerification({
+      type: data.type,
+      number: data.number,
+      debitAccountNumber: data.debitAccountNumber || serverConfig.SAVE_HEAVEN_ACCOUNT_NUMBER,
+      async: data.async,
+    });
+
+    return result;
+  }
+
+  async handleTestVerifyNIN(obj) {
+
+    await this.loadGateWay('safeHaven.gateway');
+    
+    const data = await userUtil.testHandleVerifyNIN.validateAsync(obj);
+
+    const result = await this.gateway.validateVerification({
+      identityId: data.identityId,
+      type: data.type,
+      otp: data.otp,  
+    });
+
+    return result;
+  }
+
   async handleCancelTransaction(data) {
     await userUtil.validateCancelTransaction.validateAsync(data);
 
@@ -1631,8 +1671,12 @@ class UserService extends NotificationServicePush {
           serviceCharge,
           gatewayService
         );
-        totalMerchantCharge +=
-          amountSummary.amountOrder + amountSummary.merchantCharge;
+        // Coerce to Number — these can come back as strings (e.g. Sequelize
+        // DECIMAL fields), which previously caused string concatenation
+        // instead of addition (e.g. "1000" + "680" -> "1000680").
+        const orderAmount = Number(amountSummary.amountOrder) || 0;
+        const merchantCharge = Number(amountSummary.merchantCharge) || 0;
+        totalMerchantCharge += orderAmount + merchantCharge;
       }
 
       // ── Include accepted Special Withdrawal requests in escrow ───────────
@@ -1650,11 +1694,12 @@ class UserService extends NotificationServicePush {
         if (swReq.chargeBearer === 'Merchant' || swReq.chargeBearer === 'Both') {
           swPayout = swReq.amount + swReq.merchantCharge - swReq.companyCharge;
         }*/
-        totalMerchantCharge += swReq.totalAmount;
+        totalMerchantCharge += Number(swReq.totalAmount) || 0;
       }
 
       const balance =
-        this.convertToJson(UserModelResult.walletBalance)?.current || 0;
+        Number(this.convertToJson(UserModelResult.walletBalance)?.current) || 0;
+
       return {
         Balance: balance,
         EscrowBalance: totalMerchantCharge,
@@ -1668,7 +1713,6 @@ class UserService extends NotificationServicePush {
       throw new SystemError(error.name, error.parent);
     }
   }
-
   async handleWhoIAm(data) {
     const { userId } = await userUtil.verifyHandleWhoIAm.validateAsync(data);
 
@@ -3358,16 +3402,18 @@ class UserService extends NotificationServicePush {
 
         switch (txn.transactionType) {
           case 'order':
-            title = 'Withdrawal Request Payment';
-            initials = 'OP';
+            title = 'Withdrawal Request';
+            initials = 'WR';
             direction = 'outgoing';
             break;
           case 'withdrawal':
+          case 'widthdrawal':
             title = 'Withdrawal';
             initials = 'WD';
             direction = 'outgoing';
             break;
           case 'fundWallet':
+          case 'fundwallet':
             title = 'Wallet Funding';
             initials = 'WF';
             direction = 'incoming';
@@ -3905,14 +3951,16 @@ class UserService extends NotificationServicePush {
         switch (txn.transactionType) {
           case 'order':
             type = 'outgoing';
-            title = 'Order Payment';
-            initials = 'OP';
+            title = 'Withdrawal Request';
+            initials = 'WR';
             break;
+          case 'withdrawal':
           case 'widthdrawal':
             type = 'outgoing';
             title = 'Withdrawal';
             initials = 'WD';
             break;
+          case 'fundWallet':
           case 'fundwallet':
             type = 'incoming';
             title = 'Wallet Funding';
@@ -4766,7 +4814,7 @@ class UserService extends NotificationServicePush {
                 }
               );
             } catch (error) {
-              console.error('Notification failed (order payment):', error);
+              console.error('Notification failed (withdrawal request payment):', error);
             }
           }
 
@@ -4926,7 +4974,7 @@ class UserService extends NotificationServicePush {
                 }
               );
             } catch (error) {
-              console.error('Notification failed (order payment):', error);
+              console.error('Notification failed (withdrawal request payment):', error);
             }
           }
 
@@ -7746,22 +7794,35 @@ class UserService extends NotificationServicePush {
       if (!setting) throw new SystemError('SystemError', 'Settings not found');
 
       const chargeBearer = request.chargeBearer;
-      let merchantPayout = request.amount + request.merchantCharge;
+      let merchantPayout = request.amount + request.merchantCharge + request.transportationCharge;
       let platformRevenue = request.companyCharge;
 
+      /*
       if (chargeBearer === 'Merchant') {
         // Merchant absorbs company charge from their earnings
         merchantPayout =
-          request.amount + request.merchantCharge - request.companyCharge;
+          (request.amount + request.merchantCharge + request.transportationCharge)  - request.companyCharge;
         platformRevenue = request.companyCharge;
       } else if (chargeBearer === 'Both') {
         // Merchant also contributes their share
         merchantPayout =
-          request.amount + request.merchantCharge - request.companyCharge;
+          (request.amount + request.merchantCharge + request.transportationCharge )- request.companyCharge;
         platformRevenue = request.companyCharge;
-      }
+      }else{
+              merchantPayout =
+          (request.amount + request.merchantCharge + request.transportationCharge )- request.companyCharge;
+        platformRevenue = request.companyCharge;
+      }*/
       // chargeBearer === 'Customer': merchant gets full charge, platform gets customer-paid fee
 
+
+
+      merchantPayout =
+  Number(request.amount) +
+  Number(request.merchantCharge) +
+  Number(request.transportationCharge) -
+  Number(request.companyCharge);
+platformRevenue = Number(request.companyCharge);
       // Credit merchant wallet
       const merchant = await this.UserModel.findByPk(request.merchantId, {
         transaction: t,

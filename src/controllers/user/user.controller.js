@@ -1296,6 +1296,44 @@ export default class UserController {
     }
   }
 
+
+
+
+  async testInitiateNINVerify(req, res, next) {
+    try {
+  
+      const data = req.body
+      const result = await userService.handleTestInitiateNINVerify(data);
+
+      return res.status(200).json({
+        status: 200,
+        message:
+          'OTP sent. Copy the identityId from data below and use it to call /testVerifyNIN.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async testVerifyNIN(req, res, next) {
+    try {
+      const obj = req.body
+
+      const result = await userService.handleTestVerifyNIN(obj);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'Verification result',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
   async cancelTransaction(req, res, next) {
     try {
       const { transactionId } = req.body;

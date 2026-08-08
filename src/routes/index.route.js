@@ -2,6 +2,7 @@ import { Router } from 'express';
 import authMiddleware from '../middlewares/auth.middleware.js';
 import authRoute from './auth.route.js';
 import userRoute from './user.route.js';
+import identityRoute from './identity.route.js';
 
 class Routes {
   constructor() {
@@ -23,6 +24,7 @@ class Routes {
     });
 
     this.router.use(`${rootAPI}/auth`, authRoute);
+    this.router.use(`${rootAPI}/identity`, identityRoute);
 
     this.router.use(authMiddleware.validateUserToken);
 

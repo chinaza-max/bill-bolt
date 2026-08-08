@@ -319,24 +319,25 @@ class SafeHavenGateway extends BaseGateway {
 
   /* ------------------ IDENTITY VERIFICATION ------------------ */
 
+/**
+   * type: 'NIN' | 'BVN'
+   * number: the NIN or BVN value being verified
+   * debitAccountNumber: account to debit for the verification fee
+   * async: defaults to false per SafeHaven docs
+   */
   async initiateVerification({
-    NIN,
+    type = 'NIN',
+    number,
     debitAccountNumber,
-    otp,
-    verifierId = 'default',
-    provider = 'creditRegistry',
-    async = true,
+    async = false,
   }) {
     await this.ensureToken();
 
     const url = `${this.apiUrl}/identity/v2`;
     const data = {
-      type: 'NIN',
-      number: NIN,
+      type,
+      number,
       debitAccountNumber,
-      otp,
-      verifierId,
-      provider,
       async,
     };
 
@@ -353,14 +354,7 @@ class SafeHavenGateway extends BaseGateway {
     } catch (error) {
       if (error.response?.status === 401) {
         await this.getAccessToken();
-        return this.initiateVerification({
-          NIN,
-          debitAccountNumber,
-          otp,
-          verifierId,
-          provider,
-          async,
-        });
+        return this.initiateVerification({ type, number, debitAccountNumber, async });
       }
       console.error(
         'Error initiating verification:',

@@ -696,6 +696,21 @@ class UserUtil {
     distanceInMeters: Joi.number().positive().optional(),
     distance: Joi.number().positive().optional(),
   });
+
+
+
+  testHandleInitiateNINVerify = Joi.object().keys({
+    type: Joi.string().valid('NIN', 'BVN').default('NIN'),
+    number: Joi.string().required(),
+    debitAccountNumber: Joi.string().optional().allow('', null),
+    async: Joi.boolean().default(false),
+  });
+
+  testHandleVerifyNIN = Joi.object().keys({
+    identityId: Joi.string().required(),
+    type: Joi.string().valid('NIN', 'BVN').default('NIN'),
+    otp: Joi.string().required(),
+  });
 }
 
 export default new UserUtil();

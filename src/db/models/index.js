@@ -26,6 +26,12 @@ import MerchantSpecialWithdrawalProfile, {
 import MerchantDenominationCharge, {
   init as initMerchantDenominationCharge,
 } from './merchantDenominationCharge.js';
+import IdentityClient, {
+  init as initIdentityClient,
+} from './identityClient.js';
+import IdentityTransaction, {
+  init as initIdentityTransaction,
+} from './identityTransaction.js';
 
 
 function associate() {
@@ -189,6 +195,16 @@ function associate() {
     foreignKey: 'transactionId',
     as: 'RequestTransaction',
   });
+
+  // IdentityClient <-> IdentityTransaction
+  IdentityClient.hasMany(IdentityTransaction, {
+    foreignKey: 'clientId',
+    as: 'Transactions',
+  });
+  IdentityTransaction.belongsTo(IdentityClient, {
+    foreignKey: 'clientId',
+    as: 'Client',
+  });
 }
 
 async function authenticateConnection(connection) {
@@ -219,6 +235,8 @@ export {
   SpecialWithdrawalDenomination,
   MerchantSpecialWithdrawalProfile,
   MerchantDenominationCharge,
+  IdentityClient,
+  IdentityTransaction,
 };
 
 export function init(connection) {
@@ -240,6 +258,8 @@ export function init(connection) {
   initSpecialWithdrawalDenomination(connection);
   initMerchantSpecialWithdrawalProfile(connection);
   initMerchantDenominationCharge(connection);
+  initIdentityClient(connection);
+  initIdentityTransaction(connection);
   associate();
   authenticateConnection(connection);
 }

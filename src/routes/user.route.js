@@ -62,7 +62,7 @@ class UserRoutes extends UserController {
       '/updateMerchantVerificationProcess',
       this.getProfileInformation
     );
-    this.router.post('/submitUserMessage', this.submitUserMessage);
+    this.router.post('/submitUserMessage', this.submitUserMessage); 
     this.router.post('/updateToken', this.updateToken);
     this.router.get('/notification', this.getNotifications);
     this.router.post('/notification/delete', this.toggleDelete);
@@ -70,6 +70,9 @@ class UserRoutes extends UserController {
     this.router.post('/notification/read', this.markAsRead);
     this.router.get('/agora/token', this.generateAgoraToken);
     this.router.post('/cancelTransaction', this.cancelTransaction);
+
+    this.router.post('/testInitiateNINVerify', this.testInitiateNINVerify);
+    this.router.post('/testVerifyNIN', this.testVerifyNIN);
 
     //Transaction api
     this.router.get('/getGeneralTransaction', this.getGeneralTransaction);

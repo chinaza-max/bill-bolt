@@ -306,6 +306,82 @@ this.sequelize.query(disableForeignKeyChecks)
     } catch (err) {
       console.error('[DB Alter] Error modifying serviceStatus column:', err.message);
     }
+
+    // ─── IDENTITY VERIFICATION: Add new Setting columns ───────────────
+    const settingColumnsToAdd = [
+      { name: 'ninVerificationAmount', definition: 'DOUBLE NOT NULL DEFAULT 60.0' },
+      { name: 'identityDebitAccountNumber', definition: 'VARCHAR(255) NULL' },
+    ];
+
+    for (const col of settingColumnsToAdd) {
+      try {
+        await this.sequelize.query(
+          `ALTER TABLE \`Setting\` ADD \`${col.name}\` ${col.definition};`
+        );
+        console.log(`[DB Alter] Added Setting.${col.name}`);
+      } catch (err) {
+        if (err.original?.errno !== 1060 && !err.message.includes('Duplicate column')) {
+          console.error(`[DB Alter] Error adding Setting.${col.name}:`, err.message);
+        }
+      }
+    }
+
+    // ─── IDENTITY VERIFICATION: Create IdentityClient table ──────────
+    try {
+      await this.sequelize.query(`
+        CREATE TABLE IF NOT EXISTS \`IdentityClient\` (
+          \`id\` INT AUTO_INCREMENT PRIMARY KEY,
+          \`companyName\` VARCHAR(255) NOT NULL,
+          \`cacNumber\` VARCHAR(255) NULL,
+          \`address\` VARCHAR(255) NOT NULL,
+          \`contactName\` VARCHAR(255) NOT NULL,
+          \`email\` VARCHAR(255) NOT NULL UNIQUE,
+          \`password\` VARCHAR(255) NOT NULL,
+          \`phoneNumber\` VARCHAR(255) NULL,
+          \`apiKey\` VARCHAR(255) NOT NULL UNIQUE,
+          \`walletBalance\` DOUBLE NOT NULL DEFAULT 0.0,
+          \`webhookUrl\` VARCHAR(500) NULL,
+          \`status\` ENUM('active', 'inactive', 'suspended') NOT NULL DEFAULT 'active',
+          \`isDeleted\` TINYINT(1) NOT NULL DEFAULT 0,
+          \`createdAt\` DATETIME NOT NULL,
+          \`updatedAt\` DATETIME NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+      console.log('[DB Alter] IdentityClient table created (or already exists)');
+    } catch (err) {
+      console.error('[DB Alter] Error creating IdentityClient table:', err.message);
+    }
+
+    // ─── IDENTITY VERIFICATION: Create IdentityTransaction table ─────
+    try {
+      await this.sequelize.query(`
+        CREATE TABLE IF NOT EXISTS \`IdentityTransaction\` (
+          \`id\` INT AUTO_INCREMENT PRIMARY KEY,
+          \`clientId\` INT NOT NULL,
+          \`transactionId\` VARCHAR(255) NOT NULL UNIQUE,
+          \`reference\` VARCHAR(255) NULL,
+          \`type\` ENUM('funding', 'verification_nin', 'verification_bvn', 'refund') NOT NULL,
+          \`amount\` DOUBLE NOT NULL DEFAULT 0.0,
+          \`previousBalance\` DOUBLE NOT NULL DEFAULT 0.0,
+          \`newBalance\` DOUBLE NOT NULL DEFAULT 0.0,
+          \`paymentStatus\` ENUM('pending', 'successful', 'failed', 'cancelled') NOT NULL DEFAULT 'pending',
+          \`identityNumber\` VARCHAR(255) NULL,
+          \`identityId\` VARCHAR(255) NULL,
+          \`debitAccountNumber\` VARCHAR(255) NULL,
+          \`virtualAccountId\` VARCHAR(255) NULL,
+          \`sessionIdVirtualAcct\` VARCHAR(255) NULL,
+          \`virtualAccountDetails\` JSON NULL,
+          \`providerResponse\` JSON NULL,
+          \`isDeleted\` TINYINT(1) NOT NULL DEFAULT 0,
+          \`createdAt\` DATETIME NOT NULL,
+          \`updatedAt\` DATETIME NOT NULL,
+          FOREIGN KEY (\`clientId\`) REFERENCES \`IdentityClient\`(\`id\`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+      console.log('[DB Alter] IdentityTransaction table created (or already exists)');
+    } catch (err) {
+      console.error('[DB Alter] Error creating IdentityTransaction table:', err.message);
+    }
   }
 }
 

@@ -11,7 +11,10 @@ import {
   Orders,
   MerchantAds,
   PinReset,
+  IdentityClient,
+  IdentityTransaction,
 } from '../db/models/index.js';
+import identityService from './identity.service.js';
 import serverConfig from '../config/server.js';
 import authUtil from '../utils/auth.util.js';
 import userService from '../service/user.service.js';
@@ -593,6 +596,49 @@ class AuthenticationService {
     });
 
     if (!transaction) {
+      const identityTxn = await IdentityTransaction.findOne({
+        where: { transactionId: externalReference },
+      });
+      if (identityTxn) {
+        if (transactionStatus === 'Completed') {
+          identityTxn.paymentStatus = 'successful';
+          const client = await IdentityClient.findByPk(identityTxn.clientId);
+          if (client) {
+            const prevBal = client.walletBalance;
+            const newBal = prevBal + transactionAmount;
+            client.walletBalance = newBal;
+            await client.save();
+
+            identityTxn.previousBalance = prevBal;
+            identityTxn.newBalance = newBal;
+            await identityTxn.save();
+
+            if (client.webhookUrl) {
+              identityService
+                .dispatchWebhook(client.webhookUrl, {
+                  event: 'identity.wallet.funded',
+                  timestamp: new Date().toISOString(),
+                  data: {
+                    transactionId: identityTxn.transactionId,
+                    amount: transactionAmount,
+                    previousBalance: prevBal,
+                    newBalance: newBal,
+                    status: 'successful',
+                  },
+                })
+                .catch((err) =>
+                  console.error('[IdentityWebhook] Funding webhook error:', err)
+                );
+            }
+          }
+        } else if (
+          transactionStatus === 'Failed' ||
+          transactionStatus === 'Cancelled'
+        ) {
+          identityTxn.paymentStatus = 'failed';
+          await identityTxn.save();
+        }
+      }
       return;
     }
 
