@@ -339,6 +339,7 @@ this.sequelize.query(disableForeignKeyChecks)
 
     // ─── USER TABLE: Add missing columns ─────────────────────────────
     const userColumnsToAdd = [
+      { name: 'state', definition: 'VARCHAR(255) NULL' },
       { name: 'googleId', definition: 'VARCHAR(255) NULL UNIQUE' },
       { name: 'lastLoginMethod', definition: "ENUM('password', 'google') NULL" },
       { name: 'isNinVerified', definition: 'TINYINT(1) NULL DEFAULT 0' },
@@ -346,6 +347,28 @@ this.sequelize.query(disableForeignKeyChecks)
       { name: 'isFaceVerified', definition: 'TINYINT(1) NULL DEFAULT 0' },
       { name: 'ninImage', definition: 'VARCHAR(255) NULL' },
       { name: 'isninImageVerified', definition: 'TINYINT(1) NULL DEFAULT 0' },
+      { name: 'settlementAccount', definition: 'VARCHAR(255) NULL' },
+      { name: 'bankCode', definition: 'VARCHAR(255) NULL' },
+      { name: 'bankName', definition: 'VARCHAR(255) NULL' },
+      { name: 'nameEnquiryReference', definition: 'VARCHAR(255) NULL' },
+      { name: 'accountName', definition: 'VARCHAR(255) NULL' },
+      { name: 'lat', definition: 'VARCHAR(255) NULL' },
+      { name: 'lng', definition: 'VARCHAR(255) NULL' },
+      { name: 'dateOfBirth', definition: 'DATETIME NULL' },
+      { name: 'passCode', definition: 'VARCHAR(255) NULL' },
+      { name: 'nin', definition: 'VARCHAR(255) NULL' },
+      { name: 'ninName', definition: 'VARCHAR(255) NULL' },
+      { name: 'describeYou', definition: 'VARCHAR(255) NULL' },
+      { name: 'merchantActivated', definition: 'TINYINT(1) NULL DEFAULT 0' },
+      { name: 'isOnline', definition: 'TINYINT(1) NULL DEFAULT 0' },
+      { name: 'deviceType', definition: "ENUM('android', 'ios') NULL" },
+      { name: 'deviceIp', definition: 'VARCHAR(255) NULL' },
+      { name: 'disableAccount', definition: 'TINYINT(1) NOT NULL DEFAULT 0' },
+      { name: 'refreshToken', definition: 'TEXT NULL' },
+      { name: 'fcmToken', definition: 'TEXT NULL' },
+      { name: 'canWithdraw', definition: 'TINYINT(1) NOT NULL DEFAULT 1' },
+      { name: 'notificationId', definition: 'TEXT NULL' },
+      { name: 'notificationAllowed', definition: 'TINYINT(1) NOT NULL DEFAULT 1' },
     ];
 
     for (const col of userColumnsToAdd) {
