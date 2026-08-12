@@ -43,6 +43,7 @@ class DB {
       );
 
       initModels(this.sequelize);
+      await this.sequelize.sync();
       await this.alterOrderTableDirectly();
 
       /*
@@ -108,13 +109,16 @@ class DB {
         port: Number(serverConfig.DB_PORT),
         database: serverConfig.DB_NAME,
         logQueryParameters: true,
-            dialectOptions: {
+      };
+
+      if (process.env.DB_SSL === 'true' && fs.existsSync('./certs/aiven-ca.pem')) {
+        options.dialectOptions = {
           ssl: {
             ca: fs.readFileSync('./certs/aiven-ca.pem'),
             rejectUnauthorized: true,
           },
-        },
-      };
+        };
+      }
 
       this.sequelize = new Sequelize(
         serverConfig.DB_NAME,
@@ -122,11 +126,9 @@ class DB {
         serverConfig.DB_PASSWORD,
         options
       );
-      //await this.sequelize.sync({ force: true });
       initModels(this.sequelize);
+      await this.sequelize.sync();
       await this.alterOrderTableDirectly();
-     // await this.sequelize.sync({ alter: true });
-     // await this.sequelize.sync();
       //await this.alterOrderTableDirectly();
 
       //   await this.sequelize.sync({ force: true }); // ⚠️ deletes all data
@@ -309,6 +311,15 @@ this.sequelize.query(disableForeignKeyChecks)
 
     // ─── IDENTITY VERIFICATION: Add new Setting columns ───────────────
     const settingColumnsToAdd = [
+      { name: 'ninVerificationEnabled', definition: 'TINYINT(1) NOT NULL DEFAULT 1' },
+      { name: 'ninImageUploadEnabled', definition: 'TINYINT(1) NOT NULL DEFAULT 1' },
+      { name: 'nameVerificationEnabled', definition: 'TINYINT(1) NOT NULL DEFAULT 1' },
+      { name: 'faceVerificationEnabled', definition: 'TINYINT(1) NOT NULL DEFAULT 1' },
+      { name: 'specialWithdrawalEnabled', definition: 'TINYINT(1) NOT NULL DEFAULT 0' },
+      { name: 'defaultTransportationPricePerMeter', definition: 'DOUBLE NOT NULL DEFAULT 0.0' },
+      { name: 'specialWithdrawalCompanyChargePercentage', definition: 'DOUBLE NOT NULL DEFAULT 0.0' },
+      { name: 'specialWithdrawalChargeBearer', definition: "ENUM('Customer', 'Merchant', 'Both') NOT NULL DEFAULT 'Customer'" },
+      { name: 'specialWithdrawalDefaultCurrency', definition: "VARCHAR(255) NOT NULL DEFAULT 'NGN'" },
       { name: 'ninVerificationAmount', definition: 'DOUBLE NOT NULL DEFAULT 60.0' },
       { name: 'identityDebitAccountNumber', definition: 'VARCHAR(255) NULL' },
     ];
@@ -322,6 +333,50 @@ this.sequelize.query(disableForeignKeyChecks)
       } catch (err) {
         if (err.original?.errno !== 1060 && !err.message.includes('Duplicate column')) {
           console.error(`[DB Alter] Error adding Setting.${col.name}:`, err.message);
+        }
+      }
+    }
+
+    // ─── USER TABLE: Add missing columns ─────────────────────────────
+    const userColumnsToAdd = [
+      { name: 'googleId', definition: 'VARCHAR(255) NULL UNIQUE' },
+      { name: 'lastLoginMethod', definition: "ENUM('password', 'google') NULL" },
+      { name: 'isNinVerified', definition: 'TINYINT(1) NULL DEFAULT 0' },
+      { name: 'isDisplayNameMerchantSet', definition: 'TINYINT(1) NULL DEFAULT 0' },
+      { name: 'isFaceVerified', definition: 'TINYINT(1) NULL DEFAULT 0' },
+      { name: 'ninImage', definition: 'VARCHAR(255) NULL' },
+      { name: 'isninImageVerified', definition: 'TINYINT(1) NULL DEFAULT 0' },
+    ];
+
+    for (const col of userColumnsToAdd) {
+      try {
+        await this.sequelize.query(
+          `ALTER TABLE \`User\` ADD \`${col.name}\` ${col.definition};`
+        );
+        console.log(`[DB Alter] Added User.${col.name}`);
+      } catch (err) {
+        if (err.original?.errno !== 1060 && !err.message.includes('Duplicate column')) {
+          console.error(`[DB Alter] Error adding User.${col.name}:`, err.message);
+        }
+      }
+    }
+
+    // ─── NIN OTP VALIDATION: Add missing columns ─────────────────────
+    const ninOtpColumnsToAdd = [
+      { name: 'csrfToken', definition: 'VARCHAR(500) NULL' },
+      { name: 'withdrawalToken', definition: 'VARCHAR(500) NULL' },
+      { name: 'pendingPayload', definition: 'JSON NULL' },
+    ];
+
+    for (const col of ninOtpColumnsToAdd) {
+      try {
+        await this.sequelize.query(
+          `ALTER TABLE \`NINOTPValidation\` ADD \`${col.name}\` ${col.definition};`
+        );
+        console.log(`[DB Alter] Added NINOTPValidation.${col.name}`);
+      } catch (err) {
+        if (err.original?.errno !== 1060 && !err.message.includes('Duplicate column')) {
+          console.error(`[DB Alter] Error adding NINOTPValidation.${col.name}:`, err.message);
         }
       }
     }
