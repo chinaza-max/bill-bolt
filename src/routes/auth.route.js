@@ -15,7 +15,7 @@ class AuthRoutes extends AuthController {
     super();
     this.router = Router();
     this.routes();
-  }
+  }//
 
   routes() {
     const loginLimiter = rateLimit({
