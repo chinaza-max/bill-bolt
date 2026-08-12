@@ -111,11 +111,21 @@ export const configureSocket = (io) => {
     // This is what allows calls to reach users on ANY page
     // ─────────────────────────────────────────────────────────────────────────
 
-    socket.on('joinUserRoom', ({ userId }) => {
+    socket.on('joinUserRoom', async ({ userId }) => {
+      if (!userId) return;
       const room = `user_${userId}`;
       socket.join(room);
+      socket.userId = userId;
       socket.data.userId = userId;
       console.log(`👤 User ${userId} joined personal room: ${room}`);
+
+      // Update online status in Database and broadcast event
+      try {
+        await User.update({ isOnline: true }, { where: { id: userId } });
+        io.emit('userStatusChanged', { userId, isOnline: true });
+      } catch (err) {
+        console.error('Error updating user online status:', err.message);
+      }
     });
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -258,11 +268,28 @@ export const configureSocket = (io) => {
     });
 
     // ─────────────────────────────────────────────────────────────────────────
-    // EXISTING: Disconnect — unchanged
+    // UPDATED: Disconnect — automatic offline status update
     // ─────────────────────────────────────────────────────────────────────────
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', async () => {
       console.log(`User disconnected: ${socket.id}`);
+      const userId = socket.userId || socket.data?.userId;
+
+      if (userId) {
+        const userRoom = `user_${userId}`;
+        const roomSockets = io.sockets.adapter.rooms.get(userRoom);
+        const activeConnections = roomSockets ? roomSockets.size : 0;
+
+        if (activeConnections === 0) {
+          try {
+            await User.update({ isOnline: false }, { where: { id: userId } });
+            io.emit('userStatusChanged', { userId, isOnline: false });
+            console.log(`🔴 User ${userId} is now offline in DB`);
+          } catch (err) {
+            console.error('Error updating user offline status:', err.message);
+          }
+        }
+      }
 
       if (socket.roomId && socket.userId) {
         const roomUsers = activeUsers.get(socket.roomId);
