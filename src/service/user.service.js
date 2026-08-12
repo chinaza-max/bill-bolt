@@ -3658,13 +3658,26 @@ class UserService extends NotificationServicePush {
         where: { isDeleted: false },
       });
 
-      const pendingRequest = await this.MerchantProfileModel.count({
-        where: { isDeleted: false, accountStatus: 'processing' },
+      const onlineUserResult = await this.UserModel.count({
+        where: { isEmailValid: true, isOnline: true, isDeleted: false },
+      });
+      const offlineUserResult = await this.UserModel.count({
+        where: { isEmailValid: true, isOnline: false, isDeleted: false },
+      });
+      const onlineMerchantResult = await this.UserModel.count({
+        where: { isEmailValid: true, merchantActivated: true, isOnline: true, isDeleted: false },
+      });
+      const offlineMerchantResult = await this.UserModel.count({
+        where: { isEmailValid: true, merchantActivated: true, isOnline: false, isDeleted: false },
       });
 
       return {
         numberOfUser: userResult,
         numberOfMerchant: userMerchantResult,
+        onlineUserCount: onlineUserResult,
+        offlineUserCount: offlineUserResult,
+        onlineMerchantCount: onlineMerchantResult,
+        offlineMerchantCount: offlineMerchantResult,
         balance: settingModelResult.walletBalance,
         EscrowBalance: totalServiceCharge,
         orderStatusCancelled: orderStatusCancelled,
