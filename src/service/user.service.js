@@ -3658,6 +3658,10 @@ class UserService extends NotificationServicePush {
         where: { isDeleted: false },
       });
 
+      const pendingRequest = await this.MerchantProfileModel.count({
+        where: { isDeleted: false, accountStatus: 'processing' },
+      });
+
       const onlineUserResult = await this.UserModel.count({
         where: { isEmailValid: true, isOnline: true, isDeleted: false },
       });
