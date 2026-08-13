@@ -2196,4 +2196,20 @@ export default class UserController {
       next(error);
     }
   }
+
+  async getUnverifiedEmailUsers(req, res, next) {
+    try {
+      const data = req.query;
+      const result = await userService.handleGetUnverifiedEmailUsers(data);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'Unverified email users fetched successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
 }

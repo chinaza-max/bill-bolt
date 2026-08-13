@@ -8647,6 +8647,64 @@ platformRevenue = Number(request.companyCharge);
       );
     }
   }
+
+  /**
+   * Fetch all users with unverified emails (isEmailValid: false)
+   */
+  async handleGetUnverifiedEmailUsers(data = {}) {
+    try {
+      const page = parseInt(data.page, 10) || 1;
+      const limit = parseInt(data.limit, 10) || 20;
+      const offset = (page - 1) * limit;
+      const search = data.search || '';
+
+      const whereClause = {
+        isEmailValid: false,
+        isDeleted: false,
+      };
+
+      if (search) {
+        whereClause[Op.or] = [
+          { emailAddress: { [Op.like]: `%${search}%` } },
+          { firstName: { [Op.like]: `%${search}%` } },
+          { lastName: { [Op.like]: `%${search}%` } },
+          { tel: { [Op.like]: `%${search}%` } },
+        ];
+      }
+
+      const { count, rows } = await this.UserModel.findAndCountAll({
+        where: whereClause,
+        attributes: [
+          'id',
+          'firstName',
+          'lastName',
+          'emailAddress',
+          'tel',
+          'telCode',
+          'isEmailValid',
+          'isTelValid',
+          'role',
+          'disableAccount',
+          'createdAt',
+          'updatedAt',
+        ],
+        order: [['createdAt', 'DESC']],
+        limit,
+        offset,
+      });
+
+      return {
+        totalUsers: count,
+        page,
+        limit,
+        totalPages: Math.ceil(count / limit),
+        users: rows,
+      };
+    } catch (error) {
+      console.error('Error fetching unverified email users:', error);
+      throw new SystemError(error.name, error.parent);
+    }
+  }
 }
 
 /**const merchantads = [

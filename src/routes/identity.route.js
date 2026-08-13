@@ -12,6 +12,9 @@ class IdentityRoutes {
     // ─── PUBLIC AUTH ROUTES ───────────────────────────────────
     this.router.post('/auth/register', identityController.register);
     this.router.post('/auth/login', identityController.login);
+    this.router.post('/auth/verify-otp', identityController.verifyEmailOtp);
+    this.router.post('/auth/resend-otp', identityController.resendEmailOtp);
+    this.router.post('/auth/send-otp', identityController.resendEmailOtp);
 
     // ─── INTERNAL BACKEND ROUTES (No client API key required) ─────
     this.router.post('/internal/nin/initiate', identityController.internalInitiateNIN);
@@ -22,6 +25,7 @@ class IdentityRoutes {
 
     // Profile & Settings
     this.router.get('/profile', identityController.getProfile);
+    this.router.delete('/account', identityController.deleteAccount);
     this.router.post('/api-key/rotate', identityController.rotateApiKey);
     this.router.post('/settings/webhook', identityController.updateWebhook);
 

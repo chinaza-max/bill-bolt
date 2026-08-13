@@ -64,6 +64,24 @@ class IdentityUtil {
     }),
     type: Joi.string().valid('NIN', 'BVN').default('NIN'),
   });
+
+  verifyEmailOtpSchema = Joi.object().keys({
+    email: Joi.string().trim().email().required().messages({
+      'any.required': 'Email is required',
+      'string.email': 'Valid email is required',
+    }),
+    otp: Joi.string().trim().length(6).required().messages({
+      'any.required': 'OTP is required',
+      'string.length': 'OTP must be exactly 6 digits',
+    }),
+  });
+
+  resendEmailOtpSchema = Joi.object().keys({
+    email: Joi.string().trim().email().required().messages({
+      'any.required': 'Email is required',
+      'string.email': 'Valid email is required',
+    }),
+  });
 }
 
 export default new IdentityUtil();

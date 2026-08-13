@@ -167,6 +167,7 @@ class UserRoutes extends UserController {
     this.router.post('/sw/admin/merchant/status', this.adminUpdateMerchantSWStatus);
     this.router.get('/sw/admin/merchants', this.adminGetSWMerchants);
     this.router.get('/sw/admin/analytics', this.getSWAnalytics);
+    this.router.get('/getUnverifiedEmailUsers', this.getUnverifiedEmailUsers);
   }
 }
 

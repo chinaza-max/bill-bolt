@@ -53,10 +53,23 @@ export function init(connection) {
         type: DataTypes.STRING,
         allowNull: true,
       },
-      status: {
-        type: DataTypes.ENUM('active', 'inactive', 'suspended'),
+      isEmailVerified: {
+        type: DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue: 'active',
+        defaultValue: false,
+      },
+      emailOtp: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      emailOtpExpiresAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
+      status: {
+        type: DataTypes.ENUM('active', 'inactive', 'suspended', 'pending'),
+        allowNull: false,
+        defaultValue: 'pending',
       },
       isDeleted: {
         type: DataTypes.BOOLEAN,
