@@ -8,6 +8,7 @@ import IdentityTransaction from '../db/models/identityTransaction.js';
 import Setting from '../db/models/setting.js';
 import identityUtil from '../utils/identity.util.js';
 import { loadActiveGateway } from '../utils/gatewayLoader.js';
+import mailService from '../service/mail.service.js';
 import {
   BadRequestError,
   NotFoundError,
@@ -40,6 +41,27 @@ class IdentityService {
 
   // ─── AUTH & PROFILE ──────────────────────────────────────────
 
+  generateOtp() {
+    return String(Math.floor(100000 + Math.random() * 900000));
+  }
+
+  async sendEmailOtp(client) {
+    const otp = this.generateOtp();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    await client.update({ emailOtp: otp, emailOtpExpiresAt: expiresAt });
+
+    await mailService.sendMail({
+      to: client.email,
+      subject: 'Email Verification – BillBolt Identity',
+      templateName: 'emailVerificationCode',
+      variables: {
+        verificationCode: otp,
+        email: client.email,
+      },
+    });
+  }
+
   async handleRegister(obj) {
     const data = await identityUtil.registerSchema.validateAsync(obj);
 
@@ -64,30 +86,23 @@ class IdentityService {
       phoneNumber: data.phoneNumber || null,
       apiKey,
       walletBalance: 0.0,
-      status: 'active',
+      status: 'pending',          // 🔒 blocked until email verified
+      isEmailVerified: false,
     });
 
-    const token = jwt.sign(
-      { identityClientId: client.id, email: client.email },
-      serverConfig.ACCESS_TOKEN_SECRET,
-      { expiresIn: '30d' }
+    // 📧 Fire OTP email (don't block registration response)
+    await this.sendEmailOtp(client).catch((err) =>
+      console.error('[IdentityService] Failed to send verification OTP:', err.message)
     );
 
     return {
-      message: 'Identity client registered successfully',
-      token,
+      message:
+        'Registration successful. A 6-digit OTP has been sent to your email. Please verify before logging in.',
       client: {
         id: client.id,
-        companyName: client.companyName,
-        cacNumber: client.cacNumber,
-        address: client.address,
-        contactName: client.contactName,
         email: client.email,
-        phoneNumber: client.phoneNumber,
-        apiKey: client.apiKey,
-        walletBalance: client.walletBalance,
-        webhookUrl: client.webhookUrl,
-        createdAt: client.createdAt,
+        companyName: client.companyName,
+        isEmailVerified: client.isEmailVerified,
       },
     };
   }
@@ -108,7 +123,16 @@ class IdentityService {
       throw new UnAuthorizedError('Invalid email or password.');
     }
 
-    if (client.status !== 'active') {
+    // 🔒 Block unverified accounts
+    if (!client.isEmailVerified) {
+      // Resend OTP so the client can verify
+      await this.sendEmailOtp(client).catch(() => {});
+      throw new UnAuthorizedError(
+        'Email not verified. A new OTP has been sent to your email. Please verify before logging in.'
+      );
+    }
+
+    if (client.status === 'suspended' || client.status === 'inactive') {
       throw new UnAuthorizedError('Identity account is inactive or suspended.');
     }
 
@@ -137,6 +161,82 @@ class IdentityService {
     };
   }
 
+  async handleVerifyEmailOtp(obj) {
+    const data = await identityUtil.verifyEmailOtpSchema.validateAsync(obj);
+
+    const client = await IdentityClient.findOne({
+      where: { email: data.email, isDeleted: false },
+    });
+
+    if (!client) {
+      throw new NotFoundError('No account found with this email.');
+    }
+
+    if (client.isEmailVerified) {
+      throw new BadRequestError('Email is already verified. Please log in.');
+    }
+
+    if (!client.emailOtp || client.emailOtp !== String(data.otp)) {
+      throw new BadRequestError('Invalid OTP. Please check and try again.');
+    }
+
+    if (!client.emailOtpExpiresAt || new Date() > new Date(client.emailOtpExpiresAt)) {
+      throw new BadRequestError('OTP has expired. Please request a new one.');
+    }
+
+    // ✅ Mark verified, activate account
+    await client.update({
+      isEmailVerified: true,
+      status: 'active',
+      emailOtp: null,
+      emailOtpExpiresAt: null,
+    });
+
+    const token = jwt.sign(
+      { identityClientId: client.id, email: client.email },
+      serverConfig.ACCESS_TOKEN_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    return {
+      message: 'Email verified successfully. You can now log in.',
+      token,
+      client: {
+        id: client.id,
+        companyName: client.companyName,
+        email: client.email,
+        apiKey: client.apiKey,
+        walletBalance: client.walletBalance,
+        isEmailVerified: client.isEmailVerified,
+        status: client.status,
+        createdAt: client.createdAt,
+      },
+    };
+  }
+
+  async handleResendEmailOtp(obj) {
+    const data = await identityUtil.resendEmailOtpSchema.validateAsync(obj);
+
+    const client = await IdentityClient.findOne({
+      where: { email: data.email, isDeleted: false },
+    });
+
+    if (!client) {
+      throw new NotFoundError('No account found with this email.');
+    }
+
+    if (client.isEmailVerified) {
+      throw new BadRequestError('Email is already verified. Please log in.');
+    }
+
+    await this.sendEmailOtp(client);
+
+    return {
+      message: 'A new 6-digit OTP has been sent to your email.',
+      email: client.email,
+    };
+  }
+
   async handleGetProfile(client) {
     return {
       id: client.id,
@@ -162,6 +262,22 @@ class IdentityService {
     return {
       message: 'API Key rotated successfully',
       apiKey: newApiKey,
+    };
+  }
+
+  async handleDeleteAccount(client) {
+    const clientId = client.id;
+
+    // Permanently remove all identity transaction records for this client
+    await IdentityTransaction.destroy({
+      where: { clientId },
+    });
+
+    // Permanently remove the client record
+    await client.destroy();
+
+    return {
+      message: 'Identity client account and all associated records permanently deleted.',
     };
   }
 

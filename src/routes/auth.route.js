@@ -114,6 +114,8 @@ class AuthRoutes extends AuthController {
 
       res.redirect(authUrl);
     });
+
+    this.router.get('/getUnverifiedEmailUsers', this.getUnverifiedEmailUsers);
   }
 }
 

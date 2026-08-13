@@ -1,4 +1,5 @@
 import authService from '../../service/auth.service.js';
+import userService from '../../service/user.service.js';
 import serverConfig from '../../config/server.js';
 import { User } from '../../db/models/index.js';
 import path from 'path';
@@ -1077,6 +1078,22 @@ export default class AuthenticationController {
     next();
   };
 */
+
+  async getUnverifiedEmailUsers(req, res, next) {
+    try {
+      const data = req.query;
+      const result = await userService.handleGetUnverifiedEmailUsers(data);
+
+      return res.status(200).json({
+        status: 200,
+        message: 'Unverified email users fetched successfully.',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
 }
 
 /*this.sendEmailVerificationCode

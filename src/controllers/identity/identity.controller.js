@@ -27,6 +27,32 @@ class IdentityController {
     }
   }
 
+  async verifyEmailOtp(req, res, next) {
+    try {
+      const result = await identityService.handleVerifyEmailOtp(req.body);
+      return res.status(200).json({
+        status: 200,
+        message: result.message,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async resendEmailOtp(req, res, next) {
+    try {
+      const result = await identityService.handleResendEmailOtp(req.body);
+      return res.status(200).json({
+        status: 200,
+        message: result.message,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getProfile(req, res, next) {
     try {
       const profile = await identityService.handleGetProfile(req.identityClient);
@@ -43,6 +69,19 @@ class IdentityController {
   async rotateApiKey(req, res, next) {
     try {
       const result = await identityService.handleRotateApiKey(req.identityClient);
+      return res.status(200).json({
+        status: 200,
+        message: result.message,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteAccount(req, res, next) {
+    try {
+      const result = await identityService.handleDeleteAccount(req.identityClient);
       return res.status(200).json({
         status: 200,
         message: result.message,

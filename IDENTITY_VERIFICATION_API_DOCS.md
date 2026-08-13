@@ -33,7 +33,7 @@ Authorization: Bearer <your_jwt_access_token>
 ### 1.1 Register API Account
 **`POST /api/v1/identity/auth/register`**
 
-Creates a new client account for identity verification.
+Creates a new client account for identity verification. Upon registration, a **6-digit OTP code** is sent to the registered email address. The account remains in `pending` status until email OTP verification is completed.
 
 **Request Body:**
 ```json
@@ -52,21 +52,13 @@ Creates a new client account for identity verification.
 ```json
 {
   "status": 201,
-  "message": "Identity client registered successfully",
+  "message": "Registration successful. A 6-digit OTP has been sent to your email. Please verify before logging in.",
   "data": {
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     "client": {
       "id": 1,
-      "companyName": "Acme Fintech Solutions Ltd",
-      "cacNumber": "RC1234567",
-      "address": "123 Technology Way, Victoria Island, Lagos",
-      "contactName": "John Doe",
       "email": "dev@acmefintech.com",
-      "phoneNumber": "08012345678",
-      "apiKey": "id_live_8f3a9b2c1d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e",
-      "walletBalance": 0,
-      "webhookUrl": null,
-      "createdAt": "2026-08-07T19:30:00.000Z"
+      "companyName": "Acme Fintech Solutions Ltd",
+      "isEmailVerified": false
     }
   }
 }
@@ -74,10 +66,70 @@ Creates a new client account for identity verification.
 
 ---
 
-### 1.2 Login
+### 1.2 Verify Email OTP
+**`POST /api/v1/identity/auth/verify-otp`**
+
+Validates the 6-digit OTP code sent to the client's email address. Upon successful verification, sets `isEmailVerified` to `true`, activates the account status, and returns the authentication JWT Token & API Key.
+
+**Request Body:**
+```json
+{
+  "email": "dev@acmefintech.com",
+  "otp": "654321"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Email verified successfully. You can now log in.",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "client": {
+      "id": 1,
+      "companyName": "Acme Fintech Solutions Ltd",
+      "email": "dev@acmefintech.com",
+      "apiKey": "id_live_8f3a9b2c1d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e",
+      "walletBalance": 0,
+      "isEmailVerified": true,
+      "status": "active"
+    }
+  }
+}
+```
+
+---
+
+### 1.3 Resend Email OTP
+**`POST /api/v1/identity/auth/resend-otp`** (or **`POST /api/v1/identity/auth/send-otp`**)
+
+Resends a fresh 6-digit verification OTP code to the specified email address.
+
+**Request Body:**
+```json
+{
+  "email": "dev@acmefintech.com"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "A new 6-digit OTP has been sent to your email.",
+  "data": {
+    "email": "dev@acmefintech.com"
+  }
+}
+```
+
+---
+
+### 1.4 Login
 **`POST /api/v1/identity/auth/login`**
 
-Authenticates identity client credentials and returns JWT token and API Key.
+Authenticates identity client credentials and returns JWT token and API Key. **Note:** Email MUST be verified before login is allowed. Attempting login without verifying email will trigger an unverified error and resend an OTP email automatically.
 
 **Request Body:**
 ```json
@@ -177,6 +229,29 @@ Registers or updates your HTTP Webhook URL to receive automated async verificati
   "message": "Webhook URL updated successfully",
   "data": {
     "webhookUrl": "https://api.acmefintech.com/webhooks/identity"
+  }
+}
+```
+
+---
+
+### 1.6 Delete Identity Client Account
+**`DELETE /api/v1/identity/account`**
+
+Permanently deletes the identity client account and purges **all associated transaction records** from the database.
+
+> [!CAUTION]
+> This operation is permanent and non-reversible. All wallet records, identity verification transactions, and API key credentials will be permanently erased.
+
+**Headers:** `x-api-key: <API_KEY>` or `Authorization: Bearer <TOKEN>`
+
+**Response (200 OK):**
+```json
+{
+  "status": 200,
+  "message": "Identity client account and all associated records permanently deleted.",
+  "data": {
+    "message": "Identity client account and all associated records permanently deleted."
   }
 }
 ```

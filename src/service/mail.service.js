@@ -2,7 +2,7 @@ import nodemailer from 'nodemailer';
 import fs from 'fs';
 import debug from 'debug';
 import Handlebars from 'handlebars';
-import mqtt from 'mqtt';
+// import mqtt from 'mqtt';
 import serverConfig from '../config/server.js';
 
 const DEBUG = debug('dev');
@@ -12,7 +12,10 @@ class MailService {
     this.transporter = nodemailer.createTransport({
       host: serverConfig.EMAIL_HOST,
       port: Number(serverConfig.EMAIL_PORT),
-      secure: true,
+      secure: Number(serverConfig.EMAIL_PORT) === 465,
+      pool: true,
+      maxConnections: 5,
+      maxMessages: 100,
       auth: {
         user: serverConfig.EMAIL_USER,
         pass: serverConfig.EMAIL_PASS,
@@ -22,14 +25,16 @@ class MailService {
       },
     });
 
-    // Initialize MQTT client
-    this.mqttClient = null;
-    this.mqttBroker =
-      serverConfig.MQTT_BROKER || 'mqtt://broker.hivemq.com:1883';
-    this.mqttTopic = serverConfig.MQTT_TOPIC || 'fidoesp32/email';
-    this.initMQTT();
+    // MQTT client disabled / commented out
+    // this.mqttClient = null;
+    // this.mqttBroker =
+    //   serverConfig.MQTT_BROKER || 'mqtt://broker.hivemq.com:1883';
+    // this.mqttTopic = serverConfig.MQTT_TOPIC || 'fidoesp32/email';
+    // this.initMQTT();
   }
 
+  // MQTT initialization commented out
+  /*
   initMQTT() {
     try {
       this.mqttClient = mqtt.connect(this.mqttBroker);
@@ -56,6 +61,7 @@ class MailService {
       DEBUG(`MQTT init error: ${error}`);
     }
   }
+  */
 
   // Simple HTML minifier (reduces size by ~30-40%)
   minifyHTML(html) {
@@ -75,17 +81,10 @@ class MailService {
   }
 
   /**
-   * ORIGINAL METHOD - Sends email via nodemailer (your existing system)
-   * This method now ALSO sends via ESP32 at the same time
+   * Sends email via nodemailer with connection pooling & auto retry
    */
   async sendMail(options) {
-    let filePath = '';
-
-    if (serverConfig.NODE_ENV === 'production') {
-      filePath = `./src/resources/mailTemplates/${options.templateName}.html`;
-    } else if (serverConfig.NODE_ENV === 'development') {
-      filePath = `./src/resources/mailTemplates/${options.templateName}.html`;
-    }
+    let filePath = `./src/resources/mailTemplates/${options.templateName}.html`;
 
     const source = fs.readFileSync(filePath, 'utf-8').toString();
     const template = Handlebars.compile(source);
@@ -100,173 +99,44 @@ class MailService {
       html: html,
     };
 
-    // Send via ESP32 ALSO (don't wait for it, fire and forget)
-    const emailCommand = {
-      subject: options.subject,
-      content: html,
-      recipient: options.to,
-    };
+    // Send via nodemailer with automatic retries for bursts
+    const maxRetries = 3;
+    let attempt = 0;
+    let lastError = null;
 
-    // Send via ESP32 (async, don't wait)
-    this.sendViaESP32(emailCommand).catch((err) => {
-      console.error(
-        'ESP32 email failed (but nodemailer will still work):',
-        err.message
-      );
-    });
-
-    // Send via nodemailer (your original method)
-    this.transporter.sendMail(mailData, (error) => {
-      if (error) {
-        console.log(error);
-        DEBUG(`Error sending email: ${error}`);
-        return false;
-      }
-      console.log('Email sent successfully via nodemailer');
-      return true;
-    });
-  }
-
-  /**
-   * Send email via ESP32 using MQTT
-   * @param {Object} emailCommand - Email data
-   * @param {string} emailCommand.subject - Email subject
-   * @param {string} emailCommand.content - Email content (plain text or HTML)
-   * @param {string} emailCommand.recipient - Recipient email address
-   * @returns {Promise<boolean>} - Success status
-   */
-  async sendViaESP32(emailCommand) {
-    return new Promise((resolve, reject) => {
-      // Validate input
-      if (!emailCommand.content) {
-        const error = 'Email content is required';
-        console.error(error);
-        DEBUG(error);
-        return reject(new Error(error));
-      }
-
-      // Minify HTML if content looks like HTML
-      let content = emailCommand.content;
-      if (content.includes('<html>') || content.includes('<!DOCTYPE')) {
-        console.log('Minifying HTML before sending to ESP32...');
-        const originalSize = content.length;
-        content = this.minifyHTML(content);
-        const newSize = content.length;
+    while (attempt < maxRetries) {
+      attempt++;
+      try {
+        const info = await this.transporter.sendMail(mailData);
         console.log(
-          `HTML minified: ${originalSize} → ${newSize} bytes (saved ${
-            originalSize - newSize
-          } bytes)`
+          `[MailService] Email sent successfully on attempt ${attempt}:`,
+          info.messageId || info.response
         );
-      }
-
-      // Set defaults
-      const mqttPayload = {
-        subject: emailCommand.subject || 'ESP32 Email',
-        content: content,
-        recipient:
-          emailCommand.recipient ||
-          serverConfig.EMAIL_SENDER ||
-          'fidopointofficial@gmail.com',
-      };
-
-      // Check payload size
-      const payloadString = JSON.stringify(mqttPayload);
-      const payloadSize = payloadString.length;
-      console.log(`MQTT payload size: ${payloadSize} bytes`);
-
-      if (payloadSize > 15000) {
-        console.warn(
-          '⚠️  Warning: Payload is very large (>15KB). May fail on ESP32.'
+        return true;
+      } catch (error) {
+        lastError = error;
+        console.error(
+          `[MailService] Attempt ${attempt}/${maxRetries} failed to send email to ${options.to}:`,
+          error.message
         );
-      }
+        DEBUG(`Error sending email attempt ${attempt}: ${error}`);
 
-      // Check MQTT connection
-      if (!this.mqttClient || !this.mqttClient.connected) {
-        const error = 'MQTT client not connected';
-        console.error(error);
-        DEBUG(error);
-        return reject(new Error(error));
-      }
-
-      // Publish to MQTT
-      this.mqttClient.publish(
-        this.mqttTopic,
-        payloadString,
-        { qos: 1 }, // Quality of Service level 1 (at least once delivery)
-        (err) => {
-          if (err) {
-            console.error('Failed to publish MQTT message:', err);
-            DEBUG(`MQTT publish error: ${err}`);
-            return reject(err);
-          }
-
-          console.log('Email command sent to ESP32 via MQTT');
-          DEBUG(`MQTT message published to ${this.mqttTopic}`);
-          resolve(true);
+        if (attempt < maxRetries) {
+          // Pause before retrying to allow burst peak to clear
+          await new Promise((resolve) => setTimeout(resolve, attempt * 1200));
         }
-      );
-    });
-  }
-
-  /**
-   * Send email via ESP32 with HTML template
-   * @param {Object} options - Email options
-   * @param {string} options.templateName - Template file name (without .html)
-   * @param {Object} options.variables - Template variables
-   * @param {string} options.to - Recipient email
-   * @param {string} options.subject - Email subject
-   * @returns {Promise<boolean>} - Success status
-   */
-  async sendTemplateViaESP32(options) {
-    try {
-      let filePath = '';
-
-      if (serverConfig.NODE_ENV === 'production') {
-        filePath = `./src/resources/mailTemplates/${options.templateName}.html`;
-      } else if (serverConfig.NODE_ENV === 'development') {
-        filePath = `./src/resources/mailTemplates/${options.templateName}.html`;
       }
-
-      const source = fs.readFileSync(filePath, 'utf-8').toString();
-      const template = Handlebars.compile(source);
-      const html = template(options.variables);
-
-      // Send HTML content via ESP32
-      const emailCommand = {
-        subject: options.subject,
-        content: html,
-        recipient: options.to,
-      };
-
-      return await this.sendViaESP32(emailCommand);
-    } catch (error) {
-      console.error('Error sending template via ESP32:', error);
-      DEBUG(`Template error: ${error}`);
-      throw error;
     }
+
+    throw lastError;
   }
 
-  /**
-   * Check MQTT connection status
-   * @returns {boolean} - Connection status
-   */
-  isMQTTConnected() {
-    return this.mqttClient && this.mqttClient.connected;
+  /*
+  async sendViaESP32(emailCommand) {
+    // ... disabled ...
   }
-
-  /**
-   * Graceful shutdown
-   */
-  async closeMQTT() {
-    if (this.mqttClient) {
-      return new Promise((resolve) => {
-        this.mqttClient.end(false, () => {
-          console.log('MQTT connection closed');
-          resolve();
-        });
-      });
-    }
-  }
+  */
 }
 
 export default new MailService();
+
