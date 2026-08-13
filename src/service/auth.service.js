@@ -1582,28 +1582,44 @@ class AuthenticationService {
   }
 
   async sendEmailVerificationCode(emailAddress, userId, validateFor) {
+    console.log(`\n[EMAIL-OTP] ▶ sendEmailVerificationCode called`);
+    console.log(`[EMAIL-OTP] userId     : ${userId}`);
+    console.log(`[EMAIL-OTP] emailAddress: ${emailAddress}`);
+    console.log(`[EMAIL-OTP] validateFor: ${validateFor}`);
+
     try {
       var keyExpirationMillisecondsFromEpoch =
         new Date().getTime() + 30 * 60 * 1000;
       const verificationCode = Math.floor(Math.random() * 900000) + 100000;
 
-      await this.EmailandTelValidationModel.upsert(
-        {
-          userId,
-          type: 'email',
-          validateFor,
-          verificationCode,
-          expiresIn: new Date(keyExpirationMillisecondsFromEpoch),
-        },
-        {
-          where: {
-            userId,
-            validateFor,
-          },
-        }
-      );
+      console.log(`[EMAIL-OTP] OTP generated: ${verificationCode}`);
+      console.log(`[EMAIL-OTP] OTP expires  : ${new Date(keyExpirationMillisecondsFromEpoch).toISOString()}`);
 
       try {
+        await this.EmailandTelValidationModel.upsert(
+          {
+            userId,
+            type: 'email',
+            validateFor,
+            verificationCode,
+            expiresIn: new Date(keyExpirationMillisecondsFromEpoch),
+          },
+          {
+            where: {
+              userId,
+              validateFor,
+            },
+          }
+        );
+        console.log(`[EMAIL-OTP] ✅ OTP saved to EmailandTelValidation DB for userId: ${userId}`);
+      } catch (dbError) {
+        console.error(`[EMAIL-OTP] ❌ FAILED to save OTP to DB for userId: ${userId}`);
+        console.error(`[EMAIL-OTP] DB Error:`, dbError.message);
+        throw dbError;
+      }
+
+      try {
+        console.log(`[EMAIL-OTP] ⏳ Attempting to send OTP email to: ${emailAddress}`);
         await mailService.sendMail({
           to: emailAddress,
           subject: 'Account Verification',
@@ -1613,11 +1629,16 @@ class AuthenticationService {
             email: emailAddress,
           },
         });
-      } catch (error) {
-        console.log(error);
+        console.log(`[EMAIL-OTP] ✅ OTP email dispatch completed for: ${emailAddress}`);
+      } catch (mailError) {
+        console.error(`[EMAIL-OTP] ❌ FAILED to send OTP email to: ${emailAddress}`);
+        console.error(`[EMAIL-OTP] Mail Error Code    : ${mailError.code || 'N/A'}`);
+        console.error(`[EMAIL-OTP] Mail Error Message : ${mailError.message}`);
+        console.error(`[EMAIL-OTP] Mail SMTP Response : ${mailError.response || 'N/A'}`);
+        // NOT re-throwing — user signup is still successful even if mail fails
       }
     } catch (error) {
-      console.log(error);
+      console.error(`[EMAIL-OTP] ❌ Unhandled error in sendEmailVerificationCode:`, error.message);
     }
   }
   async getdeliveryAmountSummary(

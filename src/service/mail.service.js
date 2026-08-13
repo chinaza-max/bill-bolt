@@ -81,53 +81,89 @@ class MailService {
   }
 
   /**
-   * Sends email via nodemailer with connection pooling & auto retry
+   * Sends email via nodemailer with connection pooling, auto retry & full diagnostic logs
    */
   async sendMail(options) {
+    const timestamp = () => new Date().toISOString();
+
+    console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log(`[EMAIL][${timestamp()}] ▶ sendMail CALLED`);
+    console.log(`[EMAIL] To       : ${options.to}`);
+    console.log(`[EMAIL] Subject  : ${options.subject}`);
+    console.log(`[EMAIL] Template : ${options.templateName}`);
+    console.log(`[EMAIL] SMTP Host: ${serverConfig.EMAIL_HOST}:${serverConfig.EMAIL_PORT}`);
+    console.log(`[EMAIL] SMTP User: ${serverConfig.EMAIL_USER}`);
+    console.log(`[EMAIL] Sender   : ${serverConfig.EMAIL_SENDER}`);
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+
     let filePath = `./src/resources/mailTemplates/${options.templateName}.html`;
 
-    const source = fs.readFileSync(filePath, 'utf-8').toString();
-    const template = Handlebars.compile(source);
-    const html = template(options.variables);
+    // Step 1: Read template
+    let source;
+    try {
+      source = fs.readFileSync(filePath, 'utf-8').toString();
+      console.log(`[EMAIL] ✅ Step 1: Template file read OK → ${filePath}`);
+    } catch (err) {
+      console.error(`[EMAIL] ❌ Step 1: FAILED to read template file: ${filePath}`);
+      console.error(`[EMAIL] Template Error:`, err.message);
+      throw err;
+    }
+
+    // Step 2: Compile template
+    let html;
+    try {
+      const template = Handlebars.compile(source);
+      html = template(options.variables);
+      console.log(`[EMAIL] ✅ Step 2: Handlebars template compiled OK (html length: ${html.length})`);
+    } catch (err) {
+      console.error(`[EMAIL] ❌ Step 2: FAILED to compile Handlebars template`);
+      console.error(`[EMAIL] Handlebars Error:`, err.message);
+      throw err;
+    }
 
     const mailData = {
-      from: `${options.from ? options.from : serverConfig.EMAIL_SENDER} <${
-        serverConfig.EMAIL_USER
-      }>`,
+      from: `${options.from ? options.from : serverConfig.EMAIL_SENDER} <${serverConfig.EMAIL_USER}>`,
       to: options.to,
       subject: options.subject,
       html: html,
     };
 
-    // Send via nodemailer with automatic retries for bursts
+    // Step 3: Send with retries
     const maxRetries = 3;
     let attempt = 0;
     let lastError = null;
 
     while (attempt < maxRetries) {
       attempt++;
+      console.log(`[EMAIL] ⏳ Step 3: Sending attempt ${attempt}/${maxRetries} → ${options.to}`);
       try {
         const info = await this.transporter.sendMail(mailData);
-        console.log(
-          `[MailService] Email sent successfully on attempt ${attempt}:`,
-          info.messageId || info.response
-        );
+        console.log(`[EMAIL] ✅ Step 3: SENT OK on attempt ${attempt}`);
+        console.log(`[EMAIL] Message ID : ${info.messageId || 'N/A'}`);
+        console.log(`[EMAIL] Response   : ${info.response || 'N/A'}`);
+        console.log(`[EMAIL] Accepted   : ${JSON.stringify(info.accepted || [])}`);
+        console.log(`[EMAIL] Rejected   : ${JSON.stringify(info.rejected || [])}`);
+        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
         return true;
       } catch (error) {
         lastError = error;
-        console.error(
-          `[MailService] Attempt ${attempt}/${maxRetries} failed to send email to ${options.to}:`,
-          error.message
-        );
-        DEBUG(`Error sending email attempt ${attempt}: ${error}`);
+        console.error(`[EMAIL] ❌ Attempt ${attempt}/${maxRetries} FAILED`);
+        console.error(`[EMAIL] Error Code   : ${error.code || 'N/A'}`);
+        console.error(`[EMAIL] Error Message: ${error.message}`);
+        console.error(`[EMAIL] SMTP Response: ${error.response || 'N/A'}`);
+        console.error(`[EMAIL] Response Code: ${error.responseCode || 'N/A'}`);
+        console.error(`[EMAIL] Command     : ${error.command || 'N/A'}`);
 
         if (attempt < maxRetries) {
-          // Pause before retrying to allow burst peak to clear
-          await new Promise((resolve) => setTimeout(resolve, attempt * 1200));
+          const delay = attempt * 1200;
+          console.log(`[EMAIL] ⏳ Waiting ${delay}ms before retry...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }
     }
 
+    console.error(`[EMAIL] ❌ ALL ${maxRetries} ATTEMPTS FAILED for → ${options.to}`);
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
     throw lastError;
   }
 
