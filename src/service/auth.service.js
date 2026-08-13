@@ -210,6 +210,21 @@ class AuthenticationService {
     const { emailAddress, password, type, loginMethod, googleId } =
       await authUtil.verifyHandleLoginUser.validateAsync(data);
 
+      const userCount = await this.UserModel.count({
+  where: {
+    isDeleted: false,
+  },
+});
+
+console.log(`[LOGIN] Total users: ${userCount}`);
+    const ts = () => new Date().toISOString();
+    console.log(`\n${'─'.repeat(55)}`);
+    console.log(`[LOGIN][${ts()}] ▶ handleLoginUser called`);
+    console.log(`[LOGIN] emailAddress : ${emailAddress}`);
+    console.log(`[LOGIN] type         : ${type}`);
+    console.log(`[LOGIN] loginMethod  : ${loginMethod}`);
+    console.log(`${'─'.repeat(55)}`);
+    console
     let user;
 
     if (type == 'user') {
@@ -236,30 +251,61 @@ class AuthenticationService {
       });
     }
 
-    if (!user) throw new NotFoundError('User not found.');
+    if (!user) {
+      console.log(`[LOGIN] ❌ User not found in DB for: ${emailAddress}`);
+      throw new NotFoundError('User not found.');
+    }
+
+    console.log(`[LOGIN] ✅ User found in DB`);
+    console.log(`[LOGIN] userId          : ${user.id}`);
+    console.log(`[LOGIN] isEmailValid    : ${user.isEmailValid}`);
+    console.log(`[LOGIN] disableAccount  : ${user.disableAccount}`);
+    console.log(`[LOGIN] isDeleted       : ${user.isDeleted}`);
+    console.log(`[LOGIN] hasPassword     : ${!!user.password}`);
+    console.log(`[LOGIN] hasGoogleId     : ${!!user.googleId}`);
 
     // Authenticate based on loginMethod
     if (loginMethod === 'google') {
       if (!googleId || !user.googleId) {
-        if (!user.googleId) return 'googleConflict';
+        if (!user.googleId) {
+          console.log(`[LOGIN] ⚠️  googleConflict — no googleId on user record`);
+          return 'googleConflict';
+        }
+        console.log(`[LOGIN] ❌ No googleId provided in request — returning null`);
         return null;
       }
-      if (!(await bcrypt.compare(googleId, user.googleId))) return null;
+      const googleMatch = await bcrypt.compare(googleId, user.googleId);
+      console.log(`[LOGIN] Google ID match: ${googleMatch}`);
+      if (!googleMatch) return null;
     } else {
       // Default: password login
-      if (!password || !user.password) return null;
-      if (!(await bcrypt.compare(password, user.password))) return null;
+      if (!password || !user.password) {
+        console.log(`[LOGIN] ❌ Password missing — request password: ${!!password}, DB password: ${!!user.password}`);
+        return null;
+      }
+      const passwordMatch = await bcrypt.compare(password, user.password);
+      console.log(`[LOGIN] Password match  : ${passwordMatch}`);
+      if (!passwordMatch) return null;
     }
 
-    if (user.disableAccount) return 'disabled';
+    if (user.disableAccount) {
+      console.log(`[LOGIN] ❌ Account is disabled for: ${emailAddress}`);
+      return 'disabled';
+    }
 
     await user.update({ isOnline: true });
 
+    console.log(`[LOGIN] isEmailValid check → value from DB: ${user.isEmailValid} (strict === false: ${user.isEmailValid === false})`);
+
     if (user?.isEmailValid === false) {
+      console.log(`[LOGIN] ⚠️  Email NOT verified — sending OTP and blocking login`);
       const validateFor = 'user';
       await this.sendEmailVerificationCode(emailAddress, user.id, validateFor);
       return 'unverifiedEmail';
     }
+
+    console.log(`[LOGIN] ✅ Email is verified — proceeding to issue token`);
+    console.log(`${'─'.repeat(55)}\n`);
 
     if (!user?.passCode) {
       user.passCode = false;
