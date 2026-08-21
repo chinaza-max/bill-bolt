@@ -129,14 +129,15 @@ class SafeHavenGateway extends BaseGateway {
     amountControl,
     amount,
     callbackUrl,
-    externalReference
+    externalReference,
+    settlementAccount = null
   ) {
     await this.ensureToken();
 
     const url = `${this.apiUrl}/virtual-accounts`;
     const data = {
       validFor,
-      settlementAccount: {
+      settlementAccount: settlementAccount || {
         bankCode: serverConfig.SAVE_HEAVEN_BANK_CODE,
         accountNumber: serverConfig.SAVE_HEAVEN_ACCOUNT_NUMBER,
       },
@@ -158,9 +159,6 @@ class SafeHavenGateway extends BaseGateway {
 
       return response.data;
     } catch (error) {
-      console.log('virtual account error');
-
-      console.log(error);
       if (error.response?.status === 401) {
         await this.getAccessToken();
         return this.createVirtualAccount({
@@ -432,10 +430,6 @@ class SafeHavenGateway extends BaseGateway {
     };
 
     try {
-      console.log('data', data);
-      console.log('this.clientId', this.clientId);
-      console.log('this.accessToken', this.accessToken);
-
       const response = await axios.post(url, data, {
         headers: {
           Authorization: `Bearer ${this.accessToken}`,
@@ -444,8 +438,6 @@ class SafeHavenGateway extends BaseGateway {
           Accept: 'application/json',
         },
       });
-
-      console.log('response.data', response.data);
 
       return response.data;
     } catch (error) {
@@ -475,10 +467,6 @@ class SafeHavenGateway extends BaseGateway {
       narration: payload.narration || '',
       paymentReference: payload.paymentReference || '',
     };
-
-    console.log('api call');
-    console.log(data);
-    console.log('api call');
 
     try {
       const response = await axios.post(url, data, {

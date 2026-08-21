@@ -108,30 +108,21 @@ class IdentityService {
   }
 
   async handleLogin(obj) {
-
-    console.log("obj",obj)
   let data;
   try {
     data = await identityUtil.loginSchema.validateAsync(obj);
   } catch (err) {
-    console.error("VALIDATION FAILED:", err.message, err.details);
     throw err;
-  }   
+  }
 
-      console.log("data",data)
-
-
-   let client;
+  let client;
   try {
     client = await IdentityClient.findOne({
       where: { email: data.email, isDeleted: false },
     });
   } catch (err) {
-    console.error("DB QUERY FAILED:", err.message);
     throw err;
   }
-
-        console.log("client",client)
 
 
     if (!client) {
@@ -161,8 +152,6 @@ class IdentityService {
       serverConfig.ACCESS_TOKEN_SECRET,
       { expiresIn: '30d' }
     );
-
-    console.log("client",client)
 
     return {
       message: 'Login successful',
@@ -334,15 +323,23 @@ class IdentityService {
     const isProd = process.env.NODE_ENV === 'production';
 
     if (isProd) {
+      // Identity funding settles into DEBIT_ACCOUNT_NUMBER_IDENTITY,
+      // falling back to the default SAVE_HEAVEN_ACCOUNT_NUMBER if not set
+      const identitySettlementAccount = serverConfig.DEBIT_ACCOUNT_NUMBER_IDENTITY
+        ? {
+            bankCode: serverConfig.SAVE_HEAVEN_BANK_CODE,
+            accountNumber: serverConfig.DEBIT_ACCOUNT_NUMBER_IDENTITY,
+          }
+        : null; // null → gateway uses SAVE_HEAVEN_ACCOUNT_NUMBER as default
+
       const rawResult = await this.gateway.createVirtualAccount(
         validFor,
         'Fixed',
         amount,
         callbackUrl,
-        transactionId
+        transactionId,
+        identitySettlementAccount
       );
-
-      console.log("virtualAccountResultkkkkkk", rawResult);
 
       // SafeHaven returns an envelope: { statusCode, message, data: { _id, accountNumber, ... } }
       const account = rawResult?.data || rawResult;
