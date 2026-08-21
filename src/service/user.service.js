@@ -4719,7 +4719,6 @@ class UserService extends NotificationServicePush {
               accountName: 'chinaza ogbonna',
               sessionId: sessionIdVirtualAcct,
               amount: amount,
-              bankCode: '111023',
               countDown: 60,
               id: `dummy-${transactionId}`,
             };

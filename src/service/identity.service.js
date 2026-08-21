@@ -365,7 +365,6 @@ class IdentityService {
           bankName: account.bankName || 'SafeHaven MFB',
           accountNumber: account.accountNumber,
           accountName: account.accountName,
-          bankCode: account.bankCode,
           amount: amount,
           expiresInSeconds: account.validFor || validFor,
           expiryDate: account.expiryDate || null,
@@ -380,7 +379,6 @@ class IdentityService {
           bankName: account.bankName || 'SafeHaven MFB',
           accountNumber: account.accountNumber,
           accountName: account.accountName,
-          bankCode: account.bankCode,
           amount: amount,
           expiresInSeconds: account.validFor || validFor,
           expiryDate: account.expiryDate || null,
@@ -400,7 +398,6 @@ class IdentityService {
         accountName: `BILLBOLT - ${client.companyName}`,
         sessionId: sessionIdVirtualAcct,
         amount: amount,
-        bankCode: '090286',
         countDown: validFor,
         id: `dummy-${transactionId}`,
       };
