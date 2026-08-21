@@ -134,13 +134,17 @@ class SafeHavenGateway extends BaseGateway {
   ) {
     await this.ensureToken();
 
+    const activeSettlementAccount = settlementAccount || {
+      bankCode: serverConfig.SAVE_HEAVEN_BANK_CODE,
+      accountNumber: serverConfig.SAVE_HEAVEN_ACCOUNT_NUMBER,
+    };
+
+    console.log('[SafeHaven Gateway] Funding settlementAccount in use:', activeSettlementAccount);
+
     const url = `${this.apiUrl}/virtual-accounts`;
     const data = {
       validFor,
-      settlementAccount: settlementAccount || {
-        bankCode: serverConfig.SAVE_HEAVEN_BANK_CODE,
-        accountNumber: serverConfig.SAVE_HEAVEN_ACCOUNT_NUMBER,
-      },
+      settlementAccount: activeSettlementAccount,
       amountControl,
       amount,
       callbackUrl,
