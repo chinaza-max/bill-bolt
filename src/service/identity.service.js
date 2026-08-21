@@ -53,7 +53,7 @@ class IdentityService {
 
     await mailService.sendMail({
       to: client.email,
-      subject: 'Email Verification – BillBolt Identity',
+      subject: 'Email Verification – fidopoint Identity',
       templateName: 'emailVerificationCode',
       variables: {
         verificationCode: otp,
@@ -108,11 +108,31 @@ class IdentityService {
   }
 
   async handleLogin(obj) {
-    const data = await identityUtil.loginSchema.validateAsync(obj);
 
-    const client = await IdentityClient.findOne({
+    console.log("obj",obj)
+  let data;
+  try {
+    data = await identityUtil.loginSchema.validateAsync(obj);
+  } catch (err) {
+    console.error("VALIDATION FAILED:", err.message, err.details);
+    throw err;
+  }   
+
+      console.log("data",data)
+
+
+   let client;
+  try {
+    client = await IdentityClient.findOne({
       where: { email: data.email, isDeleted: false },
     });
+  } catch (err) {
+    console.error("DB QUERY FAILED:", err.message);
+    throw err;
+  }
+
+        console.log("client",client)
+
 
     if (!client) {
       throw new UnAuthorizedError('Invalid email or password.');
@@ -141,6 +161,8 @@ class IdentityService {
       serverConfig.ACCESS_TOKEN_SECRET,
       { expiresIn: '30d' }
     );
+
+    console.log("client",client)
 
     return {
       message: 'Login successful',

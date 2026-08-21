@@ -419,7 +419,10 @@ this.sequelize.query(disableForeignKeyChecks)
           \`apiKey\` VARCHAR(255) NOT NULL UNIQUE,
           \`walletBalance\` DOUBLE NOT NULL DEFAULT 0.0,
           \`webhookUrl\` VARCHAR(500) NULL,
-          \`status\` ENUM('active', 'inactive', 'suspended') NOT NULL DEFAULT 'active',
+          \`isEmailVerified\` TINYINT(1) NOT NULL DEFAULT 0,
+          \`emailOtp\` VARCHAR(255) NULL,
+          \`emailOtpExpiresAt\` DATETIME NULL,
+          \`status\` ENUM('active', 'inactive', 'suspended', 'pending') NOT NULL DEFAULT 'pending',
           \`isDeleted\` TINYINT(1) NOT NULL DEFAULT 0,
           \`createdAt\` DATETIME NOT NULL,
           \`updatedAt\` DATETIME NOT NULL
@@ -428,6 +431,34 @@ this.sequelize.query(disableForeignKeyChecks)
       console.log('[DB Alter] IdentityClient table created (or already exists)');
     } catch (err) {
       console.error('[DB Alter] Error creating IdentityClient table:', err.message);
+    }
+
+    // ─── IDENTITY CLIENT: Add missing columns ─────────────────────────
+    const identityClientColumnsToAdd = [
+      { name: 'isEmailVerified', definition: 'TINYINT(1) NOT NULL DEFAULT 0' },
+      { name: 'emailOtp', definition: 'VARCHAR(255) NULL' },
+      { name: 'emailOtpExpiresAt', definition: 'DATETIME NULL' },
+    ];
+
+    for (const col of identityClientColumnsToAdd) {
+      try {
+        await this.sequelize.query(
+          `ALTER TABLE \`IdentityClient\` ADD \`${col.name}\` ${col.definition};`
+        );
+        console.log(`[DB Alter] Added IdentityClient.${col.name}`);
+      } catch (err) {
+        if (err.original?.errno !== 1060 && !err.message.includes('Duplicate column')) {
+          console.error(`[DB Alter] Error adding IdentityClient.${col.name}:`, err.message);
+        }
+      }
+    }
+
+    try {
+      await this.sequelize.query(
+        "ALTER TABLE `IdentityClient` MODIFY COLUMN `status` ENUM('active', 'inactive', 'suspended', 'pending') NOT NULL DEFAULT 'pending';"
+      );
+    } catch (err) {
+      console.error('[DB Alter] Error modifying IdentityClient.status column:', err.message);
     }
 
     // ─── IDENTITY VERIFICATION: Create IdentityTransaction table ─────
