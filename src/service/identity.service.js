@@ -334,7 +334,7 @@ class IdentityService {
     const isProd = process.env.NODE_ENV === 'production';
 
     if (isProd) {
-      virtualAccountResult = await this.gateway.createVirtualAccount(
+      const rawResult = await this.gateway.createVirtualAccount(
         validFor,
         'Fixed',
         amount,
@@ -342,7 +342,16 @@ class IdentityService {
         transactionId
       );
 
-      console.log("virtualAccountResultkkkkkk", virtualAccountResult);
+      console.log("virtualAccountResultkkkkkk", rawResult);
+
+      // SafeHaven returns an envelope: { statusCode, message, data: { _id, accountNumber, ... } }
+      const account = rawResult?.data || rawResult;
+
+      if (!account || !account.accountNumber) {
+        throw new BadRequestError(
+          `Virtual account creation failed. Provider response: ${JSON.stringify(rawResult)}`
+        );
+      }
 
       await IdentityTransaction.create({
         clientId: client.id,
@@ -353,15 +362,16 @@ class IdentityService {
         previousBalance: client.walletBalance,
         newBalance: client.walletBalance, // will update on successful payment webhook
         paymentStatus: 'pending',
-        virtualAccountId: virtualAccountResult.id,
+        virtualAccountId: account._id || account.id || transactionId,
         sessionIdVirtualAcct,
         virtualAccountDetails: {
-          bankName: virtualAccountResult.bankName,
-          accountNumber: virtualAccountResult.accountNumber,
-          accountName: virtualAccountResult.accountName,
-          bankCode: virtualAccountResult.bankCode,
+          bankName: account.bankName || 'SafeHaven MFB',
+          accountNumber: account.accountNumber,
+          accountName: account.accountName,
+          bankCode: account.bankCode,
           amount: amount,
-          expiresInSeconds: validFor,
+          expiresInSeconds: account.validFor || validFor,
+          expiryDate: account.expiryDate || null,
         },
       });
 
@@ -370,12 +380,13 @@ class IdentityService {
           'Virtual account generated for wallet funding. Transfer funds to complete.',
         transactionId,
         virtualAccount: {
-          bankName: virtualAccountResult.bankName,
-          accountNumber: virtualAccountResult.accountNumber,
-          accountName: virtualAccountResult.accountName,
-          bankCode: virtualAccountResult.bankCode,
+          bankName: account.bankName || 'SafeHaven MFB',
+          accountNumber: account.accountNumber,
+          accountName: account.accountName,
+          bankCode: account.bankCode,
           amount: amount,
-          expiresInSeconds: validFor,
+          expiresInSeconds: account.validFor || validFor,
+          expiryDate: account.expiryDate || null,
         },
       };
     } else {
