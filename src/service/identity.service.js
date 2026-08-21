@@ -342,7 +342,7 @@ class IdentityService {
         transactionId
       );
 
-      console.log("virtualAccountResult", virtualAccountResult);
+      console.log("virtualAccountResultkkkkkk", virtualAccountResult);
 
       await IdentityTransaction.create({
         clientId: client.id,
