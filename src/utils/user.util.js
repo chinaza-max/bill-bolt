@@ -225,6 +225,8 @@ class UserUtil {
     isOnline: Joi.boolean().allow(null).optional(),
     merchantActivated: Joi.boolean().allow(null).optional(),
     country: Joi.string().allow('', null).optional(),
+    isEmailValid: Joi.boolean().allow(null).optional(),
+    isEmailVerified: Joi.boolean().allow(null).optional(),
   });
 
   verifyHandleGetUsersData = Joi.object({

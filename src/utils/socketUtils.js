@@ -118,6 +118,9 @@ export const configureSocket = (io) => {
       socket.userId = userId;
       socket.data.userId = userId;
       console.log(`👤 User ${userId} joined personal room: ${room}`);
+      console.log(`👤 User ${userId} joined personal room: ${room}`);
+      console.log(`👤 User ${userId} joined personal room: ${room}`);
+      console.log(`👤 User ${userId} joined personal room: ${room}`);
 
       // Update online status in Database and broadcast event
       try {
@@ -128,43 +131,7 @@ export const configureSocket = (io) => {
       }
     });
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // UPDATED: Call handlers — now use user rooms instead of order rooms
-    // ─────────────────────────────────────────────────────────────────────────
 
-    /*
-    socket.on(
-      'initiateCall',
-      ({ orderId, callerId, callerName, callerAvatar, receiverId }) => {
-        const receiverRoom = `user_${receiverId}`;
-        const isOnline =
-          (io.sockets.adapter.rooms.get(receiverRoom)?.size || 0) > 0;
-
-        console.log(
-          `📞 Call: ${callerId} → ${receiverId} | room: ${receiverRoom} | online: ${isOnline}`
-        );
-
-        if (!isOnline) {
-          // Tell the caller the receiver is offline
-          socket.emit('receiverOffline', { orderId, receiverId });
-          console.log(`❌ Receiver ${receiverId} is offline`);
-          return;
-        }
-
-        // Store call context so callEnded knows who to notify
-        socket.data.activeCall = { orderId, callerId, receiverId };
-
-        // Route call to receiver's personal room — works on any page
-        io.to(receiverRoom).emit('incomingCall', {
-          orderId,
-          callerId,
-          callerName,
-          callerAvatar,
-        });
-      }
-    );
-
-    */
 
     socket.on(
       'initiateCall',
@@ -259,7 +226,6 @@ export const configureSocket = (io) => {
 
     socket.on('callDeclined', ({ orderId, callerId, declinedBy }) => {
       console.log(`🚫 Call declined in order ${orderId} by ${declinedBy}`);
-      // Notify caller via their personal room
       io.to(`user_${callerId}`).emit('callDeclined', {
         orderId,
         callerId,
@@ -273,6 +239,11 @@ export const configureSocket = (io) => {
 
     socket.on('disconnect', async () => {
       console.log(`User disconnected: ${socket.id}`);
+            console.log(`User disconnected: ${socket.id}`);
+      console.log(`User disconnected: ${socket.id}`);
+      console.log(`User disconnected: ${socket.id}`);
+      console.log(`User disconnected: ${socket.id}`);
+
       const userId = socket.userId || socket.data?.userId;
 
       if (userId) {

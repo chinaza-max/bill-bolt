@@ -475,8 +475,7 @@ class UserService extends NotificationServicePush {
       } catch (permError) {
         await this.deleteDriveFile(drive, fileId);
         throw new Error(
-          `Failed to make file public: ${
-            permError?.response?.data?.error?.message || permError.message
+          `Failed to make file public: ${permError?.response?.data?.error?.message || permError.message
           }`
         );
       }
@@ -715,16 +714,16 @@ class UserService extends NotificationServicePush {
   async handleTestInitiateNINVerify(obj) {
 
 
-      // 13. Load gateway
+    // 13. Load gateway
     await this.loadGateWay('safeHaven.gateway');
 
 
 
-      const data = await userUtil.testHandleInitiateNINVerify.validateAsync(
-        obj
-      );
+    const data = await userUtil.testHandleInitiateNINVerify.validateAsync(
+      obj
+    );
 
-      //      transferResponse = await this.gateway.initiateTransfer({
+    //      transferResponse = await this.gateway.initiateTransfer({
 
     const result = await this.gateway.initiateVerification({
       type: data.type,
@@ -739,13 +738,13 @@ class UserService extends NotificationServicePush {
   async handleTestVerifyNIN(obj) {
 
     await this.loadGateWay('safeHaven.gateway');
-    
+
     const data = await userUtil.testHandleVerifyNIN.validateAsync(obj);
 
     const result = await this.gateway.validateVerification({
       identityId: data.identityId,
       type: data.type,
-      otp: data.otp,  
+      otp: data.otp,
     });
 
     return result;
@@ -1587,15 +1586,15 @@ class UserService extends NotificationServicePush {
         createdAt: order.createdAt,
         client: order.OrderClient
           ? {
-              id: order.OrderClient.id,
-              name: `${order.OrderClient.firstName} ${order.OrderClient.lastName}`,
-              image: order.OrderClient.imageUrl || null,
-              tel: order.OrderClient.tel || null,
-              coordinates: {
-                lat: order.OrderClient.lat,
-                lng: order.OrderClient.lng,
-              },
-            }
+            id: order.OrderClient.id,
+            name: `${order.OrderClient.firstName} ${order.OrderClient.lastName}`,
+            image: order.OrderClient.imageUrl || null,
+            tel: order.OrderClient.tel || null,
+            coordinates: {
+              lat: order.OrderClient.lat,
+              lng: order.OrderClient.lng,
+            },
+          }
           : null,
       }));
 
@@ -2001,166 +2000,6 @@ class UserService extends NotificationServicePush {
       return null;
     }
   }
-  /*
-  async handleGetUsers(data) {
-    const { type, page, limit } =
-      await userUtil.verifyHandleGetUsers.validateAsync(data);
-
-    try {
-      const offset = (page - 1) * limit;
-
-      let whereCondition = {};
-
-      const includeConditions = [
-        {
-          model: Orders,
-          as: 'ClientOrder',
-          required: false,
-        },
-        {
-          model: Orders,
-          as: 'MerchantOrder',
-          required: false,
-        },
-        {
-          model: MerchantProfile,
-          as: 'MerchantProfile',
-          required: type === 'merchant',
-        },
-      ];
-
-
-      const totalUsers = await this.UserModel.count({
-        where: whereCondition,
-        include:
-          type === 'merchant'
-            ? [
-                {
-                  model: MerchantProfile,
-                  as: 'MerchantProfile',
-                  required: true,
-                },
-              ]
-            : [],
-        distinct: true,
-      });
-
-      const activeUsers = await this.UserModel.count({
-        where: {
-          ...whereCondition,
-          isOnline: true,
-        },
-        include: [
-          {
-            model: MerchantProfile,
-            as: 'MerchantProfile',
-            required: true,
-            where: {
-              accountStatus: 'active',
-              isDeleted: false,
-              disableAccount: false,
-            },
-          },
-        ],
-        distinct: true,
-      });
-
-      const newUsersThisMonth = await this.UserModel.count({
-        where: {
-          ...whereCondition,
-          createdAt: {
-            [Op.gte]: new Date(new Date().setDate(1)),
-          },
-        },
-        include:
-          type === 'merchant'
-            ? [
-                {
-                  model: MerchantProfile,
-                  as: 'MerchantProfile',
-                  required: true,
-                },
-              ]
-            : [],
-        distinct: true,
-      });
-
-
-      const users = await this.UserModel.findAll({
-        where: whereCondition,
-        limit,
-        offset,
-        order: [['createdAt', 'DESC']],
-        attributes: [
-          'id',
-          'imageUrl',
-          'emailAddress',
-          'firstName',
-          'lastName',
-          'walletBalance',
-          'createdAt',
-          'disableAccount',
-          'merchantActivated',
-          'tel',
-          'isOnline',
-          'lat',
-          'lng',
-          'updatedAt',
-        ],
-        include: includeConditions,
-        distinct: true,
-      });
-
-      const userData = users.map((user) => {
-        const parsedWallet = this.safeParse(user.walletBalance);
-
-        return {
-          id: user.id,
-          avatar:
-            type === 'merchant' && user.MerchantProfile
-              ? user.MerchantProfile.imageUrl
-              : user.imageUrl,
-          email: user.emailAddress,
-          name:
-            type === 'merchant' && user.MerchantProfile
-              ? `${user.firstName} ${user.lastName} (${user.MerchantProfile.displayName})`
-              : `${user.firstName} ${user.lastName}`,
-          walletBalance: parsedWallet.current,
-          orders:
-            (user.ClientOrder?.length || 0) + (user.MerchantOrder?.length || 0),
-          dateJoined: user.createdAt,
-          accountStatus: user.disableAccount ? 'Disabled' : 'Active',
-          merchantStatus: !!user.MerchantProfile,
-          merchantAccountStatus: user?.MerchantProfile?.accountStatus || null,
-          tel: user.tel,
-          isOnline: user.isOnline,
-          lat: user.lat,
-          lng: user.lng,
-          updatedAt: user.updatedAt,
-        };
-      });
-
-
-      return {
-        meta: {
-          page,
-          limit,
-          totalUsers,
-          totalPages: Math.ceil(totalUsers / limit),
-        },
-        stats: {
-          totalUsers,
-          activeUsers,
-          newUsersThisMonth,
-        },
-        users: userData,
-      };
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-      throw new SystemError(error.name, error.parent);
-    }
-  }
-  */
 
   async handleGetUsers(data) {
     const {
@@ -2172,6 +2011,8 @@ class UserService extends NotificationServicePush {
       isOnline,
       merchantActivated,
       country,
+      isEmailValid,
+      isEmailVerified,
     } = await userUtil.verifyHandleGetUsers.validateAsync(data);
 
     try {
@@ -2195,6 +2036,12 @@ class UserService extends NotificationServicePush {
         whereCondition.merchantActivated = merchantActivated;
       if (country) whereCondition.country = { [Op.like]: `%${country}%` };
 
+      const emailValidationFilter =
+        isEmailValid !== undefined ? isEmailValid : isEmailVerified;
+      if (emailValidationFilter !== undefined && emailValidationFilter !== null) {
+        whereCondition.isEmailValid = emailValidationFilter;
+      }
+
       const includeConditions = [
         { model: Orders, as: 'ClientOrder', required: false },
         { model: Orders, as: 'MerchantOrder', required: false },
@@ -2210,12 +2057,12 @@ class UserService extends NotificationServicePush {
         include:
           type === 'merchant'
             ? [
-                {
-                  model: MerchantProfile,
-                  as: 'MerchantProfile',
-                  required: true,
-                },
-              ]
+              {
+                model: MerchantProfile,
+                as: 'MerchantProfile',
+                required: true,
+              },
+            ]
             : [],
         distinct: true,
       });
@@ -2245,12 +2092,12 @@ class UserService extends NotificationServicePush {
         include:
           type === 'merchant'
             ? [
-                {
-                  model: MerchantProfile,
-                  as: 'MerchantProfile',
-                  required: true,
-                },
-              ]
+              {
+                model: MerchantProfile,
+                as: 'MerchantProfile',
+                required: true,
+              },
+            ]
             : [],
         distinct: true,
       });
@@ -2266,6 +2113,7 @@ class UserService extends NotificationServicePush {
           'id',
           'imageUrl',
           'emailAddress',
+          'isEmailValid',
           'firstName',
           'lastName',
           'walletBalance',
@@ -2297,6 +2145,8 @@ class UserService extends NotificationServicePush {
               ? user.MerchantProfile.imageUrl
               : user.imageUrl,
           email: user.emailAddress,
+          isEmailValid: user.isEmailValid,
+          isEmailVerified: user.isEmailValid,
           name:
             type === 'merchant' && user.MerchantProfile
               ? `${user.firstName} ${user.lastName} (${user.MerchantProfile.displayName})`
@@ -2429,23 +2279,23 @@ class UserService extends NotificationServicePush {
         tel: user.tel,
         bankDetails: user.bankName
           ? {
-              bankName: user.bankName,
-              bankCode: user.bankCode,
-              settlementAccount: user.settlementAccount,
-            }
+            bankName: user.bankName,
+            bankCode: user.bankCode,
+            settlementAccount: user.settlementAccount,
+          }
           : null,
         merchantProfile: user.MerchantProfile
           ? {
-              id: user.MerchantProfile.id,
-              displayName: user.MerchantProfile.displayName,
-              tel: user.MerchantProfile.tel,
-              imageUrl: user.MerchantProfile.imageUrl,
-              accountTier: user.MerchantProfile.accountTier,
-              accountStatus: user.MerchantProfile.accountStatus,
-              deliveryRange: user.MerchantProfile.deliveryRange,
-              walletBalance: user.MerchantProfile.walletBalance,
-              disableAccount: user.MerchantProfile.disableAccount,
-            }
+            id: user.MerchantProfile.id,
+            displayName: user.MerchantProfile.displayName,
+            tel: user.MerchantProfile.tel,
+            imageUrl: user.MerchantProfile.imageUrl,
+            accountTier: user.MerchantProfile.accountTier,
+            accountStatus: user.MerchantProfile.accountStatus,
+            deliveryRange: user.MerchantProfile.deliveryRange,
+            walletBalance: user.MerchantProfile.walletBalance,
+            disableAccount: user.MerchantProfile.disableAccount,
+          }
           : null,
         state: user.state,
       };
@@ -2722,12 +2572,12 @@ class UserService extends NotificationServicePush {
         createdAt: c.createdAt,
         user: c.ComplaintUser
           ? {
-              id: c.ComplaintUser.id,
-              name: `${c.ComplaintUser.firstName} ${c.ComplaintUser.lastName}`,
-              email: c.ComplaintUser.emailAddress,
-              image: c.ComplaintUser.imageUrl,
-              tel: c.ComplaintUser.tel,
-            }
+            id: c.ComplaintUser.id,
+            name: `${c.ComplaintUser.firstName} ${c.ComplaintUser.lastName}`,
+            email: c.ComplaintUser.emailAddress,
+            image: c.ComplaintUser.imageUrl,
+            tel: c.ComplaintUser.tel,
+          }
           : null,
       }));
 
@@ -3127,7 +2977,7 @@ class UserService extends NotificationServicePush {
       throw new SystemError(
         'TransferFailed',
         'We were unable to dispense your withdrawal at this time. Please reach out to our support team and quote reference: ' +
-          paymentReference
+        paymentReference
       );
     }
 
@@ -3341,17 +3191,17 @@ class UserService extends NotificationServicePush {
         counterparty:
           userType === 'merchant'
             ? {
-                id: order.OrderClient?.id,
-                name: `${order.OrderClient?.firstName} ${order.OrderClient?.lastName}`,
-                image: order.OrderClient?.imageUrl || null,
-              }
+              id: order.OrderClient?.id,
+              name: `${order.OrderClient?.firstName} ${order.OrderClient?.lastName}`,
+              image: order.OrderClient?.imageUrl || null,
+            }
             : {
-                id: order.OrderMerchant?.id,
-                name:
-                  order.OrderMerchant?.MerchantProfile?.displayName ||
-                  `${order.OrderMerchant?.firstName} ${order.OrderMerchant?.lastName}`,
-                image: order.OrderMerchant?.MerchantProfile?.imageUrl || null,
-              },
+              id: order.OrderMerchant?.id,
+              name:
+                order.OrderMerchant?.MerchantProfile?.displayName ||
+                `${order.OrderMerchant?.firstName} ${order.OrderMerchant?.lastName}`,
+              image: order.OrderMerchant?.MerchantProfile?.imageUrl || null,
+            },
       }));
 
       return {
@@ -3866,10 +3716,10 @@ class UserService extends NotificationServicePush {
       const dateFilter =
         startDate && endDate
           ? {
-              createdAt: {
-                [Op.between]: [new Date(startDate), new Date(endDate)],
-              },
-            }
+            createdAt: {
+              [Op.between]: [new Date(startDate), new Date(endDate)],
+            },
+          }
           : {};
 
       // Query transactions
@@ -3905,20 +3755,20 @@ class UserService extends NotificationServicePush {
         transactionType: transaction.transactionType,
         orderDetails: transaction.Order
           ? {
-              id: transaction.Order.id,
-              amountOrder: transaction.Order.amountOrder,
-              totalAmount: transaction.Order.totalAmount,
-              orderStatus: transaction.Order.orderStatus,
-            }
+            id: transaction.Order.id,
+            amountOrder: transaction.Order.amountOrder,
+            totalAmount: transaction.Order.totalAmount,
+            orderStatus: transaction.Order.orderStatus,
+          }
           : null,
         merchantDetails: transaction.Order?.Merchant
           ? {
-              firstName: transaction.Order.merchantOrder.firstName,
-              lastName: transaction.Order.merchantOrder.lastName,
-              emailAddress: transaction.Order.merchantOrder.emailAddress,
-              tel: transaction.Order.merchantOrder.tel,
-              profile: transaction.Order.merchantOrder.MerchantProfile || null,
-            }
+            firstName: transaction.Order.merchantOrder.firstName,
+            lastName: transaction.Order.merchantOrder.lastName,
+            emailAddress: transaction.Order.merchantOrder.emailAddress,
+            tel: transaction.Order.merchantOrder.tel,
+            profile: transaction.Order.merchantOrder.MerchantProfile || null,
+          }
           : null,
       }));
     } catch (error) {
@@ -3943,10 +3793,10 @@ class UserService extends NotificationServicePush {
       const dateFilter =
         startDate && endDate
           ? {
-              createdAt: {
-                [Op.between]: [new Date(startDate), new Date(endDate)],
-              },
-            }
+            createdAt: {
+              [Op.between]: [new Date(startDate), new Date(endDate)],
+            },
+          }
           : {};
 
       // Query transactions with pagination and latest-first ordering
@@ -4023,10 +3873,10 @@ class UserService extends NotificationServicePush {
       const dateFilter =
         startDate && endDate
           ? {
-              createdAt: {
-                [Op.between]: [new Date(startDate), new Date(endDate)],
-              },
-            }
+            createdAt: {
+              [Op.between]: [new Date(startDate), new Date(endDate)],
+            },
+          }
           : {};
 
       // Query transactions
@@ -4073,21 +3923,21 @@ class UserService extends NotificationServicePush {
         transactionType: transaction.transactionType,
         orderDetails: transaction.OrderTransaction
           ? {
-              id: transaction.OrderTransaction.orderId,
-              amountOrder: transaction.OrderTransaction.amountOrder,
-              totalAmount: transaction.OrderTransaction.totalAmount,
-              orderStatus: transaction.OrderTransaction.orderStatus,
-            }
+            id: transaction.OrderTransaction.orderId,
+            amountOrder: transaction.OrderTransaction.amountOrder,
+            totalAmount: transaction.OrderTransaction.totalAmount,
+            orderStatus: transaction.OrderTransaction.orderStatus,
+          }
           : null,
         merchantDetails: transaction.OrderTransaction?.OrderMerchant
           .MerchantProfile
           ? {
-              name: transaction.OrderTransaction.OrderMerchant.MerchantProfile
-                .displayName,
-              imageUrl:
-                transaction.OrderTransaction.OrderMerchant.MerchantProfile
-                  .imageUrl,
-            }
+            name: transaction.OrderTransaction.OrderMerchant.MerchantProfile
+              .displayName,
+            imageUrl:
+              transaction.OrderTransaction.OrderMerchant.MerchantProfile
+                .imageUrl,
+          }
           : null,
       }));
     } catch (error) {
@@ -5652,9 +5502,9 @@ class UserService extends NotificationServicePush {
           // Determine distance threshold for this merchant
           const currentThreshold = merchant.MerchantProfile?.deliveryRange
             ? Math.max(
-                merchant.MerchantProfile.deliveryRange,
-                distanceThreshold
-              )
+              merchant.MerchantProfile.deliveryRange,
+              distanceThreshold
+            )
             : distanceThreshold;
 
           const distance = this.calculateDistance(
@@ -5682,8 +5532,7 @@ class UserService extends NotificationServicePush {
           console.log(`       📏 Distance: ${distance.toFixed(2)} km`);
           console.log(`       🎯 Threshold: ${currentThreshold} km`);
           console.log(
-            `       ${
-              distance <= currentThreshold ? '✅ MATCHED' : '❌ OUT OF RANGE'
+            `       ${distance <= currentThreshold ? '✅ MATCHED' : '❌ OUT OF RANGE'
             }`
           );
 
@@ -5789,8 +5638,8 @@ class UserService extends NotificationServicePush {
     const a =
       Math.sin(dLat / 2) ** 2 +
       Math.cos(toRadians(lat1)) *
-        Math.cos(toRadians(lat2)) *
-        Math.sin(dLng / 2) ** 2;
+      Math.cos(toRadians(lat2)) *
+      Math.sin(dLng / 2) ** 2;
 
     const EARTH_RADIUS_METERS = 6371000; // Earth's radius in meters
 
@@ -6734,8 +6583,7 @@ class UserService extends NotificationServicePush {
       });
       if (existing) {
         throw new ConflictError(
-          `Denomination ${denominationData.value} ${
-            denominationData.currency || 'NGN'
+          `Denomination ${denominationData.value} ${denominationData.currency || 'NGN'
           } already exists`
         );
       }
@@ -7084,9 +6932,9 @@ class UserService extends NotificationServicePush {
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(toRad(lat1)) *
-        Math.cos(toRad(lat2)) *
-        Math.sin(dLng / 2) *
-        Math.sin(dLng / 2);
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c; // Distance in meters
   }
@@ -7532,9 +7380,8 @@ class UserService extends NotificationServicePush {
             merchantUser.fcmToken,
             {
               title: 'New Special Withdrawal Request 💵',
-              body: `${
-                clientUser?.firstName || 'A customer'
-              } requests ₦${amount} in ₦${costs.denomination.value} notes.`,
+              body: `${clientUser?.firstName || 'A customer'
+                } requests ₦${amount} in ₦${costs.denomination.value} notes.`,
             },
             {
               type: event.SW_NEW_REQUEST,
@@ -7635,9 +7482,8 @@ class UserService extends NotificationServicePush {
           await this._swRefundClient(request, sequelize, reason, 'rejected');
           await this._swNotifyUser(request.clientId, {
             title: 'Request Rejected ❌',
-            body: `Your Special Withdrawal request was rejected.${
-              reason ? ' Reason: ' + reason : ''
-            } Your money has been refunded to your wallet.`,
+            body: `Your Special Withdrawal request was rejected.${reason ? ' Reason: ' + reason : ''
+              } Your money has been refunded to your wallet.`,
             eventType: event.SW_REQUEST_REJECTED,
             requestId: request.id,
             sendto: user_type.CLIENT,
@@ -7703,9 +7549,8 @@ class UserService extends NotificationServicePush {
           });
           await this._swNotifyUser(request.merchantId, {
             title: 'Transaction Settled ✅💰',
-            body: `Special Withdrawal completed. ₦${
-              request.merchantCharge + request.transportationCharge
-            } has been credited to your wallet.`,
+            body: `Special Withdrawal completed. ₦${request.merchantCharge + request.transportationCharge
+              } has been credited to your wallet.`,
             eventType: event.SW_REQUEST_COMPLETED,
             requestId: request.id,
             sendto: user_type.MERCHANT,
@@ -7834,11 +7679,11 @@ class UserService extends NotificationServicePush {
 
 
       merchantPayout =
-  Number(request.amount) +
-  Number(request.merchantCharge) +
-  Number(request.transportationCharge) -
-  Number(request.companyCharge);
-platformRevenue = Number(request.companyCharge);
+        Number(request.amount) +
+        Number(request.merchantCharge) +
+        Number(request.transportationCharge) -
+        Number(request.companyCharge);
+      platformRevenue = Number(request.companyCharge);
       // Credit merchant wallet
       const merchant = await this.UserModel.findByPk(request.merchantId, {
         transaction: t,
