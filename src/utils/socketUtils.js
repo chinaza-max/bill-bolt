@@ -122,12 +122,31 @@ export const configureSocket = (io) => {
       console.log(`👤 User ${userId} joined personal room: ${room}`);
       console.log(`👤 User ${userId} joined personal room: ${room}`);
 
-      // Update online status in Database and broadcast event
       try {
         await User.update({ isOnline: true }, { where: { id: userId } });
         io.emit('userStatusChanged', { userId, isOnline: true });
       } catch (err) {
         console.error('Error updating user online status:', err.message);
+      }
+    });
+
+    socket.on('leaveUserRoom', async ({ userId }) => {
+      const uid = userId || socket.userId || socket.data?.userId;
+      if (!uid) return;
+      const room = `user_${uid}`;
+      socket.leave(room);
+
+      const roomSockets = io.sockets.adapter.rooms.get(room);
+      const activeConnections = roomSockets ? roomSockets.size : 0;
+
+      if (activeConnections === 0) {
+        try {
+          await User.update({ isOnline: false }, { where: { id: uid } });
+          io.emit('userStatusChanged', { userId: uid, isOnline: false });
+          console.log(`🔴 User ${uid} left personal room and is marked offline`);
+        } catch (err) {
+          console.error('Error updating user offline status on leaveUserRoom:', err.message);
+        }
       }
     });
 
