@@ -185,11 +185,15 @@ class Server {
     configureSocket(io);
   }
   loadCronJobs() {
-    cron.schedule('*/10  * * * * *', async () => {
+    cron.schedule('*/10 * * * *', async () => {
       if (process.env.NODE_ENV === 'production') {
-        userService.makeMatch();
+        try {
+          await userService.makeMatch();
+        } catch (err) {
+          console.error('Error during scheduled makeMatch:', err?.message || err);
+        }
       } else {
-        //userService.makeMatch();
+        // userService.makeMatch();
       }
     });
 

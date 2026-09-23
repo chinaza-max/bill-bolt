@@ -5381,6 +5381,10 @@ class UserService extends NotificationServicePush {
 
   async makeMatch() {
     const setting = await this.SettingModel.findByPk(1);
+    if (!setting) {
+      console.warn('⚠️ Setting record with id 1 not found in makeMatch');
+      return;
+    }
 
     const startedAt = setting.matchStartedAt
       ? new Date(setting.matchStartedAt)
@@ -5391,16 +5395,22 @@ class UserService extends NotificationServicePush {
 
     try {
       // Check if match process is running
-      if (setting.isMatchRunning && diffMinutes > 15) {
-        await this.SettingModel.update(
-          { isMatchRunning: false, matchStartedAt: null },
-          { where: { id: 1 } }
-        );
+      if (setting.isMatchRunning) {
+        if (diffMinutes !== null && diffMinutes > 15) {
+          await this.SettingModel.update(
+            { isMatchRunning: false, matchStartedAt: null },
+            { where: { id: 1 } }
+          );
+          console.log('🧹 Reset stuck match state.');
+        } else {
+          console.log('⏳ Match process is already running, skipping overlapping execution.');
+          return;
+        }
       }
 
       setting.isMatchRunning = true;
       setting.matchStartedAt = new Date();
-      setting.save();
+      await setting.save();
 
       let distanceThreshold = setting.distanceThreshold || 10; //km
 
@@ -5604,30 +5614,36 @@ class UserService extends NotificationServicePush {
         console.log(`   ✅ Inserted ${toInsert.length} new matches`);
       }
 
-      // Perform bulk update
+      // Perform bulk update in sequence to avoid pool exhaustion
       if (toUpdate.length > 0) {
-        await Promise.all(
-          toUpdate.map((entry) =>
-            this.MymatchModel.update(
-              { matches: entry.matches },
-              { where: { id: entry.id } }
-            )
-          )
-        );
+        for (const entry of toUpdate) {
+          await this.MymatchModel.update(
+            { matches: entry.matches },
+            { where: { id: entry.id } }
+          );
+        }
         console.log(`   ✅ Updated ${toUpdate.length} existing matches`);
       }
 
       setting.isMatchRunning = false;
-      setting.save();
+      await setting.save();
       console.log('\n✅ User-Merchant matching completed successfully.');
     } catch (error) {
       console.error('❌ Error during matching:', error);
-      setting.isMatchRunning = false;
-      setting.save();
-      throw new SystemError(error.name, error?.response?.data?.error);
+      try {
+        setting.isMatchRunning = false;
+        await setting.save();
+      } catch (saveErr) {
+        console.error('Failed to reset isMatchRunning:', saveErr.message);
+      }
+      throw new SystemError(error.name, error?.response?.data?.error || error?.message);
     } finally {
-      setting.isMatchRunning = false;
-      setting.save();
+      try {
+        setting.isMatchRunning = false;
+        await setting.save();
+      } catch (saveErr) {
+        // ignore
+      }
     }
   }
   calculateDistance(lat1, lng1, lat2, lng2) {

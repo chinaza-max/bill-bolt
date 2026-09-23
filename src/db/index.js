@@ -21,18 +21,19 @@ class DB {
         database: serverConfig.DB_NAME,
         logQueryParameters: true,
         /*
-      dialectOptions: {
-        ssl: {
-          ca: fs.readFileSync('./certs/aiven-ca.pem'),
-          rejectUnauthorized: true,
+        dialectOptions: {
+          ssl: {
+            ca: fs.readFileSync('./certs/aiven-ca.pem'),
+            rejectUnauthorized: true,
+          },
         },
-      },
-      /*  pool: {
-        max: 4, // Maximum number of connections in the poo
-        min: 0, // Minimum number of connections in  the pool
-        acquire: 30000, // The maximum time, in milliseconds, that pool will try to get a connection before throwing an error
-        idle: 10000, // The maximum time, in milliseconds, that a connection can be idle before being released
-      },*/
+        */
+        pool: {
+          max: 20,
+          min: 2,
+          acquire: 60000,
+          idle: 10000,
+        },
       };
 
       this.sequelize = new Sequelize(
@@ -108,6 +109,12 @@ class DB {
         password: serverConfig.DB_PASSWORD,
         port: Number(serverConfig.DB_PORT),
         database: serverConfig.DB_NAME,
+        pool: {
+          max: 20,
+          min: 2,
+          acquire: 60000,
+          idle: 10000,
+        },
         logQueryParameters: true,
       };
 

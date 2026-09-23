@@ -117,10 +117,6 @@ export const configureSocket = (io) => {
       socket.join(room);
       socket.userId = userId;
       socket.data.userId = userId;
-      console.log(`👤 User ${userId} joined personal room: ${room}`);
-      console.log(`👤 User ${userId} joined personal room: ${room}`);
-      console.log(`👤 User ${userId} joined personal room: ${room}`);
-      console.log(`👤 User ${userId} joined personal room: ${room}`);
 
       try {
         await User.update({ isOnline: true }, { where: { id: userId } });
@@ -257,11 +253,7 @@ export const configureSocket = (io) => {
     // ─────────────────────────────────────────────────────────────────────────
 
     socket.on('disconnect', async () => {
-      console.log(`User disconnected: ${socket.id}`);
-            console.log(`User disconnected: ${socket.id}`);
-      console.log(`User disconnected: ${socket.id}`);
-      console.log(`User disconnected: ${socket.id}`);
-      console.log(`User disconnected: ${socket.id}`);
+
 
       const userId = socket.userId || socket.data?.userId;
 

@@ -1600,7 +1600,9 @@ console.log(`[LOGIN] Total users: ${userCount}`);
           isTelValid: true,
         });
 
-        userService.makeMatch();
+        userService.makeMatch().catch((err) => {
+          console.error('Error during makeMatch triggered from phone validation:', err?.message || err);
+        });
         return relatedUser;
       }
     } catch (error) {
