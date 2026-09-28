@@ -544,26 +544,39 @@ class IdentityService {
       otp: data.otp,
     });
 
+    const isSuccess =
+      (!gatewayResult?.statusCode || Number(gatewayResult.statusCode) === 200) &&
+      (!gatewayResult?.data?.status || String(gatewayResult.data.status).toUpperCase() === 'SUCCESS') &&
+      gatewayResult?.data?.otpVerified !== false &&
+      Boolean(gatewayResult?.data?.providerResponse?.nin || gatewayResult?.data?.identityNumber || gatewayResult?.data?.nin);
+
     const transaction = await IdentityTransaction.findOne({
       where: { identityId: data.identityId },
       order: [['createdAt', 'DESC']],
     });
 
     if (transaction) {
-      transaction.paymentStatus = 'successful';
+      transaction.paymentStatus = isSuccess ? 'successful' : 'failed';
       transaction.providerResponse = gatewayResult;
       await transaction.save();
     }
 
+    const providerResponse =
+      gatewayResult?.data?.providerResponse ||
+      gatewayResult?.providerResponse ||
+      null;
+
     // Trigger webhook notification if client has webhookUrl configured
     if (client && client.webhookUrl) {
       this.dispatchWebhook(client.webhookUrl, {
-        event: 'identity.nin.verified',
+        event: isSuccess ? 'identity.nin.verified' : 'identity.nin.failed',
         timestamp: new Date().toISOString(),
         data: {
           transactionId: transaction?.transactionId || null,
           identityId: data.identityId,
-          status: 'SUCCESS',
+          status: isSuccess ? 'SUCCESS' : 'FAILED',
+          verified: isSuccess,
+          providerResponse: isSuccess ? providerResponse : null,
           verificationResult: gatewayResult,
         },
       }).catch((err) => {
@@ -571,7 +584,21 @@ class IdentityService {
       });
     }
 
-    return gatewayResult;
+    if (!isSuccess) {
+      const errorMessage =
+        gatewayResult?.message ||
+        gatewayResult?.responseMessage ||
+        gatewayResult?.data?.message ||
+        'Invalid or incorrect OTP for NIN verification.';
+      throw new BadRequestError(errorMessage);
+    }
+
+    return {
+      identityId: data.identityId,
+      verified: true,
+      providerResponse,
+      raw: gatewayResult,
+    };
   }
 
   // ─── WEBHOOK DISPATCHER ─────────────────────────────────────
