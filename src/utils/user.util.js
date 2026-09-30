@@ -720,6 +720,7 @@ class UserUtil {
     amount: Joi.number().positive().required(),
     durationHours: Joi.number().positive().optional().default(48),
     narration: Joi.string().optional().default('Promotional credit (valid for 48 hours)'),
+    adminId: Joi.number().integer().optional(),
   }).or('userId', 'emailAddress');
 
   verifyHandleRemoveCredit = Joi.object({
@@ -728,6 +729,7 @@ class UserUtil {
     creditId: Joi.number().integer().optional(),
     amount: Joi.number().positive().optional(),
     reason: Joi.string().optional().default('Admin removed promotional credit'),
+    adminId: Joi.number().integer().optional(),
   }).or('userId', 'emailAddress');
 
   verifyHandleGetPromoCredits = Joi.object({
