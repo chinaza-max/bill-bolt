@@ -498,6 +498,34 @@ this.sequelize.query(disableForeignKeyChecks)
     } catch (err) {
       console.error('[DB Alter] Error creating IdentityTransaction table:', err.message);
     }
+
+    // ─── PROMO CREDIT: Create UserPromoCredit table ──────────────────
+    try {
+      await this.sequelize.query(`
+        CREATE TABLE IF NOT EXISTS \`UserPromoCredit\` (
+          \`id\` INT AUTO_INCREMENT PRIMARY KEY,
+          \`userId\` INT NOT NULL,
+          \`amount\` DOUBLE NOT NULL,
+          \`remainingAmount\` DOUBLE NOT NULL,
+          \`durationHours\` INT NOT NULL DEFAULT 48,
+          \`expiresAt\` DATETIME NOT NULL,
+          \`status\` ENUM('active', 'used', 'expired', 'revoked') NOT NULL DEFAULT 'active',
+          \`narration\` VARCHAR(255) NULL,
+          \`adminId\` INT NULL,
+          \`expiredAt\` DATETIME NULL,
+          \`revokedAt\` DATETIME NULL,
+          \`isDeleted\` TINYINT(1) NOT NULL DEFAULT 0,
+          \`createdAt\` DATETIME NOT NULL,
+          \`updatedAt\` DATETIME NOT NULL,
+          INDEX (\`userId\`),
+          INDEX (\`status\`),
+          INDEX (\`expiresAt\`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+      console.log('[DB Alter] UserPromoCredit table created (or already exists)');
+    } catch (err) {
+      console.error('[DB Alter] Error creating UserPromoCredit table:', err.message);
+    }
   }
 }
 

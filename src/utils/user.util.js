@@ -713,6 +713,29 @@ class UserUtil {
     type: Joi.string().valid('NIN', 'BVN').default('NIN'),
     otp: Joi.string().required(),
   });
+
+  verifyHandleCreditUser = Joi.object({
+    userId: Joi.number().integer().optional(),
+    emailAddress: Joi.string().email().optional(),
+    amount: Joi.number().positive().required(),
+    durationHours: Joi.number().positive().optional().default(48),
+    narration: Joi.string().optional().default('Promotional credit (valid for 48 hours)'),
+  }).or('userId', 'emailAddress');
+
+  verifyHandleRemoveCredit = Joi.object({
+    userId: Joi.number().integer().optional(),
+    emailAddress: Joi.string().email().optional(),
+    creditId: Joi.number().integer().optional(),
+    amount: Joi.number().positive().optional(),
+    reason: Joi.string().optional().default('Admin removed promotional credit'),
+  }).or('userId', 'emailAddress');
+
+  verifyHandleGetPromoCredits = Joi.object({
+    userId: Joi.number().integer().optional(),
+    status: Joi.string().valid('active', 'used', 'expired', 'revoked', 'all').optional().default('all'),
+    page: Joi.number().integer().min(1).optional().default(1),
+    limit: Joi.number().integer().min(1).max(100).optional().default(20),
+  });
 }
 
 export default new UserUtil();

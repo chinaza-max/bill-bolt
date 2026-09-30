@@ -2212,4 +2212,78 @@ export default class UserController {
       next(error);
     }
   }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ░░░ PROMO / EXPIRING CREDIT CONTROLLERS ░░░░░░░░░░░░░░░░░░░░░░░░░
+  // ═══════════════════════════════════════════════════════════════════
+
+  async creditUserPromo(req, res, next) {
+    try {
+      const data = {
+        ...req.body,
+        adminId: req.user?.id,
+      };
+      const result = await userService.handleCreditUser(data);
+      return res.status(200).json({
+        status: 200,
+        message: result.message,
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async removeUserPromoCredit(req, res, next) {
+    try {
+      const data = {
+        ...req.body,
+        adminId: req.user?.id,
+      };
+      const result = await userService.handleRemoveCredit(data);
+      return res.status(200).json({
+        status: 200,
+        message: result.message,
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async getPromoCredits(req, res, next) {
+    try {
+      const data = {
+        ...req.query,
+      };
+      const result = await userService.handleGetPromoCredits(data);
+      return res.status(200).json({
+        status: 200,
+        message: 'Promotional credits retrieved successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+
+  async getUserWithdrawableBalance(req, res, next) {
+    try {
+      const data = {
+        userId: req.query.userId || req.user?.id,
+      };
+      const result = await userService.handleGetUserWithdrawableBalance(data);
+      return res.status(200).json({
+        status: 200,
+        message: 'Withdrawable balance retrieved successfully',
+        data: result,
+      });
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
 }

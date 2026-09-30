@@ -168,6 +168,14 @@ class UserRoutes extends UserController {
     this.router.get('/sw/admin/merchants', this.adminGetSWMerchants);
     this.router.get('/sw/admin/analytics', this.getSWAnalytics);
     this.router.get('/getUnverifiedEmailUsers', this.getUnverifiedEmailUsers);
+
+    // ═══════════════════════════════════════════════════════════════════
+    // ░░░ PROMOTIONAL / EXPIRING CREDIT ROUTES ░░░░░░░░░░░░░░░░░░░░░░░░
+    // ═══════════════════════════════════════════════════════════════════
+    this.router.post('/admin/credit-user', this.creditUserPromo);
+    this.router.post('/admin/remove-credit', this.removeUserPromoCredit);
+    this.router.get('/admin/promo-credits', this.getPromoCredits);
+    this.router.get('/withdrawable-balance', this.getUserWithdrawableBalance);
   }
 }
 

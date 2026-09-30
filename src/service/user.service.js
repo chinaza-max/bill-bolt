@@ -14,6 +14,7 @@ import {
   SpecialWithdrawalDenomination,
   MerchantSpecialWithdrawalProfile,
   MerchantDenominationCharge,
+  UserPromoCredit,
 } from '../db/models/index.js';
 import db from '../db/index.js';
 import userUtil from '../utils/user.util.js';
@@ -68,6 +69,7 @@ class UserService extends NotificationServicePush {
   SpecialWithdrawalDenominationModel = SpecialWithdrawalDenomination;
   MerchantSpecialWithdrawalProfileModel = MerchantSpecialWithdrawalProfile;
   MerchantDenominationChargeModel = MerchantDenominationCharge;
+  UserPromoCreditModel = UserPromoCredit;
 
   #lastGeoRequestTime = 0;
   #GEO_RATE_LIMIT_MS = 1500;
@@ -80,6 +82,13 @@ class UserService extends NotificationServicePush {
     this.notificationService = new NotificationService();
     // this.authServiceClass = authService;
     // this.getRouteSummary(-74.044502, 40.689247, -73.98513, 40.758896);
+
+    // Run sweep of stale promotional credits every 5 minutes
+    setInterval(() => {
+      this.expireAllStalePromoCredits().catch((err) =>
+        console.error('[UserService] Stale promo credit sweep error:', err)
+      );
+    }, 5 * 60 * 1000);
   }
   async loadGateWay(alternativeGateway) {
     const Setting = await this.SettingModel.findByPk(1);
@@ -1745,6 +1754,32 @@ class UserService extends NotificationServicePush {
         ],
       });
 
+      if (userResult) {
+        const promoSummary = await this.getUserPromoSummary(userId);
+        if (promoSummary) {
+          userResult.setDataValue(
+            'allowedToWithdraw',
+            promoSummary.allowedToWithdraw
+          );
+          userResult.setDataValue(
+            'withdrawableBalance',
+            promoSummary.withdrawableBalance
+          );
+          userResult.setDataValue(
+            'promoBalance',
+            promoSummary.activePromoBalance
+          );
+          userResult.setDataValue(
+            'hasActivePromo',
+            promoSummary.hasActivePromo
+          );
+          userResult.setDataValue(
+            'specialWithdrawalOnlyBalance',
+            promoSummary.activePromoBalance
+          );
+        }
+      }
+
       return userResult;
     } catch (error) {
       console.error('Error fetching transactions with details:', error);
@@ -2357,6 +2392,30 @@ class UserService extends NotificationServicePush {
 
       if (!user) throw new NotFoundError('User not found');
 
+      const promoSummary = await this.getUserPromoSummary(userId);
+      if (promoSummary) {
+        user.setDataValue(
+          'allowedToWithdraw',
+          promoSummary.allowedToWithdraw
+        );
+        user.setDataValue(
+          'withdrawableBalance',
+          promoSummary.withdrawableBalance
+        );
+        user.setDataValue(
+          'promoBalance',
+          promoSummary.activePromoBalance
+        );
+        user.setDataValue(
+          'hasActivePromo',
+          promoSummary.hasActivePromo
+        );
+        user.setDataValue(
+          'specialWithdrawalOnlyBalance',
+          promoSummary.activePromoBalance
+        );
+      }
+
       return user;
     } catch (error) {
       console.log(error);
@@ -2646,13 +2705,27 @@ class UserService extends NotificationServicePush {
       );
     }
 
-    // 4. Check wallet balance
-    const wallet = this.convertToJson(user.walletBalance) || { current: 0 };
-    const currentBalance = parseFloat(wallet.current ?? 0);
+    // 4. Check wallet balance & withdrawable allowance
+    const promoSummary = await this.getUserPromoSummary(userId);
+    const currentBalance = promoSummary ? promoSummary.totalBalance : 0;
+    const withdrawableBalance = promoSummary
+      ? promoSummary.withdrawableBalance
+      : 0;
 
     if (currentBalance < amount) {
       throw new BadRequestError(
         `Insufficient balance. Available: ₦${currentBalance}, Requested: ₦${amount}`
+      );
+    }
+
+    if (amount > withdrawableBalance) {
+      if (promoSummary && promoSummary.activePromoBalance > 0) {
+        throw new BadRequestError(
+          `Insufficient withdrawable balance. You can only directly withdraw funds funded by yourself (₦${withdrawableBalance}). Your promotional credit of ₦${promoSummary.activePromoBalance} can only be spent on normal orders or special withdrawal requests.`
+        );
+      }
+      throw new BadRequestError(
+        `Insufficient withdrawable balance. Allowed: ₦${withdrawableBalance}, Requested: ₦${amount}`
       );
     }
 
@@ -2850,15 +2923,27 @@ class UserService extends NotificationServicePush {
       accountName,
     });
 
-    // 10. Check balance
+    // 10. Check balance & withdrawable allowance
     console.log('[verifyOtp] Step 10: Checking wallet balance...');
-    const wallet = this.convertToJson(user.walletBalance) || { current: 0 };
-    const currentBalance = parseFloat(wallet.current ?? 0);
+    const promoSummary = await this.getUserPromoSummary(userId);
+    const currentBalance = promoSummary ? promoSummary.totalBalance : 0;
+    const withdrawableBalance = promoSummary
+      ? promoSummary.withdrawableBalance
+      : 0;
 
     if (currentBalance < amount) {
       console.log('[verifyOtp] ❌ Step 10 FAILED: Insufficient balance');
       throw new BadRequestError(
         `Insufficient balance. Available: ₦${currentBalance}`
+      );
+    }
+
+    if (amount > withdrawableBalance) {
+      console.log(
+        '[verifyOtp] ❌ Step 10 FAILED: Exceeds allowed withdrawable balance'
+      );
+      throw new BadRequestError(
+        `Insufficient withdrawable balance. Allowed: ₦${withdrawableBalance}. Promotional credit can only be spent on normal orders or special withdrawal requests.`
       );
     }
     console.log('[verifyOtp] ✅ Step 10 PASSED: Balance sufficient');
@@ -4388,6 +4473,14 @@ class UserService extends NotificationServicePush {
         { transaction: t }
       );
 
+      // Consume promotional credit if this normal order spends promo funds
+      await this.consumePromoCreditOnSpend(
+        userId,
+        amount,
+        currentUserBalance,
+        t
+      );
+
       // 5. Update Setting wallet (service charge)
       let settingWallet = { previous: 0, current: 0 };
       try {
@@ -5042,6 +5135,32 @@ class UserService extends NotificationServicePush {
       const UserModelResult = await this.UserModel.findByPk(userId);
       const MerchantProfileModelResult =
         await this.MerchantProfileModel.findOne({ where: { userId } });
+
+      if (UserModelResult) {
+        const promoSummary = await this.getUserPromoSummary(userId);
+        if (promoSummary) {
+          UserModelResult.setDataValue(
+            'allowedToWithdraw',
+            promoSummary.allowedToWithdraw
+          );
+          UserModelResult.setDataValue(
+            'withdrawableBalance',
+            promoSummary.withdrawableBalance
+          );
+          UserModelResult.setDataValue(
+            'promoBalance',
+            promoSummary.activePromoBalance
+          );
+          UserModelResult.setDataValue(
+            'hasActivePromo',
+            promoSummary.hasActivePromo
+          );
+          UserModelResult.setDataValue(
+            'specialWithdrawalOnlyBalance',
+            promoSummary.activePromoBalance
+          );
+        }
+      }
 
       return {
         UserModelResult,
@@ -7304,6 +7423,14 @@ class UserService extends NotificationServicePush {
           { transaction: t }
         );
 
+        // Consume from active promotional credits if this special withdrawal request uses promo funds
+        await this.consumePromoCreditOnSpend(
+          userId,
+          costs.totalAmount,
+          currentBalance,
+          t
+        );
+
         // Create transaction record
         const transactionRecord = await this.TransactionModel.create(
           {
@@ -8564,6 +8691,528 @@ class UserService extends NotificationServicePush {
       console.error('Error fetching unverified email users:', error);
       throw new SystemError(error.name, error.parent);
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ░░░ PROMOTIONAL / EXPIRING CREDIT (48-HOUR WALLET CREDIT) ░░░░░░░░
+  // ═══════════════════════════════════════════════════════════════════
+
+  /**
+   * Expire any active promotional credits whose expiration time has passed
+   * and automatically deduct the remaining unspent promo amount from user's wallet.
+   */
+  async expirePromoCreditsForUser(userId, externalTransaction = null) {
+    try {
+      const now = new Date();
+      const expiredCredits = await this.UserPromoCreditModel.findAll({
+        where: {
+          userId,
+          status: 'active',
+          expiresAt: { [Op.lte]: now },
+          remainingAmount: { [Op.gt]: 0 },
+          isDeleted: false,
+        },
+        ...(externalTransaction ? { transaction: externalTransaction } : {}),
+      });
+
+      if (!expiredCredits || expiredCredits.length === 0) return 0;
+
+      const runWithTransaction = async (t) => {
+        let totalDeducted = 0;
+        const user = await this.UserModel.findByPk(userId, {
+          transaction: t,
+          lock: true,
+        });
+        if (!user) return 0;
+
+        let wallet =
+          typeof user.walletBalance === 'string'
+            ? JSON.parse(user.walletBalance)
+            : user.walletBalance || { previous: 0, current: 0 };
+        let currentBal = parseFloat(wallet.current ?? 0);
+
+        for (const credit of expiredCredits) {
+          const toDeduct = Math.min(
+            currentBal,
+            parseFloat(credit.remainingAmount)
+          );
+          if (toDeduct > 0) {
+            currentBal -= toDeduct;
+            totalDeducted += toDeduct;
+          }
+
+          await credit.update(
+            {
+              status: 'expired',
+              expiredAt: now,
+              remainingAmount: 0,
+            },
+            { transaction: t }
+          );
+
+          if (toDeduct > 0) {
+            await this.TransactionModel.create(
+              {
+                userId,
+                transactionId: authService.generateOrderId('EXP_CR', 10),
+                amount: toDeduct,
+                transactionType: 'withdrawal',
+                paymentStatus: 'successful',
+                transactionFrom: 'wallet',
+                narration: `Promotional credit of ₦${credit.amount} expired after ${credit.durationHours} hours`,
+              },
+              { transaction: t }
+            );
+          }
+        }
+
+        if (totalDeducted > 0) {
+          await user.update(
+            {
+              walletBalance: {
+                previous: parseFloat(wallet.current ?? 0),
+                current: Math.max(0, currentBal),
+              },
+            },
+            { transaction: t }
+          );
+        }
+
+        return totalDeducted;
+      };
+
+      if (externalTransaction) {
+        return await runWithTransaction(externalTransaction);
+      } else {
+        return await this.UserModel.sequelize.transaction(runWithTransaction);
+      }
+    } catch (err) {
+      console.error(`[expirePromoCreditsForUser] Error for user ${userId}:`, err);
+      return 0;
+    }
+  }
+
+  /**
+   * Periodic sweep to expire all stale promotional credits across all users
+   */
+  async expireAllStalePromoCredits() {
+    try {
+      const now = new Date();
+      const staleCredits = await this.UserPromoCreditModel.findAll({
+        attributes: ['userId'],
+        where: {
+          status: 'active',
+          expiresAt: { [Op.lte]: now },
+          remainingAmount: { [Op.gt]: 0 },
+          isDeleted: false,
+        },
+        group: ['userId'],
+      });
+
+      for (const record of staleCredits) {
+        await this.expirePromoCreditsForUser(record.userId);
+      }
+    } catch (err) {
+      console.error('[expireAllStalePromoCredits] Background sweep error:', err);
+    }
+  }
+
+  /**
+   * Get user wallet summary with breakdown of total balance,
+   * allowed withdrawable amount, and active promotional credit.
+   */
+  async getUserPromoSummary(userId, t = null) {
+    await this.expirePromoCreditsForUser(userId, t);
+
+    const user = await this.UserModel.findByPk(userId, {
+      ...(t ? { transaction: t } : {}),
+    });
+    if (!user) return null;
+
+    let wallet =
+      typeof user.walletBalance === 'string'
+        ? JSON.parse(user.walletBalance)
+        : user.walletBalance || { previous: 0, current: 0 };
+    const totalBalance = parseFloat(wallet.current ?? 0);
+
+    const activeCredits = await this.UserPromoCreditModel.findAll({
+      where: {
+        userId,
+        status: 'active',
+        expiresAt: { [Op.gt]: new Date() },
+        remainingAmount: { [Op.gt]: 0 },
+        isDeleted: false,
+      },
+      order: [['expiresAt', 'ASC']],
+      ...(t ? { transaction: t } : {}),
+    });
+
+    const activePromoBalance = activeCredits.reduce(
+      (acc, cur) => acc + parseFloat(cur.remainingAmount),
+      0
+    );
+
+    const withdrawableBalance = Math.max(0, totalBalance - activePromoBalance);
+
+    return {
+      totalBalance,
+      withdrawableBalance,
+      allowedToWithdraw: withdrawableBalance,
+      activePromoBalance,
+      hasActivePromo: activePromoBalance > 0,
+      activeCredits,
+    };
+  }
+
+  /**
+   * Consume active promotional credit when user spends funds on ANY order ('normal' or 'special').
+   * If amount spent exceeds funded balance, the excess is deducted from active promotional credits.
+   */
+  async consumePromoCreditOnSpend(
+    userId,
+    amountSpent,
+    currentBalanceBeforeSpend,
+    t
+  ) {
+    try {
+      const activePromoCredits = await this.UserPromoCreditModel.findAll({
+        where: {
+          userId,
+          status: 'active',
+          expiresAt: { [Op.gt]: new Date() },
+          remainingAmount: { [Op.gt]: 0 },
+          isDeleted: false,
+        },
+        order: [['expiresAt', 'ASC']],
+        transaction: t,
+        lock: true,
+      });
+
+      if (!activePromoCredits || activePromoCredits.length === 0) return 0;
+
+      const totalPromoRemaining = activePromoCredits.reduce(
+        (acc, cur) => acc + parseFloat(cur.remainingAmount),
+        0
+      );
+      const fundedBal = Math.max(
+        0,
+        currentBalanceBeforeSpend - totalPromoRemaining
+      );
+      let promoToConsume = Math.max(0, amountSpent - fundedBal);
+
+      let totalConsumed = 0;
+      if (promoToConsume > 0) {
+        for (const pc of activePromoCredits) {
+          const avail = parseFloat(pc.remainingAmount);
+          const deduct = Math.min(avail, promoToConsume);
+          const newRem = avail - deduct;
+          await pc.update(
+            {
+              remainingAmount: Math.max(0, newRem),
+              status: newRem <= 0 ? 'used' : 'active',
+            },
+            { transaction: t }
+          );
+          totalConsumed += deduct;
+          promoToConsume -= deduct;
+          if (promoToConsume <= 0) break;
+        }
+      }
+
+      return totalConsumed;
+    } catch (err) {
+      console.error(
+        `[consumePromoCreditOnSpend] Error consuming promo credit for user ${userId}:`,
+        err
+      );
+      return 0;
+    }
+  }
+
+  /**
+   * Admin endpoint: Credit user with promotional/special funds.
+   * Funds increase user's total wallet balance and automatically expire after durationHours (default: 48h).
+   * This money cannot be directly withdrawn to a bank account; it can only be spent on normal orders or special withdrawal requests.
+   */
+  async handleCreditUser(data) {
+    const validated = await userUtil.verifyHandleCreditUser.validateAsync(data);
+    const { userId, emailAddress, amount, durationHours = 48, narration } =
+      validated;
+
+    let targetUser;
+    if (userId) {
+      targetUser = await this.UserModel.findByPk(userId);
+    } else if (emailAddress) {
+      targetUser = await this.UserModel.findOne({ where: { emailAddress } });
+    }
+
+    if (!targetUser) throw new NotFoundError('User not found');
+
+    const sequelize = this.UserModel.sequelize;
+
+    return await sequelize.transaction(async (t) => {
+      // 1. Clean up any stale expired credits first
+      await this.expirePromoCreditsForUser(targetUser.id, t);
+
+      // 2. Lock and refresh user
+      const user = await this.UserModel.findByPk(targetUser.id, {
+        transaction: t,
+        lock: true,
+      });
+
+      let wallet =
+        typeof user.walletBalance === 'string'
+          ? JSON.parse(user.walletBalance)
+          : user.walletBalance || { previous: 0, current: 0 };
+      const currentBal = parseFloat(wallet.current ?? 0);
+      const newBal = currentBal + parseFloat(amount);
+
+      const updatedWallet = {
+        previous: currentBal,
+        current: newBal,
+      };
+
+      await user.update({ walletBalance: updatedWallet }, { transaction: t });
+
+      const expiresAt = new Date(Date.now() + durationHours * 60 * 60 * 1000);
+
+      const promoCredit = await this.UserPromoCreditModel.create(
+        {
+          userId: user.id,
+          amount: parseFloat(amount),
+          remainingAmount: parseFloat(amount),
+          durationHours,
+          expiresAt,
+          status: 'active',
+          narration:
+            narration || `Promotional credit (valid for ${durationHours} hours)`,
+          adminId: data.adminId || null,
+        },
+        { transaction: t }
+      );
+
+      const transactionId = authService.generateOrderId('PROMO_CR', 10);
+      await this.TransactionModel.create(
+        {
+          userId: user.id,
+          transactionId,
+          amount: parseFloat(amount),
+          transactionType: 'fundwallet',
+          paymentStatus: 'successful',
+          transactionFrom: 'external',
+          narration:
+            narration ||
+            `Admin Promotional Credit (Valid for ${durationHours} hours)`,
+        },
+        { transaction: t }
+      );
+
+      const promoSummary = await this.getUserPromoSummary(user.id, t);
+
+      return {
+        creditId: promoCredit.id,
+        userId: user.id,
+        emailAddress: user.emailAddress,
+        fullName: `${user.firstName} ${user.lastName}`,
+        creditedAmount: parseFloat(amount),
+        durationHours,
+        expiresAt,
+        totalBalance: newBal,
+        withdrawableBalance: promoSummary.withdrawableBalance,
+        allowedToWithdraw: promoSummary.allowedToWithdraw,
+        promoBalance: promoSummary.activePromoBalance,
+        narration: promoCredit.narration,
+        message: `Successfully credited ₦${amount} to user wallet. Expires in ${durationHours} hours. This credit can be spent on normal orders or special withdrawal requests (direct bank withdrawal is not permitted).`,
+      };
+    });
+  }
+
+  /**
+   * Admin endpoint: Remove / Revoke added promotional money from user's wallet.
+   */
+  async handleRemoveCredit(data) {
+    const validated = await userUtil.verifyHandleRemoveCredit.validateAsync(
+      data
+    );
+    const { userId, emailAddress, creditId, amount, reason } = validated;
+
+    let targetUser;
+    if (userId) {
+      targetUser = await this.UserModel.findByPk(userId);
+    } else if (emailAddress) {
+      targetUser = await this.UserModel.findOne({ where: { emailAddress } });
+    }
+
+    if (!targetUser) throw new NotFoundError('User not found');
+
+    const sequelize = this.UserModel.sequelize;
+
+    return await sequelize.transaction(async (t) => {
+      // 1. Clean up expired first
+      await this.expirePromoCreditsForUser(targetUser.id, t);
+
+      // 2. Lock and refresh user
+      const user = await this.UserModel.findByPk(targetUser.id, {
+        transaction: t,
+        lock: true,
+      });
+
+      const query = {
+        userId: user.id,
+        status: 'active',
+        remainingAmount: { [Op.gt]: 0 },
+        isDeleted: false,
+      };
+      if (creditId) query.id = creditId;
+
+      const activeCredits = await this.UserPromoCreditModel.findAll({
+        where: query,
+        order: [['expiresAt', 'ASC']],
+        transaction: t,
+        lock: true,
+      });
+
+      if (!activeCredits || activeCredits.length === 0) {
+        throw new BadRequestError(
+          'No active promotional credit found for this user'
+        );
+      }
+
+      let wallet =
+        typeof user.walletBalance === 'string'
+          ? JSON.parse(user.walletBalance)
+          : user.walletBalance || { previous: 0, current: 0 };
+      let currentBal = parseFloat(wallet.current ?? 0);
+
+      let targetDeduct = amount ? parseFloat(amount) : null;
+      let totalDeducted = 0;
+
+      for (const credit of activeCredits) {
+        const availableInCredit = parseFloat(credit.remainingAmount);
+        let deductFromThis = availableInCredit;
+        if (targetDeduct !== null) {
+          deductFromThis = Math.min(availableInCredit, targetDeduct);
+        }
+
+        const actualDeduct = Math.min(currentBal, deductFromThis);
+        currentBal = Math.max(0, currentBal - actualDeduct);
+        totalDeducted += actualDeduct;
+
+        const newRemaining = availableInCredit - deductFromThis;
+        await credit.update(
+          {
+            remainingAmount: Math.max(0, newRemaining),
+            status: newRemaining <= 0 ? 'revoked' : 'active',
+            revokedAt: newRemaining <= 0 ? new Date() : null,
+          },
+          { transaction: t }
+        );
+
+        if (targetDeduct !== null) {
+          targetDeduct -= deductFromThis;
+          if (targetDeduct <= 0) break;
+        }
+      }
+
+      await user.update(
+        {
+          walletBalance: {
+            previous: parseFloat(wallet.current ?? 0),
+            current: currentBal,
+          },
+        },
+        { transaction: t }
+      );
+
+      const transactionId = authService.generateOrderId('PROMO_REV', 10);
+      await this.TransactionModel.create(
+        {
+          userId: user.id,
+          transactionId,
+          amount: totalDeducted,
+          transactionType: 'withdrawal',
+          paymentStatus: 'successful',
+          transactionFrom: 'wallet',
+          narration: reason || 'Admin Revoked Promotional Credit',
+        },
+        { transaction: t }
+      );
+
+      const promoSummary = await this.getUserPromoSummary(user.id, t);
+
+      return {
+        userId: user.id,
+        emailAddress: user.emailAddress,
+        fullName: `${user.firstName} ${user.lastName}`,
+        totalDeducted,
+        newTotalBalance: currentBal,
+        withdrawableBalance: promoSummary.withdrawableBalance,
+        allowedToWithdraw: promoSummary.allowedToWithdraw,
+        remainingPromoBalance: promoSummary.activePromoBalance,
+        message: `Successfully removed ₦${totalDeducted} promotional credit from user wallet.`,
+      };
+    });
+  }
+
+  /**
+   * Admin endpoint: Get promotional credit history / active credits list
+   */
+  async handleGetPromoCredits(data) {
+    const validated = await userUtil.verifyHandleGetPromoCredits.validateAsync(
+      data
+    );
+    const { userId, status, page = 1, limit = 20 } = validated;
+    const offset = (page - 1) * limit;
+
+    const where = { isDeleted: false };
+    if (userId) {
+      where.userId = userId;
+      await this.expirePromoCreditsForUser(userId);
+    }
+    if (status && status !== 'all') {
+      where.status = status;
+    }
+
+    const { count, rows } = await this.UserPromoCreditModel.findAndCountAll({
+      where,
+      limit,
+      offset,
+      order: [['createdAt', 'DESC']],
+      include: [
+        {
+          model: this.UserModel,
+          as: 'User',
+          attributes: [
+            'id',
+            'firstName',
+            'lastName',
+            'emailAddress',
+            'walletBalance',
+          ],
+        },
+      ],
+    });
+
+    return {
+      total: count,
+      page,
+      limit,
+      totalPages: Math.ceil(count / limit),
+      promoCredits: rows,
+    };
+  }
+
+  /**
+   * Helper endpoint: Get withdrawable balance details for a user
+   */
+  async handleGetUserWithdrawableBalance(data) {
+    const userId = data.userId;
+    if (!userId) throw new BadRequestError('User ID is required');
+
+    const promoSummary = await this.getUserPromoSummary(userId);
+    if (!promoSummary) throw new NotFoundError('User not found');
+
+    return promoSummary;
   }
 }
 

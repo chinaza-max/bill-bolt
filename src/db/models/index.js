@@ -32,6 +32,9 @@ import IdentityClient, {
 import IdentityTransaction, {
   init as initIdentityTransaction,
 } from './identityTransaction.js';
+import UserPromoCredit, {
+  init as initUserPromoCredit,
+} from './userPromoCredit.js';
 
 
 function associate() {
@@ -205,6 +208,16 @@ function associate() {
     foreignKey: 'clientId',
     as: 'Client',
   });
+
+  // User <-> UserPromoCredit
+  User.hasMany(UserPromoCredit, {
+    foreignKey: 'userId',
+    as: 'PromoCredits',
+  });
+  UserPromoCredit.belongsTo(User, {
+    foreignKey: 'userId',
+    as: 'User',
+  });
 }
 
 async function authenticateConnection(connection) {
@@ -237,6 +250,7 @@ export {
   MerchantDenominationCharge,
   IdentityClient,
   IdentityTransaction,
+  UserPromoCredit,
 };
 
 export function init(connection) {
@@ -260,6 +274,7 @@ export function init(connection) {
   initMerchantDenominationCharge(connection);
   initIdentityClient(connection);
   initIdentityTransaction(connection);
+  initUserPromoCredit(connection);
   associate();
   authenticateConnection(connection);
 }
