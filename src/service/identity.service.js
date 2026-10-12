@@ -489,7 +489,8 @@ class IdentityService {
       await client.save();
     }
 
-    const transactionId = this.generateTransactionId('ID_NIN');
+    const typePrefix = data.type === 'BVN' ? 'ID_BVN' : 'ID_NIN';
+    const transactionId = this.generateTransactionId(typePrefix);
 
     await this.loadGateWay('safeHaven.gateway');
 
@@ -519,7 +520,7 @@ class IdentityService {
       clientId: client ? client.id : 0,
       transactionId,
       reference: transactionId,
-      type: 'verification_nin',
+      type: data.type === 'BVN' ? 'verification_bvn' : 'verification_nin',
       amount: ninFee,
       previousBalance,
       newBalance,
@@ -548,7 +549,13 @@ class IdentityService {
       (!gatewayResult?.statusCode || Number(gatewayResult.statusCode) === 200) &&
       (!gatewayResult?.data?.status || String(gatewayResult.data.status).toUpperCase() === 'SUCCESS') &&
       gatewayResult?.data?.otpVerified !== false &&
-      Boolean(gatewayResult?.data?.providerResponse?.nin || gatewayResult?.data?.identityNumber || gatewayResult?.data?.nin);
+      Boolean(
+        gatewayResult?.data?.providerResponse?.nin ||
+        gatewayResult?.data?.providerResponse?.bvn ||
+        gatewayResult?.data?.identityNumber ||
+        gatewayResult?.data?.nin ||
+        gatewayResult?.data?.bvn
+      );
 
     const transaction = await IdentityTransaction.findOne({
       where: { identityId: data.identityId },
@@ -569,11 +576,14 @@ class IdentityService {
     // Trigger webhook notification if client has webhookUrl configured
     if (client && client.webhookUrl) {
       this.dispatchWebhook(client.webhookUrl, {
-        event: isSuccess ? 'identity.nin.verified' : 'identity.nin.failed',
+        event: data.type === 'BVN'
+          ? (isSuccess ? 'identity.bvn.verified' : 'identity.bvn.failed')
+          : (isSuccess ? 'identity.nin.verified' : 'identity.nin.failed'),
         timestamp: new Date().toISOString(),
         data: {
           transactionId: transaction?.transactionId || null,
           identityId: data.identityId,
+          type: data.type || 'NIN',
           status: isSuccess ? 'SUCCESS' : 'FAILED',
           verified: isSuccess,
           providerResponse: isSuccess ? providerResponse : null,
@@ -589,13 +599,13 @@ class IdentityService {
         gatewayResult?.message ||
         gatewayResult?.responseMessage ||
         gatewayResult?.data?.message ||
-        'Invalid or incorrect OTP for NIN verification.';
+        'Invalid or incorrect OTP for identity verification.';
       throw new BadRequestError(errorMessage);
     }
 
     return {
       identityId: data.identityId,
-      verified: true,
+      verified: isSuccess,
       providerResponse,
       raw: gatewayResult,
     };

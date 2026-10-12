@@ -355,22 +355,32 @@ Generates a dedicated dynamic virtual bank account number to credit your identit
 
 ---
 
-## 3. NIN Identity Verification
+## 3. Identity Verification (NIN & BVN)
 
-The fee for each NIN verification is automatically debited from your identity wallet balance based on the current setting (default: **₦60 per verification**).
-`debitAccountNumber` is **NOT required** in your request payload — it is managed securely on the backend.
+The fee for each verification is automatically debited from your identity wallet balance based on the current setting (default: **₦60 per verification**).
+`debitAccountNumber` is **NOT required** in your request payload — it is managed securely on the backend. Both **NIN** and **BVN** verifications are supported via the same endpoints by specifying the `type` parameter (`NIN` or `BVN`).
 
-### 3.1 Initiate NIN Verification
+### 3.1 Initiate Verification (NIN / BVN)
 **`POST /api/v1/identity/nin/initiate`**
 
-Initiates NIN verification. Triggers an OTP sent to the registered phone number attached to the NIN.
+Initiates verification by requesting an OTP sent to the registered phone number attached to the NIN or BVN.
 
 **Headers:** `x-api-key: <API_KEY>` or `Authorization: Bearer <TOKEN>`
 
-**Request Body:**
+**Request Body (NIN):**
 ```json
 {
   "number": "72022553879",
+  "type": "NIN",
+  "async": false
+}
+```
+
+**Request Body (BVN):**
+```json
+{
+  "number": "12345678901",
+  "type": "BVN",
   "async": false
 }
 ```
@@ -383,66 +393,190 @@ Initiates NIN verification. Triggers an OTP sent to the registered phone number 
   "data": {
     "statusCode": 200,
     "data": {
-      "_id": "6a761a8da4069463bbd97463",
-      "clientId": "695e5e45aec27700242d76e0",
-      "identityNumber": "72022553879",
-      "type": "NIN",
+      "_id": "690c61c68d3d86c9e8b3cacd",
+      "clientId": "6874eb47aaad890024be3930",
+      "identityNumber": "12345678901",
+      "type": "BVN",
       "amount": 50,
       "status": "SUCCESS",
-      "debitAccountNumber": "0117169247",
+      "debitAccountNumber": "0106664982",
       "otpVerified": false,
       "otpResendCount": 0,
-      "createdAt": "2026-08-07T17:49:01.051Z",
+      "createdAt": "2025-11-06T08:52:22.903Z",
       "provider": "truztcube",
-      "otpId": "6a761a902ec299002520b1f8"
+      "otpId": "690c61ca8d3d86c9e8b3cad1"
     },
     "phoneAndDobVerified": false,
-    "message": "Otp sent successfully to phone number ending with 4615. Didn’t get it? Dial *347*238#."
+    "message": "Otp sent successfully to phone number ending with 678. Didn’t get it? Dial *347*238#."
   }
 }
 ```
 
 ---
 
-### 3.2 Validate / Verify NIN OTP
+### 3.2 Validate / Verify OTP (NIN & BVN)
 **`POST /api/v1/identity/nin/verify`**
 
-Validates the OTP code entered by the user. On success, returns full NIN record details.
+Validates the OTP code entered by the user. On success, returns full identity and provider details.
 
 **Headers:** `x-api-key: <API_KEY>` or `Authorization: Bearer <TOKEN>`
 
 **Request Body:**
 ```json
 {
-  "identityId": "6a761a8da4069463bbd97463",
-  "otp": "123456"
+  "identityId": "690c61c68d3d86c9e8b3cacd",
+  "otp": "123456",
+  "type": "BVN"
 }
 ```
+*(Note: `type` defaults to `"NIN"` if omitted. Specify `"BVN"` when verifying BVN).*
 
-**Response (200 OK):**
+**Response (200 OK - BVN Example):**
 ```json
 {
   "status": 200,
   "message": "Verification result retrieved successfully",
   "data": {
-    "statusCode": 200,
-    "message": "record fetched successfully",
-    "data": {
-      "_id": "6a761a8da4069463bbd97463",
-      "identityNumber": "72022553879",
-      "type": "NIN",
-      "status": "SUCCESS",
-      "otpVerified": true,
-      "providerResponse": {
-        "nin": "72022553879",
-        "fullName": "CHINAZA OGBONNA",
-        "firstName": "CHINAZA",
-        "middleName": "",
-        "lastName": "OGBONNA",
-        "dateOfBirth": "28-07-1999",
-        "gender": "m",
-        "phone": "08184724615",
-        "residentialAddress": "7B JAYMOLA CLOSE MINISTERS HILL"
+    "identityId": "690c61c68d3d86c9e8b3cacd",
+    "verified": true,
+    "providerResponse": {
+      "bvn": "12345678901",
+      "fullName": "John Doe",
+      "firstName": "John",
+      "middleName": "",
+      "lastName": "Doe",
+      "dateOfBirth": "14-02-1920",
+      "phoneNumber1": "0812345678",
+      "phoneNumber2": "0812345678",
+      "gender": "Male",
+      "enrollmentBank": "Access Bank",
+      "enrollmentBranch": "Victoria Island Branch",
+      "email": "johndoe@example.com",
+      "lgaOfOrigin": "Ikeja",
+      "lgaOfResidence": "Eti-Osa",
+      "maritalStatus": "Single",
+      "nin": "",
+      "nationality": "Nigerian",
+      "residentialAddress": "12 Adeola Odeku, Victoria Island",
+      "stateOfOrigin": "Lagos State",
+      "stateOfResidence": "Lagos State",
+      "title": "Mr",
+      "watchListed": "NO",
+      "levelOfAccount": "Tier 3",
+      "registrationDate": null,
+      "imageBase64": "/9j/4AAQSkZJRgABAgAAAQ..."
+    },
+    "raw": {
+      "statusCode": 200,
+      "message": "record fetched successfully",
+      "data": {
+        "_id": "690c61c68d3d86c9e8b3cacd",
+        "clientId": "6874eb47aaad890024be3930",
+        "identityNumber": "12345678901",
+        "type": "BVN",
+        "amount": 50,
+        "status": "SUCCESS",
+        "debitAccountNumber": "0106664982",
+        "vat": 0,
+        "stampDuty": 0,
+        "isDeleted": false,
+        "otpVerified": true,
+        "otpResendCount": 0,
+        "createdAt": "2025-11-06T08:52:22.903Z",
+        "updatedAt": "2025-11-24T08:59:20.395Z",
+        "__v": 0,
+        "debitMessage": "Approved or completed successfully",
+        "debitResponsCode": 200,
+        "debitSessionId": "090286251106085223546652615862",
+        "otpId": "690c61ca8d3d86c9e8b3cad1",
+        "providerResponse": {
+          "bvn": "12345678901",
+          "fullName": "John Doe",
+          "firstName": "John",
+          "middleName": "",
+          "lastName": "Doe",
+          "dateOfBirth": "14-02-1920",
+          "phoneNumber1": "0812345678",
+          "phoneNumber2": "0812345678",
+          "gender": "Male",
+          "enrollmentBank": "Access Bank",
+          "enrollmentBranch": "Victoria Island Branch",
+          "email": "johndoe@example.com",
+          "lgaOfOrigin": "Ikeja",
+          "lgaOfResidence": "Eti-Osa",
+          "maritalStatus": "Single",
+          "nin": "",
+          "nationality": "Nigerian",
+          "residentialAddress": "12 Adeola Odeku, Victoria Island",
+          "stateOfOrigin": "Lagos State",
+          "stateOfResidence": "Lagos State",
+          "title": "Mr",
+          "watchListed": "NO",
+          "levelOfAccount": "Tier 3",
+          "registrationDate": null,
+          "imageBase64": "/9j/4AAQSkZJRgABAgAAAQ..."
+        }
+      }
+    }
+  }
+}
+```
+
+**Response (200 OK - NIN Example):**
+```json
+{
+  "status": 200,
+  "message": "Verification result retrieved successfully",
+  "data": {
+    "identityId": "6a761a8da4069463bbd97463",
+    "verified": true,
+    "providerResponse": {
+      "nin": "72022553879",
+      "fullName": "CHINAZA OGBONNA",
+      "firstName": "CHINAZA",
+      "middleName": "",
+      "lastName": "OGBONNA",
+      "dateOfBirth": "28-07-1999",
+      "gender": "m",
+      "phone": "08184724615",
+      "residentialAddress": "7B JAYMOLA CLOSE MINISTERS HILL",
+      "imageBase64": "/9j/4AAQSkZJRgABAgAAAQ..."
+    },
+    "raw": {
+      "statusCode": 200,
+      "message": "record fetched successfully",
+      "data": {
+        "_id": "6a761a8da4069463bbd97463",
+        "clientId": "6874eb47aaad890024be3930",
+        "identityNumber": "72022553879",
+        "type": "NIN",
+        "amount": 50,
+        "status": "SUCCESS",
+        "debitAccountNumber": "0106664982",
+        "vat": 0,
+        "stampDuty": 0,
+        "isDeleted": false,
+        "otpVerified": true,
+        "otpResendCount": 0,
+        "createdAt": "2026-08-07T17:49:01.051Z",
+        "updatedAt": "2026-08-07T17:50:20.395Z",
+        "__v": 0,
+        "debitMessage": "Approved or completed successfully",
+        "debitResponsCode": 200,
+        "debitSessionId": "090286251106085223546652615862",
+        "otpId": "6a761a902ec299002520b1f8",
+        "providerResponse": {
+          "nin": "72022553879",
+          "fullName": "CHINAZA OGBONNA",
+          "firstName": "CHINAZA",
+          "middleName": "",
+          "lastName": "OGBONNA",
+          "dateOfBirth": "28-07-1999",
+          "gender": "m",
+          "phone": "08184724615",
+          "residentialAddress": "7B JAYMOLA CLOSE MINISTERS HILL",
+          "imageBase64": "/9j/4AAQSkZJRgABAgAAAQ..."
+        }
       }
     }
   }
@@ -472,31 +606,59 @@ Sent when your virtual bank transfer payment completes and your wallet is credit
 }
 ```
 
-### 4.2 Webhook Event: `identity.nin.verified`
-Sent asynchronously when a NIN verification OTP is validated.
+### 4.2 Webhook Event: `identity.nin.verified` / `identity.bvn.verified`
+Sent asynchronously when a NIN or BVN verification OTP is validated.
 
 ```json
 {
-  "event": "identity.nin.verified",
+  "event": "identity.bvn.verified",
   "timestamp": "2026-08-07T19:42:00.000Z",
   "data": {
-    "transactionId": "ID_NIN_17400055443322",
-    "identityId": "6a761a8da4069463bbd97463",
+    "transactionId": "ID_BVN_17400055443322",
+    "identityId": "690c61c68d3d86c9e8b3cacd",
+    "type": "BVN",
     "status": "SUCCESS",
+    "verified": true,
+    "providerResponse": {
+      "bvn": "12345678901",
+      "fullName": "John Doe",
+      "firstName": "John",
+      "middleName": "",
+      "lastName": "Doe",
+      "dateOfBirth": "14-02-1920",
+      "phoneNumber1": "0812345678",
+      "phoneNumber2": "0812345678",
+      "gender": "Male",
+      "enrollmentBank": "Access Bank",
+      "enrollmentBranch": "Victoria Island Branch",
+      "email": "johndoe@example.com",
+      "lgaOfOrigin": "Ikeja",
+      "lgaOfResidence": "Eti-Osa",
+      "maritalStatus": "Single",
+      "nin": "",
+      "nationality": "Nigerian",
+      "residentialAddress": "12 Adeola Odeku, Victoria Island",
+      "stateOfOrigin": "Lagos State",
+      "stateOfResidence": "Lagos State",
+      "title": "Mr",
+      "watchListed": "NO",
+      "levelOfAccount": "Tier 3",
+      "registrationDate": null,
+      "imageBase64": "/9j/4AAQSkZJRgABAgAAAQ..."
+    },
     "verificationResult": {
       "statusCode": 200,
       "message": "record fetched successfully",
       "data": {
-        "identityNumber": "72022553879",
+        "_id": "690c61c68d3d86c9e8b3cacd",
+        "identityNumber": "12345678901",
+        "type": "BVN",
+        "amount": 50,
+        "status": "SUCCESS",
         "otpVerified": true,
         "providerResponse": {
-          "nin": "72022553879",
-          "fullName": "CHINAZA OGBONNA",
-          "firstName": "CHINAZA",
-          "lastName": "OGBONNA",
-          "dateOfBirth": "28-07-1999",
-          "gender": "m",
-          "phone": "08184724615"
+          "bvn": "12345678901",
+          "fullName": "John Doe"
         }
       }
     }
